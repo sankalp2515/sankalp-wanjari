@@ -1,0 +1,741 @@
+@import "tailwindcss";
+
+/* ═══ Palette: "Warm Signal" — editorial amber + teal ═══════
+   Deliberately NOT the violet/cyan every AI builder ships.
+   Mostly warm neutrals + one confident amber signature, with a
+   complementary teal used sparingly. --os-accent-cyan now holds
+   teal; names kept so the whole app re-skins from here. */
+
+/* ─── Design tokens: dark (default) ─────────────────────── */
+:root,
+[data-theme="dark"] {
+  --os-bg:              #0C0B09;
+  --os-bg-elevated:     #16130F;
+  --os-bg-window:       #131110;
+  --os-bg-window-glass: rgba(19, 17, 15, 0.86);
+  --os-bg-surface:      #1E1A15;
+  --os-bg-hover:        #251F19;
+  --os-border:          #352E25;
+  --os-border-subtle:   #221D18;
+  --os-text:            #F8F3EA;
+  --os-text-secondary:  #C9BEAC;
+  --os-text-muted:      #9A8F7C;
+  --os-accent:          #F5A623;   /* amber signature */
+  --os-accent-cyan:     #2DC7B0;   /* complementary teal */
+  --os-accent-green:    #5FD08A;
+  --os-accent-orange:   #FF6B4A;
+  --os-titlebar:        #151210;
+  --os-titlebar-inactive: #100E0C;
+  --os-scrollbar:       #352E25;
+  --os-scrollbar-hover: #F5A623;
+  --os-grid-line:       #F5A623;
+  --os-grid-opacity:    0.03;
+  --os-shadow:
+    0 24px 64px rgba(0,0,0,0.6),
+    0 8px 24px rgba(0,0,0,0.5),
+    0 1px 0 rgba(255,255,255,0.04) inset;
+  --os-shadow-accent:
+    0 0 0 1px rgba(245,166,35,0.35),
+    0 24px 72px rgba(0,0,0,0.62),
+    0 8px 34px rgba(245,166,35,0.20),
+    0 1px 0 rgba(255,255,255,0.06) inset;
+}
+
+/* ─── Design tokens: light ───────────────────────────────── */
+[data-theme="light"] {
+  --os-bg:              #F6F1E8;   /* warm paper */
+  --os-bg-elevated:     #EFE8DA;
+  --os-bg-window:       #FFFDF8;
+  --os-bg-window-glass: rgba(255, 253, 248, 0.82);
+  --os-bg-surface:      #F1EADB;
+  --os-bg-hover:        #EAE1CF;
+  --os-border:          #DBD0BB;
+  --os-border-subtle:   #E7DECB;
+  --os-text:            #211C13;   /* warm ink */
+  --os-text-secondary:  #4C4535;
+  --os-text-muted:      #736A56;
+  --os-accent:          #B26A05;   /* deepened amber for AA on paper */
+  --os-accent-cyan:     #0B8477;   /* deep teal */
+  --os-accent-green:    #2C8F52;
+  --os-accent-orange:   #C6431F;
+  --os-titlebar:        #EFE8DA;
+  --os-titlebar-inactive: #F3EDE1;
+  --os-scrollbar:       #DBD0BB;
+  --os-scrollbar-hover: #B26A05;
+  --os-grid-line:       #B26A05;
+  --os-grid-opacity:    0.05;
+  --os-shadow:
+    0 24px 64px rgba(90,70,30,0.14),
+    0 8px 24px rgba(90,70,30,0.10);
+  --os-shadow-accent:
+    0 0 0 1px rgba(178,106,5,0.40),
+    0 24px 72px rgba(90,70,30,0.18),
+    0 8px 32px rgba(178,106,5,0.16);
+}
+
+/* ─── Base ───────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* v2: a normal, scrollable document. Sections flow; overlays float above. */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 72px; /* keep anchored sections clear of the fixed nav */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+body {
+  background: var(--os-bg);
+  color: var(--os-text);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.font-mono {
+  font-family: var(--font-mono), "JetBrains Mono", "Fira Code", "Consolas", monospace;
+  font-feature-settings: "liga" 1, "calt" 1;
+}
+
+.font-display {
+  font-family: var(--font-display), var(--font-inter), system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* Small mono text gets a touch more weight + tracking for legibility */
+.mono-small {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--os-scrollbar); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--os-scrollbar-hover); }
+
+/* ─── Selection ──────────────────────────────────────────── */
+::selection { background: color-mix(in srgb, var(--os-accent) 32%, transparent); color: var(--os-text); }
+
+/* ─── Cursor blink ───────────────────────────────────────── */
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.cursor-blink { animation: blink 1s step-end infinite; }
+
+/* ─── Pulse dot ──────────────────────────────────────────── */
+@keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(0.8)} }
+.pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+
+/* ═══ Window chrome ═══════════════════════════════════════ */
+
+/* Rotating gradient border for active windows */
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes border-rotate {
+  to { --border-angle: 360deg; }
+}
+
+.window-glass {
+  background: var(--os-bg-window-glass);
+  box-shadow: var(--os-shadow);
+}
+
+.window-border-active {
+  position: relative;
+}
+.window-border-active::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--border-angle),
+    var(--os-accent) 0%,
+    var(--os-accent-cyan) 25%,
+    var(--os-accent) 50%,
+    rgba(124,111,255,0.25) 75%,
+    var(--os-accent) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: border-rotate 6s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Fractal noise overlay (kills gradient banding, adds texture) */
+.glass-noise {
+  position: relative;
+}
+.glass-noise::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.025;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Depth of field for unfocused windows */
+.window-unfocused {
+  filter: brightness(0.88) saturate(0.85);
+  transform: scale(0.985);
+  transition: filter 0.3s ease, transform 0.3s ease;
+}
+.window-focused {
+  filter: none;
+  transform: scale(1);
+  transition: filter 0.3s ease, transform 0.3s ease;
+}
+
+/* ═══ Concierge landing ═══════════════════════════════════ */
+
+/* Scroll reveal — transform/opacity only (GPU-cheap) */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Section pulse when the agent morphs to it */
+@keyframes section-pulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--os-accent) 45%, transparent); }
+  100% { box-shadow: 0 0 0 22px transparent; }
+}
+.section-pulse {
+  border-radius: 24px;
+  animation: section-pulse 1.6s ease-out;
+}
+
+/* Aurora blobs for the ambient background */
+@keyframes aurora-drift {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(6%, -4%) scale(1.08); }
+  66%  { transform: translate(-4%, 5%) scale(0.96); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+/* Slow conic spin for accents */
+@keyframes slow-spin { to { transform: rotate(360deg); } }
+
+/* Gentle float */
+@keyframes float-y {
+  0%,100% { transform: translateY(0); }
+  50%     { transform: translateY(-8px); }
+}
+.animate-float { animation: float-y 4s ease-in-out infinite; }
+
+/* Caret blink for the command bar */
+@keyframes caret { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ── Scene navigation hint ─────────────────────────────── */
+
+/* Animated skill node ping — used in SignalScene constellation */
+@keyframes skill-ping {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--node-color, var(--os-accent)) 50%, transparent); }
+  50%       { box-shadow: 0 0 0 6px transparent; }
+}
+.skill-ping {
+  animation: skill-ping 3s ease-in-out infinite;
+}
+
+/* Respect reduced motion — kill non-essential animation */
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .section-pulse,
+  .animate-float,
+  .text-shimmer,
+  .skill-ping,
+  .window-border-active::before { animation: none !important; }
+}
+
+/* ─── Text shimmer for headings ──────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+.text-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--os-text) 40%,
+    var(--os-accent) 50%,
+    var(--os-accent-cyan) 55%,
+    var(--os-text) 65%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 6s linear infinite;
+}
+
+/* ─── Photo ring spin ─────────────────────────────────────── */
+@keyframes slow-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Stat counter pop-in ────────────────────────────────── */
+@keyframes stat-pop {
+  0%   { opacity: 0; transform: scale(0.6) translateY(8px); }
+  70%  { transform: scale(1.08) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.stat-pop {
+  animation: stat-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* ─── Glow pulse (for highlighted project cards etc.) ────── */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--os-accent) 50%, transparent); }
+  50%       { box-shadow: 0 0 0 10px transparent; }
+}
+.glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+/* ─── Slide-up entrance (panels, modals) ─────────────────── */
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.slide-up {
+  animation: slide-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* ─── Fade-scale entrance ────────────────────────────────── */
+@keyframes fade-scale-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.fade-scale-in {
+  animation: fade-scale-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* ─── Stagger children via CSS custom property ───────────── */
+.stagger-children > * {
+  opacity: 0;
+  animation: slide-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.stagger-children > *:nth-child(1)  { animation-delay: 0.05s; }
+.stagger-children > *:nth-child(2)  { animation-delay: 0.10s; }
+.stagger-children > *:nth-child(3)  { animation-delay: 0.15s; }
+.stagger-children > *:nth-child(4)  { animation-delay: 0.20s; }
+.stagger-children > *:nth-child(5)  { animation-delay: 0.25s; }
+.stagger-children > *:nth-child(6)  { animation-delay: 0.30s; }
+
+/* ─── Gradient border shimmer (project cards on hover) ─────  */
+@keyframes border-shimmer {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.hover-border-shimmer {
+  position: relative;
+}
+.hover-border-shimmer::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--os-accent),
+    var(--os-accent-cyan),
+    transparent
+  );
+  background-size: 200% 100%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.hover-border-shimmer:hover::before {
+  opacity: 1;
+  animation: border-shimmer 2s linear infinite;
+}
+
+/* ─── Number count-up flash ─────────────────────────────── */
+@keyframes number-flash {
+  0%   { color: var(--os-accent); transform: scale(1.15); }
+  100% { color: var(--os-accent); transform: scale(1); }
+}
+
+/* ─── Scan line (for the case study / terminal feel) ──────── */
+@keyframes scan {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+/* Reduced motion overrides */
+@media (prefers-reduced-motion: reduce) {
+  .stat-pop, .slide-up, .fade-scale-in,
+  .stagger-children > *,
+  .hover-border-shimmer::before {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* ─── Hide scrollbars globally (keep scrollability) ───────── */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─── 3D tilt cards (pointer-driven, GPU-cheap) ─────────────── */
+.tilt-wrap {
+  perspective: 900px;
+}
+.tilt-card {
+  transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateZ(0);
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.tilt-card:hover {
+  box-shadow: var(--os-shadow-accent);
+}
+/* Sheen that follows the pointer across the tilted card */
+.tilt-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    360px circle at var(--sheen-x, 50%) var(--sheen-y, 50%),
+    color-mix(in srgb, var(--os-accent) 9%, transparent),
+    transparent 55%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.tilt-card:hover::after { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce), (hover: none) {
+  .tilt-card { transform: none !important; }
+  .tilt-card::after { display: none; }
+}
+
+/* ─── Glass card (glassmorphism utility) ─────────────────────── */
+.glass-card {
+  background: color-mix(in srgb, var(--os-bg-window-glass) 88%, transparent);
+  /* Smaller blur radius → smaller backdrop snapshot buffer. The higher
+     background opacity above keeps the frosted look at a lower blur. */
+  backdrop-filter: blur(10px) saturate(135%);
+  -webkit-backdrop-filter: blur(10px) saturate(135%);
+  border: 1px solid color-mix(in srgb, var(--os-accent) 12%, var(--os-border));
+  box-shadow:
+    0 4px 24px rgba(0,0,0,0.3),
+    0 1px 0 rgba(255,255,255,0.04) inset;
+}
+
+[data-theme="light"] .glass-card {
+  background: rgba(255,253,248,0.72);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid color-mix(in srgb, var(--os-accent) 16%, var(--os-border));
+  box-shadow:
+    0 4px 24px rgba(90,70,30,0.10),
+    0 1px 0 rgba(255,255,255,0.7) inset;
+}
+
+/* ═══ GLASS DESIGN MODE ════════════════════════════════════════ */
+
+[data-design="glass"] {
+  --os-bg-window:       rgba(13, 11, 9, 0.35);
+  --os-bg-window-glass: rgba(13, 11, 9, 0.18);
+  --os-bg-surface:      rgba(30, 26, 21, 0.3);
+  --os-bg-elevated:     rgba(22, 19, 15, 0.4);
+}
+
+[data-design="glass"][data-theme="light"] {
+  --os-bg-window:       rgba(255, 253, 248, 0.32);
+  --os-bg-window-glass: rgba(255, 253, 248, 0.18);
+  --os-bg-surface:      rgba(241, 234, 219, 0.28);
+  --os-bg-elevated:     rgba(239, 232, 218, 0.38);
+}
+
+[data-design="glass"] .glass-card {
+  background: color-mix(in srgb, var(--os-bg-window-glass) 50%, transparent);
+  backdrop-filter: blur(28px) saturate(200%) brightness(1.06);
+  -webkit-backdrop-filter: blur(28px) saturate(200%) brightness(1.06);
+  border-color: color-mix(in srgb, var(--os-accent) 18%, rgba(255,255,255,0.07));
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.35),
+    0 1px 0 rgba(255,255,255,0.08) inset;
+}
+
+[data-design="glass"] header {
+  background: color-mix(in srgb, var(--os-bg) 38%, transparent) !important;
+  backdrop-filter: blur(32px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(180%) !important;
+  border-bottom-color: color-mix(in srgb, var(--os-accent) 14%, rgba(255,255,255,0.05)) !important;
+}
+
+/* Deep glass for panel windows */
+[data-design="glass"] .window-glass {
+  background: color-mix(in srgb, var(--os-bg-window-glass) 55%, transparent);
+  backdrop-filter: blur(24px) saturate(170%);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
+}
+
+/* ═══ GLITCH TEXT ═══════════════════════════════════════════════ */
+
+@keyframes glitch-1 {
+  0%,100% { clip-path: inset(0 0 96% 0);  transform: translate(-2px, 0); }
+  20%     { clip-path: inset(28% 0 58% 0); transform: translate(2px, 0); }
+  40%     { clip-path: inset(55% 0 32% 0); transform: translate(-1px, 0); }
+  60%     { clip-path: inset(75% 0 15% 0); transform: translate(3px, 0); }
+  80%     { clip-path: inset(12% 0 78% 0); transform: translate(-3px, 0); }
+}
+@keyframes glitch-2 {
+  0%,100% { clip-path: inset(82% 0 8% 0);  transform: translate(2px, 0); }
+  25%     { clip-path: inset(18% 0 68% 0); transform: translate(-2px, 0); }
+  50%     { clip-path: inset(48% 0 38% 0); transform: translate(3px, 0); }
+  75%     { clip-path: inset(6% 0 88% 0);  transform: translate(-3px, 0); }
+}
+
+.glitch-name {
+  position: relative;
+  display: inline-block;
+}
+.glitch-name::before,
+.glitch-name::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  pointer-events: none;
+  opacity: 0;
+}
+.glitch-name::before { color: var(--os-accent-cyan); }
+.glitch-name::after  { color: var(--os-accent-orange); }
+.glitch-active::before {
+  opacity: 0.65;
+  animation: glitch-1 0.35s steps(1) forwards;
+}
+.glitch-active::after {
+  opacity: 0.65;
+  animation: glitch-2 0.35s steps(1) forwards;
+}
+
+/* ═══ CARD SCAN LINE ════════════════════════════════════════════ */
+
+@keyframes scan-sweep {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(220%); }
+}
+.scan-card {
+  position: relative;
+  overflow: hidden;
+}
+.scan-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--os-accent) 10%, transparent) 35%,
+    color-mix(in srgb, var(--os-accent) 22%, transparent) 50%,
+    color-mix(in srgb, var(--os-accent) 10%, transparent) 65%,
+    transparent 100%
+  );
+  transform: translateX(-120%);
+  pointer-events: none;
+  z-index: 10;
+  border-radius: inherit;
+}
+.scan-card:hover::after {
+  animation: scan-sweep 0.85s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ═══ CONFETTI ══════════════════════════════════════════════════ */
+
+@keyframes confetti-fall {
+  0%   { transform: translateY(0)    rotate(0deg)   scale(1);   opacity: 1; }
+  100% { transform: translateY(90px) rotate(720deg) scale(0.2); opacity: 0; }
+}
+.confetti-particle {
+  position: fixed;
+  pointer-events: none;
+  z-index: 100001;
+  animation: confetti-fall 0.9s ease-out forwards;
+}
+
+/* ═══ PARTICLE ORBIT ════════════════════════════════════════════ */
+
+@keyframes orbit {
+  0%   { transform: rotate(var(--start-angle, 0deg)) translateX(var(--orbit-r, 60px)) rotate(calc(-1 * var(--start-angle, 0deg))); }
+  100% { transform: rotate(calc(var(--start-angle, 0deg) + 360deg)) translateX(var(--orbit-r, 60px)) rotate(calc(-1 * (var(--start-angle, 0deg) + 360deg))); }
+}
+.orbit-particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: orbit var(--orbit-dur, 2.5s) linear infinite;
+}
+
+/* ═══ TYPEWRITER CURSOR ═════════════════════════════════════════ */
+.tw-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 0.85em;
+  margin-left: 2px;
+  vertical-align: middle;
+  background: var(--os-accent);
+  border-radius: 1px;
+  animation: blink 0.75s step-end infinite;
+}
+
+/* ═══ SKIP TO CONTENT ═══════════════════════════════════════════ */
+.skip-link {
+  position: fixed;
+  top: -100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100000;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  background: var(--os-accent);
+  color: #fff;
+  text-decoration: none;
+  transition: top 0.2s;
+}
+.skip-link:focus { top: 8px; }
+
+/* ═══ VIEW TRANSITIONS (radial wipe for theme toggle) ═══════════ */
+::view-transition-old(root) { animation: none; }
+::view-transition-new(root) {
+  animation: radial-reveal 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  clip-path: circle(0% at var(--toggle-x, 50%) var(--toggle-y, 50%));
+}
+@keyframes radial-reveal {
+  to { clip-path: circle(150% at var(--toggle-x, 50%) var(--toggle-y, 50%)); }
+}
+
+/* ═══ KEYBOARD SHORTCUT BADGE ═══════════════════════════════════ */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  background: var(--os-bg-surface);
+  border: 1px solid var(--os-border);
+  color: var(--os-text-secondary);
+  box-shadow: 0 1px 0 var(--os-border);
+}
+
+/* ═══ SUGGESTIONS DROPDOWN ══════════════════════════════════════ */
+@keyframes suggestions-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.suggestions-list { animation: suggestions-in 0.18s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* ═══ VOICE BUTTON PULSE ════════════════════════════════════════ */
+@keyframes voice-pulse {
+  0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--os-accent-orange) 55%, transparent); }
+  50%      { box-shadow: 0 0 0 7px transparent; }
+}
+.voice-active { animation: voice-pulse 1s ease-in-out infinite !important; }
+
+/* ═══ FIT SCORE BAR ═════════════════════════════════════════════ */
+@keyframes score-fill {
+  from { width: 0%; }
+  to   { width: var(--score-w, 0%); }
+}
+.score-bar-fill {
+  animation: score-fill 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* ═══ GLASS TOGGLE BUTTON ═══════════════════════════════════════ */
+.glass-toggle-active {
+  background: color-mix(in srgb, var(--os-accent-cyan) 15%, transparent) !important;
+  border-color: color-mix(in srgb, var(--os-accent-cyan) 45%, transparent) !important;
+  color: var(--os-accent-cyan) !important;
+}
+
+/* ═══ PERSONA STRIP CTA ═════════════════════════════════════════ */
+.persona-strip-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--os-accent) 35%, transparent);
+  color: var(--os-accent);
+  background: color-mix(in srgb, var(--os-accent) 8%, transparent);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  white-space: nowrap;
+}
+.persona-strip-cta:hover { transform: translateY(-1px); opacity: 0.9; }
+
+/* ═══ SKILL CHIP HIGHLIGHT (agent tool: [HIGHLIGHT:name]) ═══════ */
+@keyframes chip-pulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--os-accent) 60%, transparent); }
+  100% { box-shadow: 0 0 0 14px transparent; }
+}
+.chip-highlight {
+  animation: chip-pulse 0.9s ease-out 3;
+  border-color: var(--os-accent) !important;
+  color: var(--os-accent) !important;
+}
+
+/* ═══ PRINT STYLESHEET ══════════════════════════════════════════ */
+@media print {
+  header { display: none !important; }
+  html, body { overflow: visible !important; background: white !important; color: black !important; }
+  * { animation: none !important; transition: none !important; }
+}
+
+/* ═══ REDUCED MOTION — new additions ════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .glitch-active::before, .glitch-active::after,
+  .scan-card::after,
+  .confetti-particle,
+  .orbit-particle,
+  .voice-active,
+  .tw-cursor,
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
