@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
+import { useTheme } from "@/contexts/ThemeContext";
 
 // The field is a *skill constellation*, not decoration: these concepts
 // anchor real nodes, so visitors can read what the network is made of.
@@ -100,14 +101,34 @@ const FIELD = buildField();
 const SIGNALS = makeSignals(FIELD.edges.length);
 const SIGNAL_POSITIONS = new Float32Array(SIGNAL_COUNT * 3);
 
-const IDLE_NODE = new THREE.Color("#F5A623");
-const FIRE_NODE = new THREE.Color("#FFDf9E");
-const IDLE_TEAL = new THREE.Color("#2DC7B0");
-const FIRE_TEAL = new THREE.Color("#7FFFE8");
-const IDLE_LINK = new THREE.Color("#2DC7B0");
-const FIRE_LINK = new THREE.Color("#5FE8CE");
+// Two palettes. Dark theme uses additive blending (glows on black).
+// Light theme uses deeper inks + NORMAL blending — additive light is
+// invisible on a paper background, so we tint darker and don't add.
+const PALETTE = {
+  dark: {
+    idleNode: new THREE.Color("#F5A623"), fireNode: new THREE.Color("#FFDf9E"),
+    idleTeal: new THREE.Color("#2DC7B0"), fireTeal: new THREE.Color("#7FFFE8"),
+    idleLink: new THREE.Color("#2DC7B0"), fireLink: new THREE.Color("#5FE8CE"),
+    blending: THREE.AdditiveBlending, signal: "#FFFFFF",
+    nodeOpacity: 0.95, haloOpacity: 0.14, linkBase: 0.22, canvasOpacity: 0.85,
+    labelAmber: "#F5A623", labelTeal: "#2DC7B0", labelIdle: 0.4,
+  },
+  light: {
+    idleNode: new THREE.Color("#B26A05"), fireNode: new THREE.Color("#8A4E00"),
+    idleTeal: new THREE.Color("#0B8477"), fireTeal: new THREE.Color("#06655B"),
+    idleLink: new THREE.Color("#0B8477"), fireLink: new THREE.Color("#0B8477"),
+    blending: THREE.NormalBlending, signal: "#8A4E00",
+    nodeOpacity: 0.9, haloOpacity: 0.10, linkBase: 0.32, canvasOpacity: 0.72,
+    labelAmber: "#8A4E00", labelTeal: "#06655B", labelIdle: 0.55,
+  },
+} as const;
 
-function Field({ thinkingRef, thinking }: { thinkingRef: React.MutableRefObject<boolean>; thinking: boolean }) {
+function Field({ thinkingRef, thinking, theme }: {
+  thinkingRef: React.MutableRefObject<boolean>;
+  thinking: boolean;
+  theme: "dark" | "light";
+}) {
+  const P = PALETTE[theme];
   const group = useRef<THREE.Group>(null);
   const amberPts = useRef<THREE.Points>(null);
   const amberHalo = useRef<THREE.Points>(null);
@@ -161,23 +182,23 @@ function Field({ thinkingRef, thinking }: { thinkingRef: React.MutableRefObject<
     const am = amberPts.current?.material as THREE.PointsMaterial | undefined;
     if (am) {
       am.size = 0.055 + pulse * 0.02 + k * 0.03;
-      am.color.lerpColors(IDLE_NODE, FIRE_NODE, k);
+      am.color.lerpColors(P.idleNode, P.fireNode, k);
     }
     const ah = amberHalo.current?.material as THREE.PointsMaterial | undefined;
     if (ah) {
       ah.size = 0.16 + pulse * 0.05 + k * 0.1;
-      ah.opacity = 0.14 + pulse * 0.05 + k * 0.15;
-      ah.color.lerpColors(IDLE_NODE, FIRE_NODE, k);
+      ah.opacity = P.haloOpacity + pulse * 0.05 + k * 0.15;
+      ah.color.lerpColors(P.idleNode, P.fireNode, k);
     }
     const tm = tealPts.current?.material as THREE.PointsMaterial | undefined;
     if (tm) {
       tm.size = 0.06 + pulse * 0.02 + k * 0.03;
-      tm.color.lerpColors(IDLE_TEAL, FIRE_TEAL, k);
+      tm.color.lerpColors(P.idleTeal, P.fireTeal, k);
     }
     const lm = lines.current?.material as THREE.LineBasicMaterial | undefined;
     if (lm) {
-      lm.opacity = 0.22 + pulse * 0.06 + k * 0.3;
-      lm.color.lerpColors(IDLE_LINK, FIRE_LINK, k);
+      lm.opacity = P.linkBase + pulse * 0.06 + k * 0.3;
+      lm.color.lerpColors(P.idleLink, P.fireLink, k);
     }
 
     // Signals racing along edges — faster and brighter when thinking
@@ -204,38 +225,39 @@ function Field({ thinkingRef, thinking }: { thinkingRef: React.MutableRefObject<
   });
 
   return (
-    <group ref={group}>
+    // key by theme → materials rebuild with the right blending mode
+    <group ref={group} key={theme}>
       {/* Core amber nodes */}
       <points ref={amberPts}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[field.amber, 3]} />
         </bufferGeometry>
-        <pointsMaterial size={0.055} sizeAttenuation transparent opacity={0.95}
-          color="#F5A623" depthWrite={false} blending={THREE.AdditiveBlending} />
+        <pointsMaterial size={0.055} sizeAttenuation transparent opacity={P.nodeOpacity}
+          color={P.idleNode} depthWrite={false} blending={P.blending} />
       </points>
       {/* Soft halo layer behind the amber nodes — fakes bloom cheaply */}
       <points ref={amberHalo}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[field.amber, 3]} />
         </bufferGeometry>
-        <pointsMaterial size={0.16} sizeAttenuation transparent opacity={0.14}
-          color="#F5A623" depthWrite={false} blending={THREE.AdditiveBlending} />
+        <pointsMaterial size={0.16} sizeAttenuation transparent opacity={P.haloOpacity}
+          color={P.idleNode} depthWrite={false} blending={P.blending} />
       </points>
       {/* Teal accent nodes */}
       <points ref={tealPts}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[field.teal, 3]} />
         </bufferGeometry>
-        <pointsMaterial size={0.06} sizeAttenuation transparent opacity={0.95}
-          color="#2DC7B0" depthWrite={false} blending={THREE.AdditiveBlending} />
+        <pointsMaterial size={0.06} sizeAttenuation transparent opacity={P.nodeOpacity}
+          color={P.idleTeal} depthWrite={false} blending={P.blending} />
       </points>
       {/* Synapses */}
       <lineSegments ref={lines}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[field.linkPositions, 3]} />
         </bufferGeometry>
-        <lineBasicMaterial transparent opacity={0.22} color="#2DC7B0"
-          depthWrite={false} blending={THREE.AdditiveBlending} />
+        <lineBasicMaterial transparent opacity={P.linkBase} color={P.idleLink}
+          depthWrite={false} blending={P.blending} />
       </lineSegments>
       {/* Signals traveling the network */}
       <points ref={signalPts}>
@@ -243,7 +265,7 @@ function Field({ thinkingRef, thinking }: { thinkingRef: React.MutableRefObject<
           <bufferAttribute attach="attributes-position" args={[SIGNAL_POSITIONS, 3]} />
         </bufferGeometry>
         <pointsMaterial size={0.09} sizeAttenuation transparent opacity={0.7}
-          color="#FFFFFF" depthWrite={false} blending={THREE.AdditiveBlending} />
+          color={P.signal} depthWrite={false} blending={P.blending} />
       </points>
 
       {/* Concept labels — the constellation is made of real skills */}
@@ -256,9 +278,9 @@ function Field({ thinkingRef, thinking }: { thinkingRef: React.MutableRefObject<
               fontSize: 10,
               letterSpacing: "0.12em",
               textTransform: "uppercase",
-              color: idx % 2 === 0 ? "#F5A623" : "#2DC7B0",
-              opacity: thinking ? 0.9 : 0.4,
-              textShadow: "0 1px 8px rgba(0,0,0,0.9)",
+              color: idx % 2 === 0 ? P.labelAmber : P.labelTeal,
+              opacity: thinking ? 0.9 : P.labelIdle,
+              textShadow: theme === "dark" ? "0 1px 8px rgba(0,0,0,0.9)" : "0 1px 6px rgba(255,255,255,0.6)",
               transition: "opacity 1.1s ease",
             }}
           >
@@ -271,6 +293,7 @@ function Field({ thinkingRef, thinking }: { thinkingRef: React.MutableRefObject<
 }
 
 export default function NeuralField() {
+  const { theme } = useTheme();
   const thinkingRef = useRef(false);
   const [thinking, setThinking] = useState(false);
   const [visible, setVisible] = useState(true);
@@ -301,9 +324,12 @@ export default function NeuralField() {
 
   // Radial clearing: the field thins to near-zero behind the hero's
   // content column and stays dramatic at the edges — legibility without
-  // dimming the whole show.
+  // dimming the whole show. Lighter center dim in light theme (the ink
+  // field is subtler there and doesn't fight the text as much).
+  const centerDim = theme === "dark" ? 0.45 : 0.6;
   const clearing =
-    "radial-gradient(ellipse 58% 52% at 50% 46%, transparent 22%, rgba(0,0,0,0.45) 46%, black 72%)";
+    `radial-gradient(ellipse 58% 52% at 50% 46%, transparent 20%, rgba(0,0,0,${centerDim}) 46%, black 72%)`;
+  const canvasOpacity = PALETTE[theme].canvasOpacity;
 
   return (
     <div
@@ -319,9 +345,9 @@ export default function NeuralField() {
         gl={{ antialias: false, alpha: true, powerPreference: "low-power" }}
         // CRITICAL: the canvas must never intercept clicks meant for hero
         // content — R3F handles pointer events itself, so disable at the wrapper.
-        style={{ opacity: 0.85, pointerEvents: "none" }}
+        style={{ opacity: canvasOpacity, pointerEvents: "none" }}
       >
-        <Field thinkingRef={thinkingRef} thinking={thinking} />
+        <Field thinkingRef={thinkingRef} thinking={thinking} theme={theme} />
       </Canvas>
     </div>
   );

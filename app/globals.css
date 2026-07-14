@@ -689,6 +689,27 @@ body {
   color: var(--os-accent-cyan) !important;
 }
 
+/* ═══ SKILL MARQUEE ═════════════════════════════════════════════ */
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.marquee-track {
+  animation-name: marquee-scroll;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+.marquee-mask:hover .marquee-track { animation-play-state: paused; }
+/* Fade the left/right edges so items enter/exit softly */
+.marquee-mask {
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none !important; }
+}
+
 /* ═══ PERSONA STRIP CTA ═════════════════════════════════════════ */
 .persona-strip-cta {
   display: inline-flex;

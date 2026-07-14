@@ -39,6 +39,8 @@ export default function ContactSection() {
   const [copied, setCopied] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", type: PROJECT_TYPES[0], message: "" });
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+  // Honeypot — humans never see or fill this; bots auto-fill it
+  const [botcheck, setBotcheck] = useState("");
 
   const copyEmail = async () => {
     try {
@@ -67,6 +69,7 @@ export default function ContactSection() {
           email: form.email,
           subject: form.type,
           message: form.message,
+          botcheck,
         }),
         signal: AbortSignal.timeout(10_000),
       });
@@ -162,6 +165,18 @@ export default function ContactSection() {
               </div>
             ) : (
               <>
+                {/* Honeypot — visually hidden, off the tab order, ignored by
+                    screen readers. Bots that auto-fill every field trip it. */}
+                <input
+                  type="text"
+                  name="botcheck"
+                  value={botcheck}
+                  onChange={(e) => setBotcheck(e.target.value)}
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                  style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }}
+                />
                 <div className="grid sm:grid-cols-2 gap-4 mb-4">
                   <div>
                     <label htmlFor="c-name" className="block text-[10.5px] font-mono mono-small tracking-widest mb-1.5"

@@ -19,6 +19,7 @@ const GraphMode = dynamic(() => import("./GraphMode"), { ssr: false });
 import Nav from "./Nav";
 import Loader from "./Loader";
 import Hero from "./Hero";
+import MarqueeStrip from "./MarqueeStrip";
 import AboutSection from "./AboutSection";
 import ProjectsSection from "./ProjectsSection";
 import ResearchSection from "./ResearchSection";
@@ -77,6 +78,7 @@ function LandingInner() {
 
       <div className="relative z-[1]">
         <Hero />
+        <MarqueeStrip />
         <AboutSection />
         <ProjectsSection />
         <ResearchSection />
