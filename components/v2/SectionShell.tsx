@@ -4,6 +4,15 @@ import { ReactNode, useRef } from "react";
 import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import Reveal from "./Reveal";
 
+const CHAPTER_INDEX: Record<string, string> = {
+  "section-about": "01",
+  "section-work": "02",
+  "section-research": "03",
+  "section-arc": "04",
+  "section-education": "05",
+  "section-skills": "06",
+};
+
 // Consistent section chrome: an animated kicker rule, the title, and an
 // optional subtitle. The whole header drifts up as it enters view, so
 // each section "announces itself" rather than just fading in.
@@ -30,7 +39,11 @@ export default function SectionShell({
   const headerY = useTransform(scrollYProgress, [0, 1], [40, 0]);
 
   return (
-    <section id={id} className="relative max-w-5xl mx-auto px-5 py-20 sm:py-28">
+    <section id={id} className="story-section relative max-w-5xl mx-auto px-5 py-24 sm:py-32">
+      <div className="story-section__index" aria-hidden>
+        <span>{CHAPTER_INDEX[id] ?? "--"}</span>
+        <i />
+      </div>
       <div ref={ref} className="mb-10 sm:mb-14">
         <motion.div style={reduced ? undefined : { y: headerY }}>
           <Reveal>

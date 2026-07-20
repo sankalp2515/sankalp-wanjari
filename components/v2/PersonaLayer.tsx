@@ -86,7 +86,7 @@ function StripContent({ persona }: { persona: Persona }) {
   }
 }
 
-export default function PersonaLayer() {
+export default function PersonaLayer({ variant = "a" }: { variant?: "a" | "b" }) {
   const { persona, setPersona } = useConcierge();
   const [chooserOpen, setChooserOpen] = useState(false);
   const [stripDismissed, setStripDismissed] = useState(true); // hidden until mount check
@@ -101,14 +101,14 @@ export default function PersonaLayer() {
     // a few seconds of calm. Interrupting the first impression at 1.8s
     // cost more goodwill than the persona data was worth.
     const hasParam = new URLSearchParams(window.location.search).get("for");
-    const t = hasParam || localStorage.getItem(PROMPTED_KEY)
+    const t = variant === "b" || hasParam || localStorage.getItem(PROMPTED_KEY)
       ? null
       : setTimeout(() => setChooserOpen(true), 9000);
     return () => {
       cancelAnimationFrame(raf);
       if (t) clearTimeout(t);
     };
-  }, []);
+  }, [variant]);
 
   // One solicitation at a time: when a nudge popup appears, the strip yields.
   useEffect(() => {

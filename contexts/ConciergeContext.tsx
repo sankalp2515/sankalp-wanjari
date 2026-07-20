@@ -162,42 +162,42 @@ const TOUR_STEPS: {
   holdMs: number;
 }[] = [
   {
-    say: "Hi — I'm Sankalp's AI concierge, and I can operate this site. Let me give you the 45-second version. Buckle up.",
-    chapter: "HELLO 👋",
+    say: "I am EMBER. I do not just describe this portfolio — I can operate it. In the next minute, I will show you how Sankalp thinks about AI that has to survive reality.",
+    chapter: "THE QUESTION",
     holdMs: 3200,
   },
   {
-    say: "This is his selected work — three production systems. The flagship is a 10-agent LangGraph pipeline that turns a CSV into a deployed ML model.",
+    say: "The question starts here: what happens when an AI system has to do more than sound convincing? These are three systems built to keep working after the demo ends.",
     event: { name: "stage:nav", detail: "work" },
-    chapter: "CH. 1 — THE WORK",
+    chapter: "ACT I — THE STAKES",
     holdMs: 4200,
   },
   {
-    say: "Here's the full case study — note the sandboxed self-repair and the 6-provider LLM fallback. 132 automated tests behind it.",
+    say: "Here is the flagship. Ten agents coordinate a path from raw CSV to deployed model, with a sandboxed executor, self-repair, provider fallbacks, and 132 automated tests.",
     event: { name: "stage:case", detail: "001" },
     holdMs: 5200,
   },
   {
-    say: "He's also published — two peer-reviewed papers from 2023, on LSTM music generation and sketch-to-HTML with YOLOv5.",
+    say: "But building is only half the discipline. The second half is proving what deserves belief.",
     event: { name: "stage:case-close", detail: "" },
     holdMs: 1000,
   },
   {
     say: "",
     event: { name: "stage:nav", detail: "research" },
-    chapter: "CH. 2 — PUBLISHED RESEARCH",
+    chapter: "ACT II — THE RECEIPT",
     holdMs: 3800,
   },
   {
-    say: "Three years shipping at FIS Global — from IT Trainee to Implementation Conversion Analyst — plus a data-analysis internship before that.",
+    say: "Before the agents and the research, there was enterprise work: three years at FIS Global. That is where systems discipline becomes instinct — the edge cases count too.",
     event: { name: "stage:nav", detail: "arc" },
-    chapter: "CH. 3 — THE ARC",
+    chapter: "ACT III — THE OPERATOR",
     holdMs: 4200,
   },
   {
-    say: "The toolkit: deep in LangGraph and RAG, grounded in FastAPI, Docker, and Postgres, with an AI-PM certification from BITSoM on top.",
+    say: "The tools are not a trophy cabinet. LangGraph, RAG, FastAPI, Docker, and evaluation are instruments — selected only when they make the outcome more reliable.",
     event: { name: "stage:nav", detail: "skills" },
-    chapter: "CH. 4 — CAPABILITIES",
+    chapter: "ACT IV — THE INSTRUMENTS",
     holdMs: 2400,
   },
   {
@@ -206,9 +206,9 @@ const TOUR_STEPS: {
     holdMs: 2200,
   },
   {
-    say: "And that's the tour. He's available now — notice period two weeks max. Ask me anything, paste a JD for a fit check, or just email him. I'll hand the controls back.",
+    say: "That is the throughline: useful intelligence, with receipts. Sankalp is available now. Give me a role or a problem, and I will show you where this system fits.",
     event: { name: "stage:nav", detail: "contact" },
-    chapter: "FINALE — LET'S TALK",
+    chapter: "THE INVITATION",
     holdMs: 1500,
   },
 ];
@@ -219,13 +219,13 @@ const TOUR_STEPS: {
 // yourself" moment as storytelling, tailored to who's watching and
 // what they've already seen. Falls back to the scripted lines.
 const TOUR_BEATS = [
-  "Hook: EMBER introduces itself and promises the 45-second version of Sankalp's story.",
-  "Selected work: three production systems; flagship is a 10-agent LangGraph pipeline turning a CSV into a deployed ML model.",
-  "Inside the flagship case study: sandboxed self-repair, 6-provider LLM fallback, 132 automated tests.",
-  "Published research: two peer-reviewed 2023 papers — LSTM music generation, and sketch-to-HTML with YOLOv5.",
-  "The arc: three years at FIS Global, IT Trainee to Implementation Conversion Analyst, data internship before that.",
-  "The toolkit: LangGraph and RAG depth on FastAPI/Docker/Postgres foundations, plus a BITSoM AI-PM certification.",
-  "Finale: available now, notice two weeks max — invite a JD fit check or a direct email.",
+  "Hook: EMBER introduces itself as the agent that can operate the portfolio, then frames the story around AI that must earn trust.",
+  "Stakes: three production systems built to work after the demo; flagship is a 10-agent LangGraph pipeline turning a CSV into a deployed ML model.",
+  "Proof: inside the flagship, name the sandboxed self-repair, 6-provider LLM fallback, and 132 automated tests as the cost of reliability.",
+  "Receipt: two peer-reviewed 2023 papers — LSTM music generation, and sketch-to-HTML with YOLOv5 — reinforce the verification mindset.",
+  "Operator: three years at FIS Global, IT Trainee to Implementation Conversion Analyst, with an earlier data internship; explain why enterprise discipline matters.",
+  "Instruments: LangGraph and RAG on FastAPI/Docker/Postgres foundations, plus BITSoM AI-PM certification; tools are selected for outcomes, not collected as labels.",
+  "Invitation: available now, two-week maximum notice; invite a role, job description, or difficult problem so EMBER can show concrete fit.",
 ];
 
 async function generateTourSays(persona: Persona): Promise<string[] | null> {

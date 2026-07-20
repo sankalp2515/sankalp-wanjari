@@ -87,7 +87,8 @@ export default function ContactSection() {
   } as const;
 
   return (
-    <section id="section-contact" className="relative max-w-5xl mx-auto px-5 py-20 sm:py-28">
+    <section id="section-contact" className="story-section relative max-w-5xl mx-auto px-5 py-24 sm:py-32">
+      <div className="story-section__index" aria-hidden><span>07</span><i /></div>
       {/* Oversized closing headline */}
       <Reveal>
         <div className="text-center mb-12 sm:mb-16">

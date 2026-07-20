@@ -4,14 +4,13 @@
 // explains where Sankalp actually used it. The section stops being a
 // word cloud and becomes an index into the evidence.
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { skills } from "@/config/portfolio";
 import { useConcierge } from "@/contexts/ConciergeContext";
 import SectionShell from "./SectionShell";
 import Reveal from "./Reveal";
-import TiltCard from "./TiltCard";
 
 const CATEGORIES = [
   {
@@ -30,6 +29,8 @@ const CATEGORIES = [
 
 export default function SkillsSection() {
   const { ask, setOpen } = useConcierge();
+  const [selected, setSelected] = useState(CATEGORIES[0].id);
+  const active = CATEGORIES.find((category) => category.id === selected) ?? CATEGORIES[0];
 
   // Agent tool: [HIGHLIGHT:SkillName]
   useEffect(() => {
@@ -60,69 +61,38 @@ export default function SkillsSection() {
       title="Three disciplines, one system"
       subtitle="Don't take the chips at face value — click any skill and the AI concierge tells you exactly where it was used."
     >
-      <div className="grid gap-5 md:grid-cols-3">
-        {CATEGORIES.map((cat, i) => (
-          <Reveal key={cat.id} delay={i * 0.08} className="h-full">
-            <TiltCard className="glass-card rounded-3xl overflow-hidden h-full flex flex-col">
-              {/* Gradient signature bar */}
-              <div className="h-1 w-full shrink-0"
-                style={{ background: `linear-gradient(90deg, ${cat.color}, transparent)` }} aria-hidden />
-              <div className="p-6 flex flex-col flex-1">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="w-2 h-2 rounded-full" style={{ background: cat.color }} aria-hidden />
-                  <h3 className="text-[13px] font-mono mono-small tracking-wider" style={{ color: "var(--os-text)" }}>
-                    {cat.label}
-                  </h3>
-                </div>
-                <p className="text-[11.5px] font-mono mb-5" style={{ color: "var(--os-text-muted)" }}>
-                  {cat.proof}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {skills
-                    .filter((s) => s.category === cat.id)
-                    .map((s, j) => (
-                      // Chips cascade in one by one — the section assembles
-                      // itself like the field does
-                      <motion.button
-                        key={s.name}
-                        initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                        whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                        viewport={{ once: true, margin: "-40px" }}
-                        transition={{ duration: 0.4, delay: 0.15 + j * 0.04, ease: [0.22, 1, 0.36, 1] }}
-                        data-skill={s.name.toLowerCase()}
-                        onClick={() => askAbout(s.name)}
-                        aria-label={`Ask the AI where Sankalp used ${s.name}`}
-                        className="group flex items-center gap-1.5 text-[12.5px] px-3 py-1.5 rounded-xl border transition-all hover:-translate-y-0.5 hover:scale-[1.03] active:scale-95"
-                        style={
-                          s.core
-                            ? {
-                                borderColor: `color-mix(in srgb, ${cat.color} 45%, transparent)`,
-                                color: cat.color,
-                                background: `color-mix(in srgb, ${cat.color} 9%, transparent)`,
-                                fontWeight: 600,
-                              }
-                            : {
-                                borderColor: "var(--os-border)",
-                                color: "var(--os-text-secondary)",
-                                background: "color-mix(in srgb, var(--os-bg-surface) 60%, transparent)",
-                              }
-                        }
-                      >
-                        {s.name}
-                        <Sparkles
-                          size={9}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
-                          style={{ color: cat.color }}
-                          aria-hidden
-                        />
-                      </motion.button>
-                    ))}
-                </div>
+      <Reveal>
+        <div className="capability-console">
+          <div className="capability-console__nav" role="tablist" aria-label="Capability disciplines">
+            {CATEGORIES.map((category, index) => (
+              <button
+                key={category.id}
+                role="tab"
+                aria-selected={selected === category.id}
+                onClick={() => setSelected(category.id)}
+                className={selected === category.id ? "is-active" : ""}
+                style={{ "--capability-color": category.color } as React.CSSProperties}
+              >
+                <span>0{index + 1}</span><strong>{category.label}</strong><i />
+              </button>
+            ))}
+          </div>
+          <div className="capability-console__field" style={{ "--capability-color": active.color } as React.CSSProperties}>
+            <motion.div key={active.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+              <span className="capability-console__readout">ACTIVE FIELD / {active.id.toUpperCase()}</span>
+              <h3>{active.label}</h3>
+              <p>{active.proof}</p>
+              <div className="capability-console__skills">
+                {skills.filter((skill) => skill.category === active.id).map((skill, index) => (
+                  <button key={skill.name} data-skill={skill.name.toLowerCase()} onClick={() => askAbout(skill.name)}>
+                    <span>{String(index + 1).padStart(2, "0")}</span>{skill.name}<Sparkles size={10} aria-hidden />
+                  </button>
+                ))}
               </div>
-            </TiltCard>
-          </Reveal>
-        ))}
-      </div>
+            </motion.div>
+          </div>
+        </div>
+      </Reveal>
 
       <Reveal delay={0.2}>
         <p className="mt-6 text-center text-[12px] font-mono flex items-center justify-center gap-1.5"

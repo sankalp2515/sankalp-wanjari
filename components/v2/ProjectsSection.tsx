@@ -86,13 +86,9 @@ export default function ProjectsSection() {
         ))}
       </div>
 
-      <motion.div layout className="grid gap-5 md:grid-cols-3">
+      <motion.div layout className="relative space-y-7 sm:space-y-10">
         <AnimatePresence mode="popLayout">
         {shown.map((p, i) => (
-          // Editorial rhythm: the middle card sits lower — the asymmetry
-          // reads as designed, not templated. Ghost numeral gives each
-          // card a cinematic identity mark. motion wrapper (not Reveal)
-          // so filter changes get layout + exit animations.
           <motion.div
             key={p.id}
             layout
@@ -100,27 +96,21 @@ export default function ProjectsSection() {
             animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
             exit={{ opacity: 0, scale: 0.94, filter: "blur(6px)" }}
             transition={{ duration: 0.45, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] }}
-            className={`h-full relative ${i === 1 ? "md:mt-10" : ""}`}
+            className={`project-case-file grid gap-3 sm:grid-cols-[120px_1fr] sm:gap-6 lg:grid-cols-[190px_1fr] lg:gap-10 ${i % 2 ? "sm:ml-[7%]" : ""}`}
           >
-            <span
-              className="absolute -top-9 right-1 font-display font-bold select-none pointer-events-none leading-none"
-              style={{
-                fontSize: "clamp(56px, 6vw, 84px)",
-                color: "color-mix(in srgb, var(--os-accent) 14%, transparent)",
-                zIndex: 0,
-              }}
-              aria-hidden
-            >
-              {String(i + 1).padStart(2, "0")}
-            </span>
+            <div className="project-case-file__index sm:pt-7">
+              <span className="font-display font-bold leading-none" style={{ color: "var(--os-accent)" }}>{String(i + 1).padStart(2, "0")}</span>
+              <span className="mt-2 block font-mono text-[10px] tracking-[0.16em]" style={{ color: "var(--os-text-muted)" }}>CASE FILE<br />{p.year}</span>
+              <span className="project-case-file__line" aria-hidden />
+            </div>
             <TiltCard
-              className="glass-card rounded-3xl p-6 flex flex-col text-left cursor-pointer overflow-hidden"
+              className="project-case-file__body glass-card rounded-3xl p-6 sm:p-8 flex flex-col text-left cursor-pointer overflow-hidden"
               onClick={() => { setOpenId(p.id); setCaseView(false); }}
             >
               {/* Meta row */}
               <div className="flex items-center justify-between mb-4">
                 <span className="text-[11px] font-mono" style={{ color: "var(--os-text-muted)" }}>
-                  {String(i + 1).padStart(2, "0")} · {p.year}
+                  {p.category}
                 </span>
                 <span
                   className="flex items-center gap-1 text-[10px] font-mono mono-small px-2 py-0.5 rounded-full border"

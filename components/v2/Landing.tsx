@@ -21,6 +21,9 @@ import Nav from "./Nav";
 import Loader from "./Loader";
 import CursorDot from "./CursorDot";
 import Magnetic from "./Magnetic";
+import SignalRail from "./SignalRail";
+import Interlude from "./Interlude";
+import FilmLanding from "./FilmLanding";
 import Hero from "./Hero";
 import MarqueeStrip from "./MarqueeStrip";
 import AboutSection from "./AboutSection";
@@ -50,7 +53,7 @@ const NAV_TARGET: Record<string, string> = {
   contact: "section-contact",
 };
 
-function LandingInner() {
+function LandingInner({ variant }: { variant: "a" | "b" }) {
   const { setPersona, open, setOpen } = useConcierge();
   const [graphOpen, setGraphOpen] = useState(false);
   // Floating Ask-AI pill appears only after the hero is scrolled past —
@@ -94,22 +97,45 @@ function LandingInner() {
   }, []);
 
   return (
-    <div className="relative" style={{ color: "var(--os-text)" }}>
+    <div className="relative" data-experience={variant} style={{ color: "var(--os-text)" }}>
       <Loader />
+      {variant === "b" ? <FilmLanding /> : <>
       <AmbientBackground />
-      <Nav />
+      <SignalRail variant="a" />
+      <Nav variant="a" />
 
       <div className="relative z-[1]">
-        <Hero />
+        <Hero variant={variant} />
         <MarqueeStrip />
         <AboutSection />
+        <Interlude
+          index="01"
+          kicker="THE PREMISE"
+          lines={["MAKE IT", "MATTER."]}
+          caption="Models are easy to demo. The difficult part is making them dependable enough to earn a place in someone’s real workflow."
+        />
         <ProjectsSection />
+        <Interlude
+          index="02"
+          kicker="THE STANDARD"
+          lines={["VERIFY", "EVERYTHING."]}
+          caption="A confident answer is not evidence. Systems should show their work before people are asked to trust them."
+          tone="cool"
+        />
         <ResearchSection />
         <CareerSection />
+        <Interlude
+          index="03"
+          kicker="THE THROUGHLINE"
+          lines={["SHIP THE", "HARD PART."]}
+          caption="Good AI work does not stop at the model. It reaches the edge cases, the operators, the evaluation loop, and the outcome."
+          tone="green"
+        />
         <EducationSection />
         <SkillsSection />
         <ContactSection />
       </div>
+      </>}
 
       {/* Floating Ask-AI pill — discoverable after scrolling, hidden while dock open */}
       {!open && pastHero && (
@@ -140,7 +166,7 @@ function LandingInner() {
 
       <CursorDot />
       <AgentDock />
-      <PersonaLayer />
+      <PersonaLayer variant={variant} />
       <ResumeModal />
       <ChapterTitle />
       <NudgeLayer />
@@ -154,10 +180,10 @@ function LandingInner() {
   );
 }
 
-export default function Landing() {
+export default function Landing({ variant = "a" }: { variant?: "a" | "b" }) {
   return (
     <ConciergeProvider>
-      <LandingInner />
+      <LandingInner variant={variant} />
     </ConciergeProvider>
   );
 }

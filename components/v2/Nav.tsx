@@ -19,7 +19,7 @@ const LINKS = [
   { id: "contact",   label: "Contact" },
 ];
 
-export default function Nav() {
+export default function Nav({ variant = "a" }: { variant?: "a" | "b" }) {
   const { theme, toggle } = useTheme();
   const { open, setOpen } = useConcierge();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -74,7 +74,7 @@ export default function Nav() {
   }, [open, setOpen]);
 
   return (
-    <header className="fixed top-3 inset-x-0 z-[1000] px-3 pointer-events-none">
+    <header className={`fixed top-3 inset-x-0 z-[1000] px-3 pointer-events-none ${variant === "b" ? "nav--quiet" : ""}`}>
       <div
         className="max-w-5xl mx-auto pointer-events-auto relative rounded-2xl border overflow-hidden"
         style={{
@@ -125,7 +125,7 @@ export default function Nav() {
 
           {/* Actions */}
           <div className="flex items-center gap-1.5">
-            <button
+            {variant === "a" && <button
               onClick={() => window.dispatchEvent(new CustomEvent("graph:toggle"))}
               className="hidden sm:flex items-center gap-1.5 text-[12px] font-mono px-3 py-1.5 rounded-xl border transition-all hover:opacity-85"
               style={{
@@ -137,9 +137,9 @@ export default function Nav() {
             >
               <Share2 size={12} aria-hidden />
               Graph
-            </button>
+            </button>}
 
-            <button
+            {variant === "a" && <button
               onClick={() => window.dispatchEvent(new CustomEvent("resume:open"))}
               className="hidden sm:flex items-center gap-1.5 text-[12px] font-mono px-3 py-1.5 rounded-xl border transition-all hover:opacity-85"
               style={{
@@ -150,7 +150,7 @@ export default function Nav() {
             >
               <FileText size={12} aria-hidden />
               Resume
-            </button>
+            </button>}
 
             <button
               onClick={askAI}
