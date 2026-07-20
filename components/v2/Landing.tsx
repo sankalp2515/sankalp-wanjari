@@ -16,8 +16,11 @@ import PersonaLayer from "./PersonaLayer";
 
 // Only mounts when the visitor enters graph mode
 const GraphMode = dynamic(() => import("./GraphMode"), { ssr: false });
+
 import Nav from "./Nav";
 import Loader from "./Loader";
+import CursorDot from "./CursorDot";
+import Magnetic from "./Magnetic";
 import Hero from "./Hero";
 import MarqueeStrip from "./MarqueeStrip";
 import AboutSection from "./AboutSection";
@@ -31,6 +34,8 @@ import AgentDock from "./AgentDock";
 import ResumeModal from "./ResumeModal";
 import ChapterTitle from "./ChapterTitle";
 import NudgeLayer from "./NudgeLayer";
+import BehaviorTracker from "./BehaviorTracker";
+import { ember } from "@/lib/voice";
 
 const VALID_PERSONAS = ["recruiter", "cto", "developer", "explorer"];
 
@@ -48,12 +53,30 @@ const NAV_TARGET: Record<string, string> = {
 function LandingInner() {
   const { setPersona, open, setOpen } = useConcierge();
   const [graphOpen, setGraphOpen] = useState(false);
+  // Floating Ask-AI pill appears only after the hero is scrolled past —
+  // inside the hero the nav button and the hero CTA already cover it.
+  const [pastHero, setPastHero] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setPastHero(window.scrollY > window.innerHeight * 0.8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Persona from URL (?for=recruiter)
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("for");
     if (p && VALID_PERSONAS.includes(p)) setPersona(p as Persona);
   }, [setPersona]);
+
+  // EMBER announces graph mode — one line, spoken, never repeated back-to-back
+  useEffect(() => {
+    if (graphOpen) {
+      ember.speak("Graph mode. Every node here is a real skill, project, or credential — hover and drag to trace how the system connects.");
+    } else {
+      ember.stop();
+    }
+  }, [graphOpen]);
 
   // Agent tool: [NAV:x] scrolls to a section
   useEffect(() => {
@@ -89,33 +112,39 @@ function LandingInner() {
       </div>
 
       {/* Floating Ask-AI pill — discoverable after scrolling, hidden while dock open */}
-      {!open && (
-        <button
-          onClick={() => {
-            setOpen(true);
-            setTimeout(() => window.dispatchEvent(new CustomEvent("concierge-focus-input")), 80);
-          }}
-          aria-label="Open AI concierge (Ctrl+K)"
-          className="fixed bottom-5 right-5 z-[1250] flex items-center gap-2 text-[13px] font-medium pl-3.5 pr-4 py-3 rounded-full transition-all hover:scale-[1.04] active:scale-95"
-          style={{
-            background: "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))",
-            color: "#fff",
-            boxShadow: "var(--os-shadow-accent)",
-          }}
-        >
-          <MessageSquare size={15} aria-hidden />
-          <span className="hidden sm:inline">Ask AI</span>
-          <kbd className="hidden md:inline-flex items-center text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/20">
-            Ctrl K
-          </kbd>
-        </button>
+      {!open && pastHero && (
+        <div className="fixed bottom-5 right-5 z-[1250]">
+          <Magnetic strength={0.3}>
+            <button
+              onClick={() => {
+                setOpen(true);
+                setTimeout(() => window.dispatchEvent(new CustomEvent("concierge-focus-input")), 80);
+              }}
+              aria-label="Open AI concierge (Ctrl+K)"
+              className="flex items-center gap-2 text-[13px] font-medium pl-3.5 pr-4 py-3 rounded-full transition-all hover:scale-[1.04] active:scale-95"
+              style={{
+                background: "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))",
+                color: "#fff",
+                boxShadow: "var(--os-shadow-accent)",
+              }}
+            >
+              <MessageSquare size={15} aria-hidden />
+              <span className="hidden sm:inline">Ask AI</span>
+              <kbd className="hidden md:inline-flex items-center text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/20">
+                Ctrl K
+              </kbd>
+            </button>
+          </Magnetic>
+        </div>
       )}
 
+      <CursorDot />
       <AgentDock />
       <PersonaLayer />
       <ResumeModal />
       <ChapterTitle />
       <NudgeLayer />
+      <BehaviorTracker />
 
       {/* Graph mode — the same portfolio as a knowledge graph */}
       <AnimatePresence>

@@ -166,7 +166,7 @@ export const projects = [
     longDescription:
       "Architected a 10-agent LangGraph system where each agent owns a specific ML pipeline stage: data profiling, feature engineering, model selection, hyperparameter tuning, evaluation, and MLflow deployment. LLM drives every decision. Sandboxed executor validates outputs. Agentic self-repair rewrites and re-executes failed code in a network-isolated, non-root, hard-timeout sandbox.",
     stack: ["Python", "FastAPI", "LangGraph", "Docker", "MLflow", "Prometheus"],
-    category: "AI/ML",
+    category: "Agentic Systems",
     status: "DEPLOYED",
     impact: "CRITICAL",
     highlights: [
@@ -207,7 +207,7 @@ export const projects = [
     longDescription:
       "Built a 7-node LangGraph multi-agent pipeline with hybrid RAG (BM25 + dense retrieval + RRF fusion + cross-encoder reranking). Every generated claim is immediately quote-matched and NLI-checked against its cited source. CI-gated groundedness evaluation framework makes hallucination a build-breaking condition. Deployed across FastAPI, Next.js, Qdrant, Redis, PostgreSQL with Prometheus and Langfuse observability.",
     stack: ["Python", "FastAPI", "LangGraph", "Qdrant", "Docker", "PostgreSQL"],
-    category: "AI/ML",
+    category: "RAG & Research",
     status: "DEPLOYED",
     impact: "HIGH",
     highlights: [
@@ -246,7 +246,7 @@ export const projects = [
     longDescription:
       "Designed and built a portfolio where the AI is not a chatbot inside a website — it operates the website. The agent has real UI tools: navigate, open case study, highlight skill. Multi-provider LLM fallback (6 providers) with zero paid API cost. The entire portfolio is a proof of what Sankalp builds.",
     stack: ["Next.js", "TypeScript", "Framer Motion", "Tailwind"],
-    category: "Engineering",
+    category: "AI Product",
     status: "LIVE",
     impact: "CRITICAL",
     highlights: [

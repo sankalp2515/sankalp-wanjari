@@ -24,6 +24,10 @@ interface RequestBody {
   messages: ChatMessage[];
   visitorType?: string | null;
   context?: string;
+  /** NDJSON live-status mode: emits {"e":"attempt"} per provider try,
+      then {"e":"content"} or {"e":"exhausted"}. The UI's reroute
+      cinematics are driven by these REAL events — never fake theater. */
+  stream?: boolean;
 }
 
 // ── Guardrails ─────────────────────────────────────────────────
@@ -236,51 +240,62 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // 5. IP-hash starting index (session affinity — same IP, same starting provider)
   const startIdx = hashIPToProviderIndex(ip, available.length);
 
-  // 6. Iterate providers with fallback
-  let lastError: string = "unknown";
-
-  for (let attempt = 0; attempt < available.length; attempt++) {
-    const idx      = (startIdx + attempt) % available.length;
-    const provider = available[idx];
-
-    // Skip if provider is in cooldown
-    if (!isProviderHealthy(provider.id)) {
-      continue;
-    }
-
-    try {
-      const content = await callProvider(provider, systemPrompt, contextMessages);
-
-      // Record success
-      recordProviderSuccess(provider.id);
-
-      // Return response (no provider internals exposed to client)
-      return NextResponse.json({
-        content,
-        // Minimal hint for UI — just "thinking done", no model names
-        ok: true,
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      lastError = msg;
-
-      // Record failure (may trigger cooldown)
-      recordProviderFailure(provider.id);
-
-      // Rate limit from upstream: skip this provider for this attempt
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code === "429" || msg.includes("429")) {
-        recordProviderFailure(provider.id); // extra penalty
+  // Shared provider loop. onAttempt fires before each try — the streaming
+  // mode forwards these as live status events (no provider names leak).
+  async function runChain(
+    onAttempt?: (attempt: number, total: number) => void,
+  ): Promise<{ content: string } | { failed: string }> {
+    let lastError = "unknown";
+    let tried = 0;
+    for (let attempt = 0; attempt < available.length; attempt++) {
+      const idx      = (startIdx + attempt) % available.length;
+      const provider = available[idx];
+      if (!isProviderHealthy(provider.id)) continue;
+      tried++;
+      onAttempt?.(tried, available.length);
+      try {
+        const content = await callProvider(provider, systemPrompt, contextMessages);
+        recordProviderSuccess(provider.id);
+        return { content };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        lastError = msg;
+        recordProviderFailure(provider.id);
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code === "429" || msg.includes("429")) {
+          recordProviderFailure(provider.id); // extra penalty
+        }
+        continue;
       }
-
-      // Continue to next provider
-      continue;
     }
+    return { failed: lastError };
   }
 
-  // All providers failed
+  // 6a. Streaming mode — NDJSON live status
+  if (body.stream) {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (obj: unknown) =>
+          controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+        const result = await runChain((attempt, total) => send({ e: "attempt", n: attempt, total }));
+        if ("content" in result) send({ e: "content", content: result.content, ok: true });
+        else send({ e: "exhausted" });
+        controller.close();
+      },
+    });
+    return new NextResponse(stream, {
+      headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-store" },
+    });
+  }
+
+  // 6b. Plain JSON mode (nudges, tour scripts)
+  const result = await runChain();
+  if ("content" in result) {
+    return NextResponse.json({ content: result.content, ok: true });
+  }
   return NextResponse.json(
-    { error: "all_failed", message: `All providers exhausted: ${lastError}` },
+    { error: "all_failed", message: `All providers exhausted: ${result.failed}` },
     { status: 503 },
   );
 }

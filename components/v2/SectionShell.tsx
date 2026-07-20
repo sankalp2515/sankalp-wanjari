@@ -45,15 +45,28 @@ export default function SectionShell({
                 style={{ background: "linear-gradient(90deg, var(--os-accent), var(--os-accent-cyan))" }}
                 aria-hidden
               />
+              {/* Bracketed instrument-style kicker — [ SELECTED WORK ] */}
               <div className="text-[11px] font-mono mono-small tracking-[0.2em]" style={{ color: "var(--os-accent)" }}>
+                <span style={{ color: "var(--os-text-muted)" }}>[&nbsp;</span>
                 {kicker}
+                <span style={{ color: "var(--os-text-muted)" }}>&nbsp;]</span>
               </div>
             </div>
+            {/* Masked line reveal: the title rises out of a clipped box —
+                the editorial "printing" moment, not just a fade */}
             <h2
-              className="font-display font-bold tracking-tight leading-tight"
+              className="font-display font-bold tracking-tight leading-tight overflow-hidden"
               style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)", color: "var(--os-text)" }}
             >
-              {title}
+              <motion.span
+                className="block"
+                initial={reduced ? undefined : { y: "110%" }}
+                whileInView={{ y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
+              >
+                {title}
+              </motion.span>
             </h2>
             {subtitle && (
               <p className="mt-3 max-w-xl text-[14.5px] leading-relaxed" style={{ color: "var(--os-text-secondary)" }}>

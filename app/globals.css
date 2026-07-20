@@ -614,6 +614,51 @@ body {
   animation: blink 0.75s step-end infinite;
 }
 
+/* ═══ CUSTOM CURSOR ═════════════════════════════════════════════ */
+/* Hide the native cursor while the CursorDot component is mounted.
+   Text fields keep the caret-position cursor for usability. */
+.custom-cursor,
+.custom-cursor * {
+  cursor: none !important;
+}
+.custom-cursor input,
+.custom-cursor textarea,
+.custom-cursor select,
+.custom-cursor [contenteditable] {
+  cursor: text !important;
+}
+
+/* ═══ CORE SHUTDOWN FLICKER (agent → static mode) ═══════════════ */
+@keyframes power-flicker {
+  0%, 100% { opacity: 1; filter: none; }
+  15%      { opacity: 0.55; filter: brightness(1.4) saturate(0.4); }
+  30%      { opacity: 0.9; }
+  45%      { opacity: 0.35; filter: brightness(0.7); transform: translateX(1px); }
+  60%      { opacity: 1; }
+  75%      { opacity: 0.7; filter: saturate(0.3); transform: translateX(-1px); }
+}
+.core-flicker {
+  animation: power-flicker 0.7s steps(2) 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .core-flicker { animation: none !important; }
+}
+
+/* ═══ CONTACT FORM FOCUS GLOW ═══════════════════════════════════ */
+#section-contact input:focus,
+#section-contact textarea:focus,
+#section-contact select:focus {
+  border-color: color-mix(in srgb, var(--os-accent) 55%, transparent) !important;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--os-accent) 13%, transparent),
+    0 0 26px color-mix(in srgb, var(--os-accent) 16%, transparent);
+}
+#section-contact input,
+#section-contact textarea,
+#section-contact select {
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
 /* ═══ SKIP TO CONTENT ═══════════════════════════════════════════ */
 .skip-link {
   position: fixed;

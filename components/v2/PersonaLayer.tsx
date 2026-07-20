@@ -97,14 +97,27 @@ export default function PersonaLayer() {
     const raf = requestAnimationFrame(() => {
       setStripDismissed(sessionStorage.getItem(STRIP_DISMISSED_KEY) === "1");
     });
+    // Chooser waits out the arrival: loader (~2.2s) + hero entrance +
+    // a few seconds of calm. Interrupting the first impression at 1.8s
+    // cost more goodwill than the persona data was worth.
     const hasParam = new URLSearchParams(window.location.search).get("for");
     const t = hasParam || localStorage.getItem(PROMPTED_KEY)
       ? null
-      : setTimeout(() => setChooserOpen(true), 1800);
+      : setTimeout(() => setChooserOpen(true), 9000);
     return () => {
       cancelAnimationFrame(raf);
       if (t) clearTimeout(t);
     };
+  }, []);
+
+  // One solicitation at a time: when a nudge popup appears, the strip yields.
+  useEffect(() => {
+    const onNudge = () => {
+      sessionStorage.setItem(STRIP_DISMISSED_KEY, "1");
+      setStripDismissed(true);
+    };
+    window.addEventListener("nudge:shown", onNudge);
+    return () => window.removeEventListener("nudge:shown", onNudge);
   }, []);
 
   const choose = useCallback(

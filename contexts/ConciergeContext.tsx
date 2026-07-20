@@ -10,6 +10,8 @@ import {
 } from "react";
 import { Persona, SectionId } from "@/types";
 import { agentFAQ, personal, projects, skills } from "@/config/portfolio";
+import { track, summarize } from "@/lib/behavior";
+import { ember } from "@/lib/voice";
 
 export interface ConciergeMessage {
   id: number;
@@ -38,6 +40,8 @@ interface ConciergeValue {
   tourStep: { index: number; total: number } | null;
   /** True after all LLM providers failed — the dock switches to command deck */
   degraded: boolean;
+  /** Live system telemetry while a request reroutes providers (mono ticker) */
+  statusLine: string | null;
 }
 
 // ── Command deck ───────────────────────────────────────────────
@@ -130,6 +134,8 @@ function streamWords(
 ) {
   const words = fullText.split(" ");
   let i = 0;
+  // EMBER speaks every streamed line — one-way narration, opt-in
+  ember.speak(fullText);
   // Start with empty streaming message
   setMessages((prev) => [...prev, { id, role: "agent", content: "", streaming: true }]);
 
@@ -207,6 +213,56 @@ const TOUR_STEPS: {
   },
 ];
 
+// ── Stochastic tour script ─────────────────────────────────────
+// The choreography (events, holds, chapters) is deterministic; the
+// NARRATION is written fresh by the LLM each run — the "tell me about
+// yourself" moment as storytelling, tailored to who's watching and
+// what they've already seen. Falls back to the scripted lines.
+const TOUR_BEATS = [
+  "Hook: EMBER introduces itself and promises the 45-second version of Sankalp's story.",
+  "Selected work: three production systems; flagship is a 10-agent LangGraph pipeline turning a CSV into a deployed ML model.",
+  "Inside the flagship case study: sandboxed self-repair, 6-provider LLM fallback, 132 automated tests.",
+  "Published research: two peer-reviewed 2023 papers — LSTM music generation, and sketch-to-HTML with YOLOv5.",
+  "The arc: three years at FIS Global, IT Trainee to Implementation Conversion Analyst, data internship before that.",
+  "The toolkit: LangGraph and RAG depth on FastAPI/Docker/Postgres foundations, plus a BITSoM AI-PM certification.",
+  "Finale: available now, notice two weeks max — invite a JD fit check or a direct email.",
+];
+
+async function generateTourSays(persona: Persona): Promise<string[] | null> {
+  try {
+    const res = await fetch("/api/ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [{
+          role: "user",
+          content:
+            `INTERNAL TOUR SCRIPT REQUEST (not a visitor message): Write EMBER's spoken guided tour of Sankalp's portfolio ` +
+            `for a ${persona ?? "general"} visitor. Their session so far: ${summarize()}. ` +
+            `This is the "tell me about yourself" interview moment — tell it as a STORY with momentum, don't read the page back. ` +
+            `Third person about Sankalp, only verified facts, no emoji. Exactly 7 lines, one per beat:\n` +
+            TOUR_BEATS.map((b, i) => `${i + 1}. ${b}`).join("\n") +
+            `\nEach line under 28 words, natural spoken rhythm. Reply with a STRICT JSON array of exactly 7 strings.`,
+        }],
+        visitorType: persona,
+      }),
+      signal: AbortSignal.timeout(9000),
+    });
+    if (!res.ok) return null;
+    const d = await res.json();
+    const m = ((d.content as string) ?? "").match(/\[[\s\S]*\]/)?.[0];
+    if (!m) return null;
+    const arr = JSON.parse(m) as unknown;
+    if (
+      Array.isArray(arr) && arr.length === 7 &&
+      arr.every((s) => typeof s === "string" && s.length > 12 && s.length < 260)
+    ) {
+      return arr as string[];
+    }
+  } catch { /* deterministic script remains the floor */ }
+  return null;
+}
+
 const HISTORY_KEY = "concierge-history";
 const MAX_HISTORY  = 20;
 
@@ -233,8 +289,11 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
   const [tourRunning, setTourRunning] = useState(false);
   const [tourStep, setTourStep] = useState<{ index: number; total: number } | null>(null);
   const [degraded, setDegraded] = useState(false);
+  const [statusLine, setStatusLine] = useState<string | null>(null);
   const idRef = useRef(0);
   const tourAbortRef = useRef(false);
+  const degradedRef = useRef(false);
+  useEffect(() => { degradedRef.current = degraded; }, [degraded]);
 
   // Restore conversation history from localStorage on mount.
   // Deferred past paint so hydration compares against the SSR default.
@@ -329,11 +388,21 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
     (async () => {
       // pulse the ambient layers like a real "thinking" moment
       window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: true }));
-      await sleep(700);
+
+      // EMBER writes tonight's script — same choreography, fresh voice.
+      setStatusLine("EMBER IS WRITING YOUR TOUR…");
+      const says = await generateTourSays(persona);
+      setStatusLine(null);
+      let si = 0;
+      const steps = TOUR_STEPS.map((s) =>
+        s.say && says ? { ...s, say: says[si++] ?? s.say } : s
+      );
+
+      await sleep(400);
       window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: false }));
 
       let chapterIdx = 0;
-      for (const step of TOUR_STEPS) {
+      for (const step of steps) {
         if (tourAbortRef.current) break;
         if (step.chapter) {
           chapterIdx++;
@@ -365,7 +434,7 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
       setTourRunning(false);
       setTourStep(null);
     })();
-  }, [tourRunning, stopTour]);
+  }, [tourRunning, stopTour, persona]);
 
   // ── Command deck: deterministic slash commands ───────────────
   const runCommand = useCallback((raw: string): boolean => {
@@ -413,13 +482,16 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
     if (runCommand(text)) return;
 
     push({ role: "user", content: text });
+    track("asked", text);
 
     const section = sectionFor(text);
     setStatus("thinking");
     window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: true }));
 
-    // Try live LLM (multi-provider backend)
+    // Try live LLM — NDJSON stream so provider reroutes surface as REAL
+    // status events, not invented theater.
     let answer: string | null = null;
+    let exhausted = false;
     try {
       const res = await fetch("/api/ai", {
         method: "POST",
@@ -433,17 +505,66 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
             { role: "user", content: text },
           ],
           visitorType: persona,
+          stream: true,
         }),
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.timeout(45_000),
       });
-      if (res.ok) {
+      if (res.status === 429) {
+        exhausted = true;
+      } else if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let nl: number;
+          while ((nl = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            if (!line) continue;
+            try {
+              const ev = JSON.parse(line) as { e: string; n?: number; total?: number; content?: string };
+              if (ev.e === "attempt" && (ev.n ?? 1) > 1) {
+                setStatusLine(
+                  ev.n === 2
+                    ? "PRIMARY CHANNEL SATURATED — REROUTING…"
+                    : `ENGAGING FALLBACK LATTICE ${(ev.n ?? 2) - 1} / ${(ev.total ?? 2) - 1}…`
+                );
+              } else if (ev.e === "content") {
+                answer = ev.content ?? null;
+              } else if (ev.e === "exhausted") {
+                exhausted = true;
+              }
+            } catch { /* partial line noise */ }
+          }
+        }
+      } else if (res.ok) {
         const data = await res.json();
         answer = (data.content as string) ?? null;
       }
-    } catch { /* fall through */ }
+    } catch { /* network failure — fall through to static answers */ }
+    setStatusLine(null);
 
-    // Track LLM health — when it's down the dock surfaces the command deck
+    // ── Degradation choreography ──────────────────────────────
+    // Exhausted = every provider rate-limited. The core "powers down"
+    // once, cinematically, and the site keeps working from verified
+    // facts. Recovery announces itself the same way.
+    const wasDegraded = degradedRef.current;
     setDegraded(answer === null);
+    if (exhausted && !wasDegraded) {
+      window.dispatchEvent(new CustomEvent("agent-core-down"));
+      const notice =
+        "⏻ Core saturation — every model channel is rate-limited right now, so I'm powering down to static mode. " +
+        "I can still answer from Sankalp's verified facts, run the tour, and take /commands. " +
+        "For anything deeper, leave your details in the contact section — Sankalp personally replies within 24 hours.";
+      const noticeId = ++idRef.current;
+      await new Promise<void>((r) => streamWords(notice, noticeId, setMessages, r));
+    } else if (!exhausted && answer && wasDegraded) {
+      window.dispatchEvent(new CustomEvent("agent-core-up"));
+      push({ role: "agent", content: "● Core back online — full reasoning restored." });
+    }
 
     let sectionFromAI: SectionId | null = null;
     if (answer) {
@@ -472,7 +593,7 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
 
   return (
     <ConciergeContext.Provider
-      value={{ messages, status, open, persona, setPersona: setPersonaAndSave, ask, setOpen, clear, focusSection, tour, stopTour, tourRunning, tourStep, degraded }}
+      value={{ messages, status, open, persona, setPersona: setPersonaAndSave, ask, setOpen, clear, focusSection, tour, stopTour, tourRunning, tourStep, degraded, statusLine }}
     >
       {children}
     </ConciergeContext.Provider>

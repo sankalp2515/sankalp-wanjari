@@ -4,6 +4,7 @@
 // expertise, and mission cards on the right (reference-inspired).
 
 import Image from "next/image";
+import { motion } from "framer-motion";
 import { GraduationCap, Code2, Target, FileText, Download } from "lucide-react";
 import { personal, education, skills } from "@/config/portfolio";
 import SectionShell from "./SectionShell";
@@ -23,14 +24,21 @@ export default function AboutSection() {
         {/* Photo card */}
         <Reveal>
           <div className="glass-card rounded-3xl overflow-hidden h-full flex flex-col">
-            <div className="relative w-full" style={{ aspectRatio: "4/4.4", background: "var(--os-bg-surface)" }}>
-              <Image
-                src={personal.profilePhoto}
-                alt={`Portrait of ${personal.name}`}
-                fill
-                className="object-cover object-top"
-                sizes="(max-width: 768px) 100vw, 340px"
-              />
+            <div className="relative w-full overflow-hidden" style={{ aspectRatio: "4/4.4", background: "var(--os-bg-surface)" }}>
+              {/* Slow Ken Burns drift — a still photo that breathes */}
+              <motion.div
+                className="absolute inset-0"
+                animate={{ scale: [1, 1.06, 1] }}
+                transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <Image
+                  src={personal.profilePhoto}
+                  alt={`Portrait of ${personal.name}`}
+                  fill
+                  className="object-cover object-top"
+                  sizes="(max-width: 768px) 100vw, 340px"
+                />
+              </motion.div>
               <div
                 className="absolute inset-x-0 bottom-0 h-24 pointer-events-none"
                 style={{ background: "linear-gradient(transparent, color-mix(in srgb, var(--os-bg-window) 92%, transparent))" }}

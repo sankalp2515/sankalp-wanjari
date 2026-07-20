@@ -6,9 +6,10 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowUp, Bot, Mic, MicOff, RotateCcw, Sparkles, TerminalSquare, User, X } from "lucide-react";
+import { ArrowUp, Bot, Mic, MicOff, RotateCcw, Sparkles, TerminalSquare, User, Volume2, VolumeX, X } from "lucide-react";
 import { personal } from "@/config/portfolio";
 import { useConcierge, COMMANDS } from "@/contexts/ConciergeContext";
+import { ember } from "@/lib/voice";
 
 const CHIPS = [
   "What's his best work?",
@@ -73,7 +74,22 @@ function useVoiceInput(onResult: (text: string) => void) {
 const isMobileViewport = () => window.matchMedia("(max-width: 639px)").matches;
 
 export default function AgentDock() {
-  const { messages, status, open, setOpen, ask, clear, tourRunning, tourStep, stopTour, degraded } = useConcierge();
+  const { messages, status, open, setOpen, ask, clear, tourRunning, tourStep, stopTour, degraded, statusLine } = useConcierge();
+  // EMBER voice — one-way narration, opt-in, persisted. External store
+  // (localStorage + change event) so state never desyncs across mounts.
+  const voiceOn = useSyncExternalStore(
+    (cb) => {
+      window.addEventListener("ember-voice-change", cb);
+      return () => window.removeEventListener("ember-voice-change", cb);
+    },
+    () => ember.isEnabled(),
+    () => false
+  );
+  const toggleVoice = () => {
+    const next = !ember.isEnabled();
+    ember.setEnabled(next);
+    if (next) ember.speak("Ember online. I'll narrate from here.");
+  };
   const [value, setValue] = useState("");
   const [ph, setPh] = useState(0);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -201,7 +217,7 @@ export default function AgentDock() {
           exit={{ opacity: 0, y: 24, scale: 0.98 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
           onKeyDown={(e) => { if (e.key === "Escape") close(); }}
-          className="fixed z-[1300] inset-x-0 bottom-0 sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[420px] flex flex-col rounded-t-3xl sm:rounded-3xl border overflow-hidden"
+          className={`fixed z-[1300] inset-x-0 bottom-0 sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[420px] flex flex-col rounded-t-3xl sm:rounded-3xl border overflow-hidden ${degraded ? "core-flicker" : ""}`}
           style={{
             background: "var(--os-bg-window)",
             borderColor: "color-mix(in srgb, var(--os-accent) 25%, var(--os-border))",
@@ -233,12 +249,33 @@ export default function AgentDock() {
                     </span>
                   )}
                 </div>
-                <div className="text-[10px] font-mono mt-1" style={{ color: "var(--os-text-muted)" }}>
-                  {thinking ? "thinking…" : `answers about ${personal.shortName} — can be wrong; resume is the source of truth`}
+                <div className="text-[10px] font-mono mt-1" style={{ color: statusLine ? "var(--os-accent)" : "var(--os-text-muted)" }}>
+                  {statusLine ? (
+                    // Live system telemetry — real provider reroutes, mono ticker
+                    <span className="uppercase tracking-[0.12em]">
+                      {statusLine}<span className="cursor-blink">▊</span>
+                    </span>
+                  ) : degraded ? (
+                    <span className="uppercase tracking-[0.12em]" style={{ color: "var(--os-accent-orange)" }}>
+                      ⏻ static mode — verified facts + /commands still live
+                    </span>
+                  ) : thinking ? "thinking…" : `answers about ${personal.shortName} — can be wrong; resume is the source of truth`}
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-1">
+              {/* EMBER voice toggle — the concierge narrates when lit */}
+              {ember.supported() && (
+                <button
+                  onClick={toggleVoice}
+                  aria-label={voiceOn ? "Mute EMBER's voice" : "Enable EMBER's voice narration"}
+                  title={voiceOn ? "EMBER: voice on" : "EMBER: voice off"}
+                  className="grid place-items-center w-8 h-8 rounded-lg transition-colors hover:bg-[var(--os-bg-hover)]"
+                  style={{ color: voiceOn ? "var(--os-accent)" : "var(--os-text-muted)" }}
+                >
+                  {voiceOn ? <Volume2 size={13} aria-hidden /> : <VolumeX size={13} aria-hidden />}
+                </button>
+              )}
               {tourRunning && (
                 <button
                   onClick={() => stopTour()}

@@ -46,18 +46,22 @@ export default function CareerSection() {
       <ol ref={listRef} className="space-y-10">
         {experience.map((e, i) => (
           <li key={`${e.company}-${e.title}`} className="relative pl-8 sm:pl-10">
-            {/* Node */}
-            <span
+            {/* Node — ignites as the drawn line reaches it */}
+            <motion.span
               className="absolute -left-[17px] top-0 grid place-items-center w-8 h-8 rounded-full border-2"
-              style={{
-                background: "var(--os-bg-elevated)",
+              initial={reduced ? undefined : { borderColor: "var(--os-border)", color: "var(--os-text-muted)", boxShadow: "0 0 0 0 transparent" }}
+              whileInView={{
                 borderColor: "var(--os-accent)",
                 color: "var(--os-accent)",
+                boxShadow: "0 0 18px color-mix(in srgb, var(--os-accent) 45%, transparent)",
               }}
+              viewport={{ once: true, margin: "-35% 0px -35% 0px" }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              style={{ background: "var(--os-bg-elevated)" }}
               aria-hidden
             >
               <Briefcase size={13} />
-            </span>
+            </motion.span>
 
             <Reveal delay={i * 0.06}>
               <div className="glass-card rounded-2xl p-5 sm:p-6">

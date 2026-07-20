@@ -5,6 +5,7 @@
 // word cloud and becomes an index into the evidence.
 
 import { useEffect } from "react";
+import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { skills } from "@/config/portfolio";
 import { useConcierge } from "@/contexts/ConciergeContext";
@@ -79,9 +80,15 @@ export default function SkillsSection() {
                 <div className="flex flex-wrap gap-2">
                   {skills
                     .filter((s) => s.category === cat.id)
-                    .map((s) => (
-                      <button
+                    .map((s, j) => (
+                      // Chips cascade in one by one — the section assembles
+                      // itself like the field does
+                      <motion.button
                         key={s.name}
+                        initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                        whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                        viewport={{ once: true, margin: "-40px" }}
+                        transition={{ duration: 0.4, delay: 0.15 + j * 0.04, ease: [0.22, 1, 0.36, 1] }}
                         data-skill={s.name.toLowerCase()}
                         onClick={() => askAbout(s.name)}
                         aria-label={`Ask the AI where Sankalp used ${s.name}`}
@@ -108,7 +115,7 @@ export default function SkillsSection() {
                           style={{ color: cat.color }}
                           aria-hidden
                         />
-                      </button>
+                      </motion.button>
                     ))}
                 </div>
               </div>

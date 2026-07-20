@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X, FileText, Mail, ArrowUpRight, Play } from "lucide-react";
 import { personal, social } from "@/config/portfolio";
 import { useConcierge } from "@/contexts/ConciergeContext";
+import { summarize, track } from "@/lib/behavior";
 
 type NudgeId = "post-tour" | "case-explorer" | "long-dwell" | "idle-explorer";
 
@@ -52,8 +53,33 @@ function templateText(id: NudgeId, persona: string | null): string {
   return T[id][p] ?? T[id].explorer;
 }
 
-// Try the LLM for persona-flavored phrasing; fall back to templates.
-async function generateText(id: NudgeId, persona: string | null, signal: string): Promise<string> {
+// The action registry the LLM chooses from — ids only; the component
+// resolves them to real buttons. Keeping the choice AND the copy in one
+// LLM call is what guarantees the sentence matches the buttons.
+const CTA_CATALOG = [
+  { id: "resume", desc: "open Sankalp's resume" },
+  { id: "email", desc: "email Sankalp" },
+  { id: "linkedin", desc: "open Sankalp's LinkedIn" },
+  { id: "fitcheck", desc: "open the AI chat to run a job-description fit check" },
+  { id: "tour", desc: "start the 45s AI-guided tour" },
+  { id: "case:001", desc: "open the AutoML Orchestrator case study (10-agent LangGraph)" },
+  { id: "case:002", desc: "open the Autonomous AI Research System case study (RAG, verification)" },
+  { id: "case:003", desc: "open the Live Portfolio OS case study (this site)" },
+  { id: "nav:arc", desc: "scroll to the career/experience section" },
+  { id: "nav:education", desc: "scroll to education & certifications" },
+  { id: "nav:research", desc: "scroll to published research papers" },
+  { id: "nav:contact", desc: "scroll to the contact section" },
+] as const;
+type CtaId = (typeof CTA_CATALOG)[number]["id"];
+
+// Ask the LLM for message + matching actions, grounded in the ACTUAL
+// behavior log. Falls back to deterministic template pairs (which are
+// also self-consistent) when the LLM is unavailable or answers garbage.
+async function generateNudge(
+  id: NudgeId,
+  persona: string | null,
+  signal: string
+): Promise<{ text: string; ctaIds: CtaId[] } | null> {
   try {
     const res = await fetch("/api/ai", {
       method: "POST",
@@ -61,7 +87,13 @@ async function generateText(id: NudgeId, persona: string | null, signal: string)
       body: JSON.stringify({
         messages: [{
           role: "user",
-          content: `INTERNAL NUDGE REQUEST (not a visitor message): A ${persona ?? "general"} visitor ${signal}. Write ONE friendly sentence (max 120 chars) suggesting a relevant next step on Sankalp's portfolio. No emoji spam, no exclamation overload, third person about Sankalp. Reply with the sentence only.`,
+          content:
+            `INTERNAL NUDGE REQUEST (not a visitor message): A ${persona ?? "general"} visitor ${signal}.\n` +
+            `WHAT THEY ACTUALLY DID THIS SESSION: ${summarize()}\n` +
+            `AVAILABLE ACTIONS:\n${CTA_CATALOG.map((c) => `- ${c.id}: ${c.desc}`).join("\n")}\n` +
+            `Pick the 1-2 actions MOST relevant to their actual behavior (never suggest something they already did), ` +
+            `and write ONE friendly sentence (max 120 chars, third person about Sankalp) that refers to those exact actions — ` +
+            `the sentence and the buttons must agree. Reply with STRICT JSON only: {"text":"...","ctas":["id","id"]}`,
         }],
         visitorType: persona,
       }),
@@ -69,12 +101,20 @@ async function generateText(id: NudgeId, persona: string | null, signal: string)
     });
     if (res.ok) {
       const data = await res.json();
-      const text = (data.content as string)?.trim();
-      // Sanity: single reasonable sentence, or fall back
-      if (text && text.length > 20 && text.length < 200 && !text.includes("[")) return text;
+      const raw = (data.content as string) ?? "";
+      const json = raw.match(/\{[\s\S]*\}/)?.[0];
+      if (json) {
+        const parsed = JSON.parse(json) as { text?: string; ctas?: string[] };
+        const validIds = new Set<string>(CTA_CATALOG.map((c) => c.id));
+        const ctaIds = (parsed.ctas ?? []).filter((c): c is CtaId => validIds.has(c)).slice(0, 2);
+        const text = parsed.text?.trim();
+        if (text && text.length > 20 && text.length < 200 && ctaIds.length > 0) {
+          return { text, ctaIds };
+        }
+      }
     }
   } catch { /* fall back */ }
-  return templateText(id, persona);
+  return null;
 }
 
 const fired = (id: NudgeId) => sessionStorage.getItem(`nudge-${id}`) === "1";
@@ -91,12 +131,58 @@ export default function NudgeLayer() {
 
   const dismiss = useCallback(() => setNudge(null), []);
 
-  const show = useCallback(async (id: NudgeId, signal: string, ctas: Nudge["ctas"]) => {
+  // Resolve a catalog id chosen by the LLM into a real button
+  const resolveCta = useCallback((cid: CtaId): Nudge["ctas"][0] => {
+    const go = (run: () => void, label: string, icon: React.ReactNode) => ({
+      label, icon, run: () => { track("nudge-cta", cid); run(); dismiss(); },
+    });
+    switch (cid) {
+      case "resume":   return go(() => window.dispatchEvent(new CustomEvent("resume:open")), "View resume", <FileText size={11} aria-hidden />);
+      case "email":    return go(() => { window.location.href = `mailto:${personal.email}`; }, "Email Sankalp", <Mail size={11} aria-hidden />);
+      case "linkedin": return go(() => window.open(social.linkedin, "_blank", "noopener"), "LinkedIn", <ArrowUpRight size={11} aria-hidden />);
+      case "fitcheck": return go(() => {
+        setOpen(true);
+        setTimeout(() => window.dispatchEvent(new CustomEvent("concierge-focus-input")), 80);
+      }, "Run a fit check", <Sparkles size={11} aria-hidden />);
+      case "tour":     return go(() => tour(), "Start the tour", <Play size={11} aria-hidden />);
+      case "case:001": return go(() => window.dispatchEvent(new CustomEvent("stage:case", { detail: "001" })), "AutoML case study", <ArrowUpRight size={11} aria-hidden />);
+      case "case:002": return go(() => window.dispatchEvent(new CustomEvent("stage:case", { detail: "002" })), "Research system case", <ArrowUpRight size={11} aria-hidden />);
+      case "case:003": return go(() => window.dispatchEvent(new CustomEvent("stage:case", { detail: "003" })), "This site's case study", <ArrowUpRight size={11} aria-hidden />);
+      case "nav:arc":       return go(() => window.dispatchEvent(new CustomEvent("stage:nav", { detail: "arc" })), "Career timeline", <ArrowUpRight size={11} aria-hidden />);
+      case "nav:education": return go(() => window.dispatchEvent(new CustomEvent("stage:nav", { detail: "education" })), "Education & certs", <ArrowUpRight size={11} aria-hidden />);
+      case "nav:research":  return go(() => window.dispatchEvent(new CustomEvent("stage:nav", { detail: "research" })), "Research papers", <ArrowUpRight size={11} aria-hidden />);
+      case "nav:contact":   return go(() => window.dispatchEvent(new CustomEvent("stage:nav", { detail: "contact" })), "Get in touch", <ArrowUpRight size={11} aria-hidden />);
+    }
+  }, [dismiss, setOpen, tour]);
+
+  // The proactive layer stays quiet while the core is down — a chirpy
+  // popup from a "powered-down" agent would break the fiction and trust.
+  const coreDownRef = useRef(false);
+  useEffect(() => {
+    const dn = () => { coreDownRef.current = true; };
+    const up = () => { coreDownRef.current = false; };
+    window.addEventListener("agent-core-down", dn);
+    window.addEventListener("agent-core-up", up);
+    return () => {
+      window.removeEventListener("agent-core-down", dn);
+      window.removeEventListener("agent-core-up", up);
+    };
+  }, []);
+
+  const show = useCallback(async (id: NudgeId, signal: string, fallbackCtas: Nudge["ctas"]) => {
+    if (coreDownRef.current) return;
     if (fired(id)) return;
     markFired(id);
-    const text = await generateText(id, personaRef.current, signal);
+    // Data-driven path: LLM reads the behavior log and picks message +
+    // matching actions together. Deterministic pair as the fallback.
+    const gen = await generateNudge(id, personaRef.current, signal);
+    const text = gen?.text ?? templateText(id, personaRef.current);
+    const ctas = gen ? gen.ctaIds.map(resolveCta) : fallbackCtas;
+    track("nudge-shown", id);
     setNudge({ id, text, ctas });
-  }, []);
+    // One solicitation at a time — tell the persona strip to yield
+    window.dispatchEvent(new CustomEvent("nudge:shown"));
+  }, [resolveCta]);
 
   // CTA builders
   const ctaResume = useCallback(() => ({
