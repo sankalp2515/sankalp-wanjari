@@ -93,8 +93,8 @@ export default function EducationSection() {
   return (
     <SectionShell
       id="section-education"
-      kicker="EDUCATION & CREDENTIALS"
-      title="Engineering degree, PM certification"
+      kicker="THE FOUNDATION"
+      title="Built to engineer it — and to know if it's worth building"
       subtitle="The formal backbone behind the hybrid: AI/ML honors engineering plus an executive AI product management program."
     >
       <div className="grid gap-5 md:grid-cols-2">

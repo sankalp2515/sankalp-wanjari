@@ -87,27 +87,41 @@ export default function ContactSection() {
   } as const;
 
   return (
-    <section id="section-contact" className="story-section relative max-w-5xl mx-auto px-5 py-24 sm:py-32">
+    <section id="section-contact" className="story-section contact-closing relative max-w-none px-5 py-24 sm:py-32">
       <div className="story-section__index" aria-hidden><span>07</span><i /></div>
       {/* Oversized closing headline */}
       <Reveal>
-        <div className="text-center mb-12 sm:mb-16">
-          <div className="text-[11px] font-mono mono-small tracking-[0.2em] mb-4" style={{ color: "var(--os-accent)" }}>
-            LET&apos;S CONNECT
+        <div className="contact-closing__header mb-14 sm:mb-20 text-center">
+          <div
+            className="text-[11px] font-mono mono-small tracking-[0.2em] mb-5"
+            style={{ color: "var(--os-accent)" }}
+          >
+            THE OFFER
           </div>
-          <h2 className="font-display font-bold tracking-tight leading-[1.05]"
-            style={{ fontSize: "clamp(2.2rem, 6vw, 4rem)", color: "var(--os-text)" }}>
-            Let&apos;s build the next{" "}
-            <span className="text-shimmer">AI product.</span>
+
+          <h2
+            className="font-display font-bold tracking-[-0.06em] leading-[0.88]"
+            // NOTE: the font-size is controlled by `.contact-closing__header h2`
+            // in globals.css (it carries !important, so an inline size is ignored).
+            style={{ color: "var(--os-text)" }}
+          >
+            <>
+              Let&apos;s build the next{" "}
+              <span className="text-shimmer">AI product.</span>
+            </>
           </h2>
-          <p className="mt-4 max-w-lg mx-auto text-[14.5px]" style={{ color: "var(--os-text-secondary)" }}>
-            Hiring for an AI role, or have a system that needs to actually ship? {personal.availability} —
-            notice {personal.noticePeriod.toLowerCase()}.
+
+          <p
+            className="mt-8 max-w-2xl mx-auto text-[15px]"
+            style={{ color: "var(--os-text-secondary)" }}
+          >
+            Hiring for an AI role, or have a system that needs to actually ship?{" "}
+            {personal.availability} — notice {personal.noticePeriod.toLowerCase()}.
           </p>
         </div>
       </Reveal>
 
-      <div className="grid gap-5 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      <div className="contact-closing__grid grid gap-5 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         {/* Info column */}
         <div className="flex flex-col gap-3">
           <Reveal delay={0.05}>

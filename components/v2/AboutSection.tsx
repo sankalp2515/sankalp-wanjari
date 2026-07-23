@@ -16,7 +16,7 @@ export default function AboutSection() {
   return (
     <SectionShell
       id="section-about"
-      kicker="GET TO KNOW ME"
+      kicker="THE OPERATOR"
       title="The person behind the systems"
       subtitle={personal.tagline}
     >
@@ -118,7 +118,7 @@ export default function AboutSection() {
                     className="flex items-center gap-1.5 text-[12.5px] font-semibold px-4 py-2 rounded-xl transition-all hover:opacity-90 active:scale-95"
                     style={{ background: "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))", color: "#fff" }}
                   >
-                    <FileText size={13} aria-hidden /> View resume
+                    <FileText size={13} aria-hidden /> See the full record
                   </button>
                   <a
                     href={personal.resumeUrl}
@@ -126,7 +126,7 @@ export default function AboutSection() {
                     className="flex items-center gap-1.5 text-[12.5px] font-mono px-4 py-2 rounded-xl border transition-colors hover:bg-[var(--os-bg-hover)]"
                     style={{ borderColor: "var(--os-border)", color: "var(--os-text-secondary)" }}
                   >
-                    <Download size={13} aria-hidden /> Download
+                    <Download size={13} aria-hidden /> Download PDF
                   </a>
                 </div>
               </div>
