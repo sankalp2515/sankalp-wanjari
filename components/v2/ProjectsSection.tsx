@@ -1,16 +1,20 @@
 "use client";
 
-// Projects — tilt cards in a responsive grid; click opens the
-// two-level modal (overview → case study). All content is in the
-// SSR markup; the modal is progressive detail.
+// Engineering projects — tilt cards in a responsive grid; click opens the
+// two-level modal (overview → technical breakdown). These are built systems,
+// deliberately NOT labelled case studies: product case studies are a separate
+// section (CaseStudiesSection). All content is in the SSR markup; the modal
+// is progressive detail.
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowUpRight, Zap } from "lucide-react";
 import { projects } from "@/config/portfolio";
 import SectionShell from "./SectionShell";
-import TiltCard from "./TiltCard";
 import ProjectModal from "./ProjectModal";
+import ProjectMedia from "./ProjectMedia";
+import TiltCard from "./TiltCard";
+import { GithubIcon } from "@/components/ui/Icons";
 
 const IMPACT_COLOR: Record<string, string> = {
   CRITICAL: "var(--os-accent-orange)",
@@ -19,13 +23,13 @@ const IMPACT_COLOR: Record<string, string> = {
 
 const FILTERS = ["All", ...new Set(projects.map((p) => p.category))];
 
-export default function ProjectsSection() {
+export default function ProjectsSection({ variant = "a" }: { variant?: "a" | "b" }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [caseView, setCaseView] = useState(false);
   const [filter, setFilter] = useState("All");
   const shown = filter === "All" ? projects : projects.filter((p) => p.category === filter);
 
-  // Agent tool: [CASE:001] opens a case study directly
+  // Agent tool: [CASE:001] opens a project breakdown directly
   useEffect(() => {
     const onCase = (e: Event) => {
       const id = (e as CustomEvent<string>).detail;
@@ -47,9 +51,9 @@ export default function ProjectsSection() {
   return (
     <SectionShell
       id="section-work"
-      kicker="SELECTED WORK"
+      kicker="ENGINEERING PROJECTS"
       title="Systems built to survive production"
-      subtitle="Three projects — each one an end-to-end system with reliability, evaluation, and observability built in, not bolted on."
+      subtitle={`${projects.length} production-grade systems — each one end-to-end, with reliability, evaluation, and observability built in, not bolted on. Open any card for the architecture and the trade-offs behind it.`}
     >
       {/* Category filters — mono chips, active gets the accent underline */}
       <div className="flex flex-wrap items-center gap-2 mb-8">
@@ -86,7 +90,7 @@ export default function ProjectsSection() {
         ))}
       </div>
 
-      <motion.div layout className="relative space-y-7 sm:space-y-10">
+      <motion.div layout className={`project-grid ${variant === "b" ? "project-grid--film" : ""}`}>
         <AnimatePresence mode="popLayout">
         {shown.map((p, i) => (
           <motion.div
@@ -96,19 +100,15 @@ export default function ProjectsSection() {
             animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
             exit={{ opacity: 0, scale: 0.94, filter: "blur(6px)" }}
             transition={{ duration: 0.45, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] }}
-            className={`project-case-file grid gap-3 sm:grid-cols-[120px_1fr] sm:gap-6 lg:grid-cols-[190px_1fr] lg:gap-10 ${i % 2 ? "sm:ml-[7%]" : ""}`}
+            className={`project-grid__item ${i === 0 ? "project-grid__item--featured" : ""}`}
           >
-            <div className="project-case-file__index sm:pt-7">
-              <span className="font-display font-bold leading-none" style={{ color: "var(--os-accent)" }}>{String(i + 1).padStart(2, "0")}</span>
-              <span className="mt-2 block font-mono text-[10px] tracking-[0.16em]" style={{ color: "var(--os-text-muted)" }}>CASE FILE<br />{p.year}</span>
-              <span className="project-case-file__line" aria-hidden />
-            </div>
-            <TiltCard
-              className="project-case-file__body glass-card rounded-3xl p-6 sm:p-8 flex flex-col text-left cursor-pointer overflow-hidden"
-              onClick={() => { setOpenId(p.id); setCaseView(false); }}
-            >
-              {/* Meta row */}
-              <div className="flex items-center justify-between mb-4">
+            {/* Variant A: cards catch a pointer-driven 3D tilt + sheen. Variant B stays flat. */}
+            {(() => {
+            const cardBtn = (
+            <button className="project-grid__card" onClick={() => { setOpenId(p.id); setCaseView(false); }} aria-label={`Open the ${p.name} technical breakdown`}>
+              <div className="project-grid__media"><ProjectMedia id={p.id} name={p.name} preview={p.preview} poster={p.poster} /><span className="project-grid__number">{String(i + 1).padStart(2, "0")}</span><span className="project-grid__year">PROJECT_{String(i + 1).padStart(3, "0")} / {p.year}</span></div>
+              <div className="project-grid__content">
+              <div className="flex items-center justify-between gap-3 mb-4">
                 <span className="text-[11px] font-mono" style={{ color: "var(--os-text-muted)" }}>
                   {p.category}
                 </span>
@@ -123,7 +123,7 @@ export default function ProjectsSection() {
                 </span>
               </div>
 
-              <h3 className="font-display font-bold text-[19px] leading-snug mb-2.5" style={{ color: "var(--os-text)" }}>
+              <h3 className="font-display font-bold text-[clamp(1.35rem,2.3vw,2rem)] leading-[.95] mb-3" style={{ color: "var(--os-text)" }}>
                 {p.name}
               </h3>
               <p className="text-[13px] leading-relaxed flex-1" style={{ color: "var(--os-text-secondary)" }}>
@@ -149,9 +149,31 @@ export default function ProjectsSection() {
               </div>
 
               <span className="flex items-center gap-1 text-[12px] font-mono" style={{ color: "var(--os-accent)" }}>
-                Open case study <ArrowUpRight size={12} aria-hidden />
+                Technical breakdown <ArrowUpRight size={12} aria-hidden />
               </span>
-            </TiltCard>
+              </div>
+            </button>
+            );
+            return variant === "a" ? <TiltCard className="h-full">{cardBtn}</TiltCard> : cardBtn;
+            })()}
+            {/* Config-driven quick links — render only for fields that are set.
+                Kept outside the card <button> so they're valid, standalone links. */}
+            {variant === "a" && (p.github || p.liveUrl) && (
+              <div className="project-grid__links">
+                {p.github && (
+                  <a href={p.github} target="_blank" rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()} aria-label={`${p.name} source on GitHub`} title="Source code">
+                    <GithubIcon size={14} />
+                  </a>
+                )}
+                {p.liveUrl && (
+                  <a href={p.liveUrl} target="_blank" rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()} aria-label={`${p.name} live demo`} title="Live demo">
+                    <ArrowUpRight size={15} aria-hidden />
+                  </a>
+                )}
+              </div>
+            )}
           </motion.div>
         ))}
         </AnimatePresence>

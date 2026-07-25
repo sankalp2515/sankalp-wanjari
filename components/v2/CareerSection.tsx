@@ -9,12 +9,13 @@ import { Briefcase } from "lucide-react";
 import { experience } from "@/config/portfolio";
 import SectionShell from "./SectionShell";
 import Reveal from "./Reveal";
+import TiltCard from "./TiltCard";
 
 function fmt(date: string) {
   return new Date(date).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
-export default function CareerSection() {
+export default function CareerSection({ variant = "a" }: { variant?: "a" | "b" }) {
   const listRef = useRef<HTMLOListElement>(null);
   const reduced = useReducedMotion();
 
@@ -64,6 +65,9 @@ export default function CareerSection() {
             </motion.span>
 
             <Reveal delay={i * 0.06}>
+              {/* Variant A: each stop lifts on a pointer-driven 3D tilt. B stays flat. */}
+              {(() => {
+              const card = (
               <div className="glass-card rounded-2xl p-5 sm:p-6">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] font-mono mb-2" style={{ color: "var(--os-text-muted)" }}>
                   <span style={{ color: "var(--os-accent)" }}>
@@ -94,6 +98,9 @@ export default function CareerSection() {
                   ))}
                 </div>
               </div>
+              );
+              return variant === "a" ? <TiltCard className="h-full">{card}</TiltCard> : card;
+              })()}
             </Reveal>
           </li>
         ))}

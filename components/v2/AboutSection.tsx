@@ -9,6 +9,7 @@ import { GraduationCap, Code2, Target, FileText, Download } from "lucide-react";
 import { personal, education, skills } from "@/config/portfolio";
 import SectionShell from "./SectionShell";
 import Reveal from "./Reveal";
+import BioScanner from "./BioScanner";
 
 const CORE_STACK = skills.filter((s) => s.core).map((s) => s.name).slice(0, 6);
 
@@ -45,7 +46,7 @@ export default function AboutSection() {
                 aria-hidden
               />
             </div>
-            <div className="p-5">
+            <div className="p-5 flex-1 flex flex-col">
               <div className="font-display font-bold text-[19px]" style={{ color: "var(--os-text)" }}>
                 {personal.name}
               </div>
@@ -59,6 +60,42 @@ export default function AboutSection() {
                     {s}
                   </span>
                 ))}
+              </div>
+
+              {/* Identity footer — anchored to the card bottom so the photo card
+                  fills the height of the info column instead of leaving dead space. */}
+              <div className="mt-auto pt-5">
+                <div
+                  className="flex items-center gap-2 text-[11.5px] font-medium mb-3 pt-4 border-t"
+                  style={{ borderColor: "var(--os-border)", color: "var(--os-accent-green)" }}
+                >
+                  <span className="relative flex w-2 h-2">
+                    <motion.span
+                      className="absolute inset-0 rounded-full"
+                      style={{ background: "var(--os-accent-green)" }}
+                      animate={{ scale: [1, 2.4], opacity: [0.6, 0] }}
+                      transition={{ duration: 1.8, repeat: Infinity, ease: "easeOut" }}
+                    />
+                    <span className="relative w-2 h-2 rounded-full" style={{ background: "var(--os-accent-green)" }} />
+                  </span>
+                  {personal.availability}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {personal.stats.slice(0, 2).map((stat) => (
+                    <div
+                      key={stat.label}
+                      className="rounded-xl px-3 py-2"
+                      style={{ background: "var(--os-bg-surface)" }}
+                    >
+                      <div className="font-display font-bold text-[16px] leading-none" style={{ color: "var(--os-text)" }}>
+                        {stat.value}
+                      </div>
+                      <div className="text-[9.5px] leading-tight mt-1" style={{ color: "var(--os-text-muted)" }}>
+                        {stat.label}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -90,11 +127,9 @@ export default function AboutSection() {
                 style={{ background: "color-mix(in srgb, var(--os-accent) 14%, transparent)", color: "var(--os-accent)" }}>
                 <Code2 size={17} aria-hidden />
               </span>
-              <div>
-                <div className="text-[14px] font-semibold mb-1" style={{ color: "var(--os-text)" }}>What I build</div>
-                <p className="text-[13px] leading-relaxed" style={{ color: "var(--os-text-secondary)" }}>
-                  {personal.bio}
-                </p>
+              <div className="flex-1">
+                <div className="text-[14px] font-semibold mb-3" style={{ color: "var(--os-text)" }}>My Approach</div>
+                <BioScanner bio={personal.bio} keywords={personal.bioKeywords} />
               </div>
             </div>
           </Reveal>

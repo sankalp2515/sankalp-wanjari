@@ -5,12 +5,17 @@
 // word cloud and becomes an index into the evidence.
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { skills } from "@/config/portfolio";
 import { useConcierge } from "@/contexts/ConciergeContext";
 import SectionShell from "./SectionShell";
 import Reveal from "./Reveal";
+import { useHeavyOk } from "@/lib/useHeavyOk";
+
+// Variant-A hero piece — a 3D skill constellation. Loaded only on the client.
+const SkillConstellation = dynamic(() => import("./SkillConstellation"), { ssr: false });
 
 const CATEGORIES = [
   {
@@ -27,10 +32,17 @@ const CATEGORIES = [
   },
 ];
 
-export default function SkillsSection() {
+export default function SkillsSection({ variant = "a" }: { variant?: "a" | "b" }) {
   const { ask, setOpen } = useConcierge();
   const [selected, setSelected] = useState(CATEGORIES[0].id);
   const active = CATEGORIES.find((category) => category.id === selected) ?? CATEGORIES[0];
+  // The 3D constellation is a pointer-driven desktop piece. On touch it isn't
+  // reliably tappable, and on low-tier devices it's costly — in both cases the
+  // capability console below is the actionable path, so we simply skip it.
+  const heavyOk = useHeavyOk();
+  const finePointer =
+    typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches;
+  const showConstellation = variant === "a" && heavyOk && finePointer;
 
   // Agent tool: [HIGHLIGHT:SkillName]
   useEffect(() => {
@@ -61,6 +73,12 @@ export default function SkillsSection() {
       title="Three disciplines, one system"
       subtitle="Don't take the chips at face value — click any skill and the AI concierge tells you exactly where it was used."
     >
+      {showConstellation && (
+        <Reveal>
+          <SkillConstellation onSelect={askAbout} />
+        </Reveal>
+      )}
+
       <Reveal>
         <div className="capability-console">
           <div className="capability-console__nav" role="tablist" aria-label="Capability disciplines">

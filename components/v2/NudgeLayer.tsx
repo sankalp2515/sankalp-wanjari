@@ -45,7 +45,7 @@ function templateText(id: NudgeId, persona: string | null): string {
     },
     "idle-explorer": {
       recruiter: "Short on time? The 45-second tour hits everything a screen call would.",
-      cto: "Fastest way to evaluate: the guided tour opens the flagship case study for you.",
+      cto: "Fastest way to evaluate: the guided tour opens the flagship project breakdown for you.",
       developer: "Not sure where to start? The tour drives you through the whole thing.",
       explorer: "Not sure where to start? Let the AI drive — 45 seconds, zero scrolling.",
     },
@@ -62,9 +62,9 @@ const CTA_CATALOG = [
   { id: "linkedin", desc: "open Sankalp's LinkedIn" },
   { id: "fitcheck", desc: "open the AI chat to run a job-description fit check" },
   { id: "tour", desc: "start the 45s AI-guided tour" },
-  { id: "case:001", desc: "open the AutoML Orchestrator case study (10-agent LangGraph)" },
-  { id: "case:002", desc: "open the Autonomous AI Research System case study (RAG, verification)" },
-  { id: "case:003", desc: "open the Live Portfolio OS case study (this site)" },
+  { id: "case:001", desc: "open the AutoML Orchestrator technical breakdown (10-agent LangGraph)" },
+  { id: "case:002", desc: "open the Autonomous AI Research System technical breakdown (RAG, verification)" },
+  { id: "case:003", desc: "open the Live Portfolio OS technical breakdown (this site)" },
   { id: "nav:arc", desc: "scroll to the career/experience section" },
   { id: "nav:education", desc: "scroll to education & certifications" },
   { id: "nav:research", desc: "scroll to published research papers" },
@@ -145,9 +145,9 @@ export default function NudgeLayer() {
         setTimeout(() => window.dispatchEvent(new CustomEvent("concierge-focus-input")), 80);
       }, "Run a fit check", <Sparkles size={11} aria-hidden />);
       case "tour":     return go(() => tour(), "Start the tour", <Play size={11} aria-hidden />);
-      case "case:001": return go(() => window.dispatchEvent(new CustomEvent("stage:case", { detail: "001" })), "AutoML case study", <ArrowUpRight size={11} aria-hidden />);
-      case "case:002": return go(() => window.dispatchEvent(new CustomEvent("stage:case", { detail: "002" })), "Research system case", <ArrowUpRight size={11} aria-hidden />);
-      case "case:003": return go(() => window.dispatchEvent(new CustomEvent("stage:case", { detail: "003" })), "This site's case study", <ArrowUpRight size={11} aria-hidden />);
+      case "case:001": return go(() => window.dispatchEvent(new CustomEvent("stage:case", { detail: "001" })), "AutoML breakdown", <ArrowUpRight size={11} aria-hidden />);
+      case "case:002": return go(() => window.dispatchEvent(new CustomEvent("stage:case", { detail: "002" })), "Research system breakdown", <ArrowUpRight size={11} aria-hidden />);
+      case "case:003": return go(() => window.dispatchEvent(new CustomEvent("stage:case", { detail: "003" })), "This site's breakdown", <ArrowUpRight size={11} aria-hidden />);
       case "nav:arc":       return go(() => window.dispatchEvent(new CustomEvent("stage:nav", { detail: "arc" })), "Career timeline", <ArrowUpRight size={11} aria-hidden />);
       case "nav:education": return go(() => window.dispatchEvent(new CustomEvent("stage:nav", { detail: "education" })), "Education & certs", <ArrowUpRight size={11} aria-hidden />);
       case "nav:research":  return go(() => window.dispatchEvent(new CustomEvent("stage:nav", { detail: "research" })), "Research papers", <ArrowUpRight size={11} aria-hidden />);

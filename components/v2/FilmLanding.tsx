@@ -21,14 +21,14 @@ export default function FilmLanding() {
         <FilmHero />
         <FilmBreak index="02" lines={["MOST AI MAKES", "A CLAIM."]} note="The difficult work begins after the demo: proving an answer, handling the edge cases, and staying useful when the model is uncertain." />
         <AboutSection />
-        <FilmBreak index="03" lines={["THE WORK IS", "THE RECEIPT."]} note="Each case file opens the system, the constraints, and the decisions behind the interface." />
-        <ProjectsSection />
+        <FilmBreak index="03" lines={["THE WORK IS", "THE RECEIPT."]} note="Each project opens the system, the constraints, and the decisions behind the interface." />
+        <ProjectsSection variant="b" />
         <ResearchSection />
         <FilmBreak index="04" lines={["SYSTEMS MUST", "HOLD."]} note="Production is where the promise meets people, operators, evaluation, and consequence." />
-        <CareerSection />
-        <SkillsSection />
+        <CareerSection variant="b" />
+        <SkillsSection variant="b" />
         <EducationSection />
-        <ContactSection />
+        <ContactSection/>
       </main>
     </div>
   );

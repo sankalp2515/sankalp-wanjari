@@ -1,55 +1,19 @@
-// ── In-Memory Rate Limiting & Provider Health Tracking ──────
-// NOTE: This is in-memory — fine for a single-instance Node.js deployment.
-// For serverless (Vercel), each cold start resets counters. IP rate limiting
-// still provides meaningful protection within a single instance lifecycle.
-
-interface IPRecord {
-  count:     number;
-  windowStart: number; // Unix ms — start of the current 1-hour window
-}
+// ── Provider Health Tracking ────────────────────────────────
+// IP rate limiting now lives in lib/rateStore (durable via Upstash). This
+// module tracks per-provider health only — which is intentionally in-memory:
+// health self-corrects per instance (a failing provider is retried after a
+// short cooldown), so cross-instance sharing buys nothing here.
 
 interface ProviderHealth {
   failures: number;
   cooledUntil: number; // Unix ms — skip this provider until this time
 }
 
-// Per-IP request counter (rolling 1-hour window)
-const ipMap   = new Map<string, IPRecord>();
-
 // Per-provider failure counter
 const provHealth = new Map<string, ProviderHealth>();
 
-const MAX_REQUESTS_PER_HOUR = 30;
 const FAILURE_THRESHOLD     = 3;   // failures before provider is cooled off
 const COOLDOWN_MS           = 5 * 60 * 1000; // 5 minutes
-
-// ── IP rate limiting ───────────────────────────────────────
-
-/** Returns true if this IP has NOT exceeded the hourly limit. */
-export function checkIPAllowed(ip: string): boolean {
-  const now = Date.now();
-  const rec = ipMap.get(ip);
-
-  if (!rec || now - rec.windowStart > 3_600_000) {
-    // New or expired window
-    ipMap.set(ip, { count: 1, windowStart: now });
-    return true;
-  }
-
-  if (rec.count >= MAX_REQUESTS_PER_HOUR) return false;
-
-  rec.count++;
-  return true;
-}
-
-/** Returns remaining requests in the current window. */
-export function remainingRequests(ip: string): number {
-  const rec = ipMap.get(ip);
-  if (!rec) return MAX_REQUESTS_PER_HOUR;
-  const now = Date.now();
-  if (now - rec.windowStart > 3_600_000) return MAX_REQUESTS_PER_HOUR;
-  return Math.max(0, MAX_REQUESTS_PER_HOUR - rec.count);
-}
 
 // ── Provider health tracking ───────────────────────────────
 
@@ -72,6 +36,30 @@ export function isProviderHealthy(providerId: string): boolean {
   const h = provHealth.get(providerId);
   if (!h) return true;
   return Date.now() >= h.cooledUntil;
+}
+
+/**
+ * Every provider in the chain just failed in a single request. Cool them all
+ * at once, briefly.
+ *
+ * Without this, /api/ai/health lies: a keyless provider (Ollama) needs
+ * FAILURE_THRESHOLD strikes before it looks unhealthy, so a deployment where
+ * localhost:11434 is unreachable would report ok=true forever — and the dock
+ * would power up, re-ask, fail, and power down again in a loop. A chain that
+ * exhausted is direct evidence nothing is answering; say so.
+ *
+ * The window is short (not COOLDOWN_MS) so the client's 30s backoff can
+ * actually observe recovery instead of waiting out a 5-minute penalty.
+ */
+const CHAIN_COOLDOWN_MS = 45 * 1000;
+
+export function markChainExhausted(providerIds: string[]): void {
+  const until = Date.now() + CHAIN_COOLDOWN_MS;
+  for (const id of providerIds) {
+    const h = provHealth.get(id) ?? { failures: 0, cooledUntil: 0 };
+    h.cooledUntil = Math.max(h.cooledUntil, until);
+    provHealth.set(id, h);
+  }
 }
 
 /** Reset cooldown for a provider (e.g. after a successful call). */

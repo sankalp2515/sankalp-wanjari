@@ -5,13 +5,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Sun, Moon, MessageSquare, FileText, Menu, X, Share2 } from "lucide-react";
-import { personal } from "@/config/portfolio";
+import { caseStudies, personal } from "@/config/portfolio";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useConcierge } from "@/contexts/ConciergeContext";
 
 const LINKS = [
   { id: "about",     label: "About" },
-  { id: "work",      label: "Work" },
+  { id: "work",      label: "Projects" },
+  // Product case studies are a separate destination from engineering work —
+  // the link only exists once there is a case study to open.
+  ...(caseStudies.length ? [{ id: "cases", label: "Case Studies" }] : []),
   { id: "research",  label: "Research" },
   { id: "arc",       label: "Career" },
   { id: "education", label: "Credentials" },

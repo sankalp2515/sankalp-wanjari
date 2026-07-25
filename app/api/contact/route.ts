@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getClientIP } from "@/lib/clientIP";
+import { isSameOrigin } from "@/lib/sameOrigin";
+import { rateLimit } from "@/lib/rateStore";
+import { log, newReqId } from "@/lib/observability/log";
 
 // ── Contact delivery via Resend (REST API, no SDK) ─────────────
 // Why Resend REST: zero npm dependencies (no supply-chain surface),
@@ -21,36 +25,25 @@ const MAX_MESSAGE = 5000;
 // Deliberately loose — its job is catching typos, not RFC compliance
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-// ── Tiny per-IP rate limit (5 sends/hour) ──────────────────────
-// Protects the Web3Forms quota from abuse. In-memory: resets on
-// redeploy, which is fine for a portfolio contact form.
+// ── Per-IP rate limit (5 sends/hour) ───────────────────────────
+// Durable across instances via Upstash when configured (see lib/rateStore),
+// in-memory fallback otherwise.
 const WINDOW_MS = 60 * 60 * 1000;
 const MAX_PER_WINDOW = 5;
-const hits = new Map<string, number[]>();
-
-function rateLimited(ip: string): boolean {
-  const now = Date.now();
-  const recent = (hits.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
-  if (recent.length >= MAX_PER_WINDOW) return true;
-  recent.push(now);
-  hits.set(ip, recent);
-  // Opportunistic cleanup so the map can't grow unbounded
-  if (hits.size > 500) {
-    for (const [k, v] of hits) {
-      if (v.every((t) => now - t >= WINDOW_MS)) hits.delete(k);
-    }
-  }
-  return false;
-}
 
 export async function POST(req: NextRequest) {
+  const reqId = newReqId();
   try {
-    const ip =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-      req.headers.get("x-real-ip") ??
-      "127.0.0.1";
+    // Reject obvious cross-site POSTs before doing any work.
+    if (!isSameOrigin(req)) {
+      log.warn({ event: "contact.send", route: "/api/contact", reqId, outcome: "forbidden", status: 403 });
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
 
-    if (rateLimited(ip)) {
+    const ip = getClientIP(req);
+
+    if (!(await rateLimit(`contact:${ip}`, MAX_PER_WINDOW, WINDOW_MS))) {
+      log.warn({ event: "contact.send", route: "/api/contact", reqId, outcome: "rate_limited", status: 429 });
       return NextResponse.json(
         { error: "rate_limited", message: "Too many messages — try again in an hour." },
         { status: 429 },
@@ -125,13 +118,22 @@ export async function POST(req: NextRequest) {
 
     const data = await res.json().catch(() => null);
     if (!res.ok) {
-      console.error("Resend error:", res.status, data?.message ?? "(no body)");
+      log.error({
+        event: "contact.send", route: "/api/contact", reqId, outcome: "delivery_failed",
+        status: 502, provider: "resend", providerStatus: res.status, error: data?.message ?? "(no body)",
+      });
       return NextResponse.json({ error: "delivery_failed" }, { status: 502 });
     }
 
+    log.info({ event: "contact.send", route: "/api/contact", reqId, outcome: "ok", provider: "resend" });
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("Contact route error:", err);
+    // This is the branch the visitor's timeout hit — now a structured line
+    // ("contact.send"/"internal") you can alert on, not just a stack trace.
+    log.error({
+      event: "contact.send", route: "/api/contact", reqId, outcome: "internal", status: 500,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return NextResponse.json({ error: "internal" }, { status: 500 });
   }
 }

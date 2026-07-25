@@ -1,14 +1,18 @@
 "use client";
 
-// Two-level project modal: Overview ⇄ Case Study.
+// Two-level project modal: Overview ⇄ Technical Breakdown.
+// These are engineering projects, not product case studies — the copy here
+// deliberately never says "case study" (see CaseStudiesSection for those).
 // Opaque surface (no bleed-through), focus-trapped, Esc closes,
 // body scroll locked while open.
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ArrowLeft, ArrowUpRight, CheckCircle2 } from "lucide-react";
 import { GithubIcon } from "@/components/ui/Icons";
-import { projects } from "@/config/portfolio";
+import { projects, type Diagram } from "@/config/portfolio";
+import DiagramGallery from "./DiagramGallery";
 
 export default function ProjectModal({
   projectId,
@@ -22,6 +26,9 @@ export default function ProjectModal({
   onClose: () => void;
 }) {
   const project = projects.find((p) => p.id === projectId) ?? null;
+  // Portal target — only available after mount (SSR-safe).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
 
@@ -63,7 +70,7 @@ export default function ProjectModal({
     };
   }, [project, caseView, setCaseView, close]);
 
-  return (
+  const overlay = (
     <AnimatePresence>
       {project && (
         <motion.div
@@ -80,7 +87,7 @@ export default function ProjectModal({
             ref={panelRef}
             role="dialog"
             aria-modal="true"
-            aria-label={`${project.name} — ${caseView ? "case study" : "project overview"}`}
+            aria-label={`${project.name} — ${caseView ? "technical breakdown" : "project overview"}`}
             tabIndex={-1}
             initial={{ opacity: 0, y: 24, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -108,7 +115,7 @@ export default function ProjectModal({
                       <ArrowLeft size={11} aria-hidden /> Overview
                     </button>
                   )}
-                  <span>{caseView ? "/ Case study" : `${project.year} · ${project.category} · ${project.status}`}</span>
+                  <span>{caseView ? "/ Technical breakdown" : `${project.year} · ${project.category} · ${project.status}`}</span>
                 </div>
                 <h3 className="font-display font-bold text-[24px] leading-tight truncate" style={{ color: "var(--os-text)" }}>
                   {project.name}
@@ -159,8 +166,8 @@ export default function ProjectModal({
               ) : (
                 <div className="space-y-7">
                   {([
-                    ["THE PROBLEM", project.caseStudy.problem],
-                    ["THE APPROACH", project.caseStudy.approach],
+                    ["THE PROBLEM", project.breakdown.problem],
+                    ["THE APPROACH", project.breakdown.approach],
                   ] as const).map(([label, text]) => (
                     <div key={label}>
                       <div className="text-[11px] font-mono mono-small tracking-widest mb-2.5" style={{ color: "var(--os-accent)" }}>
@@ -170,12 +177,16 @@ export default function ProjectModal({
                     </div>
                   ))}
 
+                  {/* Architecture / data-flow diagrams — sit between the approach
+                      and the results, since they explain how it was built. */}
+                  <DiagramGallery label="ARCHITECTURE" diagrams={(project.diagrams ?? []) as Diagram[]} />
+
                   <div>
                     <div className="text-[11px] font-mono mono-small tracking-widest mb-2.5" style={{ color: "var(--os-accent)" }}>
                       RESULTS
                     </div>
                     <ul className="space-y-2.5">
-                      {project.caseStudy.results.map((r) => (
+                      {project.breakdown.results.map((r) => (
                         <li key={r} className="flex items-start gap-2.5 text-[13.5px]" style={{ color: "var(--os-text-secondary)" }}>
                           <CheckCircle2 size={14} className="mt-0.5 shrink-0" style={{ color: "var(--os-accent-green)" }} aria-hidden />
                           {r}
@@ -189,7 +200,7 @@ export default function ProjectModal({
                       WHAT I LEARNED
                     </div>
                     <p className="text-[14px] leading-relaxed" style={{ color: "var(--os-text-secondary)" }}>
-                      {project.caseStudy.lessons}
+                      {project.breakdown.lessons}
                     </p>
                   </div>
 
@@ -198,7 +209,7 @@ export default function ProjectModal({
                       MY ROLE
                     </div>
                     <p className="text-[14px] leading-relaxed" style={{ color: "var(--os-text-secondary)" }}>
-                      {project.caseStudy.role}
+                      {project.breakdown.role}
                     </p>
                   </div>
                 </div>
@@ -239,7 +250,7 @@ export default function ProjectModal({
                   className="flex items-center gap-2 text-[13px] font-semibold px-5 py-2.5 rounded-xl transition-all hover:opacity-90 active:scale-95"
                   style={{ background: "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))", color: "#fff" }}
                 >
-                  Read the full case study <ArrowUpRight size={13} aria-hidden />
+                  Open technical breakdown <ArrowUpRight size={13} aria-hidden />
                 </button>
               ) : (
                 <span className="text-[11.5px] font-mono" style={{ color: "var(--os-text-muted)" }}>
@@ -252,4 +263,8 @@ export default function ProjectModal({
       )}
     </AnimatePresence>
   );
+
+  // Render into <body> so no transformed ancestor traps the fixed overlay
+  // beneath the nav's stacking context.
+  return mounted ? createPortal(overlay, document.body) : null;
 }

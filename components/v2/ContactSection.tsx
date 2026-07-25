@@ -84,6 +84,9 @@ export default function ContactSection() {
     background: "color-mix(in srgb, var(--os-bg-surface) 75%, transparent)",
     border: "1px solid var(--os-border)",
     color: "var(--os-text)",
+    // Render the native <select> popup in dark mode so options aren't
+    // light-on-white and invisible.
+    colorScheme: "dark",
   } as const;
 
   return (
@@ -220,7 +223,9 @@ export default function ContactSection() {
                     onChange={(e) => setForm({ ...form, type: e.target.value })}
                     className="w-full text-[13.5px] px-3.5 py-2.5 rounded-xl outline-none"
                     style={inputStyle}>
-                    {PROJECT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {PROJECT_TYPES.map((t) => (
+                      <option key={t} value={t} style={{ background: "var(--os-bg-window)", color: "var(--os-text)" }}>{t}</option>
+                    ))}
                   </select>
                 </div>
 

@@ -5,13 +5,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PROVIDERS, LLMProvider } from "@/lib/llm/providers";
 import {
-  checkIPAllowed,
   hashIPToProviderIndex,
   isProviderHealthy,
+  markChainExhausted,
   recordProviderFailure,
   recordProviderSuccess,
 } from "@/lib/llm/rateLimit";
 import { buildSystemPrompt } from "@/lib/llm/systemPrompt";
+import { getClientIP } from "@/lib/clientIP";
+import { rateLimit } from "@/lib/rateStore";
+import { log, newReqId } from "@/lib/observability/log";
 
 export const runtime = "nodejs"; // Required for in-memory Map state
 
@@ -48,6 +51,34 @@ const INJECTION_PATTERNS: RegExp[] = [
   /act as (if )?(you|an?) (?!recruiter|hiring)/i,
 ];
 
+// ── Response cache (protects tokens, latency, and rate limits) ──
+// Identical conversations return the identical model answer without spending
+// a token. Keyed on the FULL context + visitor type, so a follow-up like
+// "tell me more" (different context) never collides with an earlier turn.
+// In-memory + TTL'd: resets on cold start, which is fine — it only ever
+// saves cost, never changes correctness.
+const RESP_TTL_MS = 10 * 60 * 1000; // 10 min
+const RESP_CACHE_MAX = 200;
+const respCache = new Map<string, { content: string; at: number }>();
+
+function respKey(visitorType: string | null | undefined, messages: ChatMessage[]): string {
+  return `${visitorType ?? "none"}::${messages.map((m) => `${m.role}:${m.content.trim()}`).join("|")}`;
+}
+function respGet(key: string): string | null {
+  const hit = respCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > RESP_TTL_MS) { respCache.delete(key); return null; }
+  respCache.delete(key); respCache.set(key, hit); // bump recency
+  return hit.content;
+}
+function respSet(key: string, content: string) {
+  respCache.set(key, { content, at: Date.now() });
+  if (respCache.size > RESP_CACHE_MAX) {
+    const oldest = respCache.keys().next().value;
+    if (oldest !== undefined) respCache.delete(oldest);
+  }
+}
+
 function guardrailCheck(messages: ChatMessage[]): string | null {
   const last = messages[messages.length - 1]?.content ?? "";
   if (last.length > MAX_MESSAGE_CHARS) {
@@ -67,11 +98,13 @@ function guardrailCheck(messages: ChatMessage[]): string | null {
 
 // ── Provider callers ───────────────────────────────────────────
 
+interface ProviderResult { content: string; tokens: number }
+
 async function callOpenAICompat(
   provider: LLMProvider,
   systemPrompt: string,
   messages: ChatMessage[],
-): Promise<string> {
+): Promise<ProviderResult> {
   const apiKey = provider.apiKeyEnv ? (process.env[provider.apiKeyEnv] ?? "") : "";
 
   if (provider.apiKeyEnv && !apiKey) throw new Error(`Missing env: ${provider.apiKeyEnv}`);
@@ -114,18 +147,16 @@ async function callOpenAICompat(
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content;
   if (!content) throw new Error(`${provider.id}: empty response`);
-  return content.trim();
+  return { content: content.trim(), tokens: Number(data?.usage?.total_tokens) || 0 };
 }
 
 async function callGemini(
   provider: LLMProvider,
   systemPrompt: string,
   messages: ChatMessage[],
-): Promise<string> {
+): Promise<ProviderResult> {
   const apiKey = process.env[provider.apiKeyEnv];
   if (!apiKey) throw new Error(`Missing env: ${provider.apiKeyEnv}`);
-
-  const url = `${provider.endpoint}?key=${apiKey}`;
 
   const contents = messages.map((m) => ({
     role:  m.role === "user" ? "user" : "model",
@@ -141,9 +172,11 @@ async function callGemini(
     },
   };
 
-  const res = await fetch(url, {
+  const res = await fetch(provider.endpoint, {
     method:  "POST",
-    headers: { "Content-Type": "application/json" },
+    // Key travels in a header, not the URL query string — query strings are
+    // far more likely to be captured in proxy/access logs than headers.
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
     body:    JSON.stringify(body),
     signal:  AbortSignal.timeout(14_000),
   });
@@ -157,14 +190,14 @@ async function callGemini(
   const data = await res.json();
   const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!content) throw new Error("gemini: empty response");
-  return content.trim();
+  return { content: content.trim(), tokens: Number(data?.usageMetadata?.totalTokenCount) || 0 };
 }
 
 async function callProvider(
   provider: LLMProvider,
   systemPrompt: string,
   messages: ChatMessage[],
-): Promise<string> {
+): Promise<ProviderResult> {
   if (provider.type === "gemini") {
     return callGemini(provider, systemPrompt, messages);
   }
@@ -180,25 +213,21 @@ function getAvailableProviders(): LLMProvider[] {
   });
 }
 
-// ── IP extraction ──────────────────────────────────────────────
-
-function getIP(req: NextRequest): string {
-  return (
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    req.headers.get("x-real-ip") ??
-    "127.0.0.1"
-  );
-}
-
 // ── Main handler ───────────────────────────────────────────────
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const ip = getIP(req);
+  const ip = getClientIP(req);
+  const reqId = newReqId();
 
-  // 1. IP rate limit
-  if (!checkIPAllowed(ip)) {
+  // 1. IP rate limit (30 requests / hour) — durable across instances via
+  //    Upstash when configured, in-memory fallback otherwise.
+  if (!(await rateLimit(`ai:${ip}`, 30, 3_600_000))) {
+    log.warn({ event: "ai.request", route: "/api/ai", reqId, outcome: "rate_limited", status: 429 });
     return NextResponse.json(
-      { error: "rate_limited", message: "Too many requests. Try again in an hour." },
+      // `exhausted` is the single flag the client keys its reserve-power
+      // choreography off. Every outage shape below carries it, so a 429, a
+      // 503, and an in-stream {"e":"exhausted"} all land in the same place.
+      { error: "rate_limited", exhausted: true, message: "Too many requests. Try again in an hour." },
       { status: 429 },
     );
   }
@@ -222,6 +251,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // 2.5 Guardrails — deterministic filters run before any LLM call
   const blocked = guardrailCheck(contextMessages);
   if (blocked) {
+    log.warn({ event: "ai.request", route: "/api/ai", reqId, outcome: "guarded" });
     return NextResponse.json({ content: blocked, ok: true, guarded: true });
   }
 
@@ -231,11 +261,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // 4. Get available providers
   const available = getAvailableProviders();
   if (available.length === 0) {
+    log.error({ event: "ai.request", route: "/api/ai", reqId, outcome: "no_providers", status: 503 });
     return NextResponse.json(
-      { error: "no_providers", message: "No LLM API keys configured. Add keys to .env.local." },
+      { error: "no_providers", exhausted: true, message: "Model channel unavailable." },
       { status: 503 },
     );
   }
+
+  // 4.5 Response cache — a repeated conversation costs zero tokens.
+  const cacheKey = respKey(visitorType, contextMessages);
+  const cachedContent = respGet(cacheKey);
 
   // 5. IP-hash starting index (session affinity — same IP, same starting provider)
   const startIdx = hashIPToProviderIndex(ip, available.length);
@@ -253,9 +288,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       if (!isProviderHealthy(provider.id)) continue;
       tried++;
       onAttempt?.(tried, available.length);
+      const t0 = Date.now();
       try {
-        const content = await callProvider(provider, systemPrompt, contextMessages);
+        const { content, tokens } = await callProvider(provider, systemPrompt, contextMessages);
         recordProviderSuccess(provider.id);
+        // Per-provider success span: latency + token cost, filterable by provider.
+        log.info({
+          event: "ai.provider", route: "/api/ai", reqId, provider: provider.id,
+          outcome: "ok", attempt: tried, durationMs: Date.now() - t0, tokens,
+        });
         return { content };
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -265,9 +306,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         if (code === "429" || msg.includes("429")) {
           recordProviderFailure(provider.id); // extra penalty
         }
+        // Every failed provider attempt is now visible — the reroute that used
+        // to happen silently is one queryable log line per hop.
+        log.warn({
+          event: "ai.provider", route: "/api/ai", reqId, provider: provider.id,
+          outcome: "failed", attempt: tried, durationMs: Date.now() - t0,
+          status: code ? Number(code) || undefined : undefined, error: msg,
+        });
         continue;
       }
     }
+    // Nothing answered — record it so /api/ai/health reports the outage
+    // honestly instead of trusting per-provider strike counts.
+    markChainExhausted(available.map((p) => p.id));
     return { failed: lastError };
   }
 
@@ -278,9 +329,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       async start(controller) {
         const send = (obj: unknown) =>
           controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+        if (cachedContent !== null) {
+          log.info({ event: "ai.request", route: "/api/ai", reqId, outcome: "ok", mode: "stream", cached: true });
+          send({ e: "content", content: cachedContent, ok: true, cached: true });
+          controller.close();
+          return;
+        }
         const result = await runChain((attempt, total) => send({ e: "attempt", n: attempt, total }));
-        if ("content" in result) send({ e: "content", content: result.content, ok: true });
-        else send({ e: "exhausted" });
+        if ("content" in result) {
+          respSet(cacheKey, result.content);
+          log.info({ event: "ai.request", route: "/api/ai", reqId, outcome: "ok", mode: "stream" });
+          send({ e: "content", content: result.content, ok: true });
+        } else {
+          // Streaming exhaustion used to close silently — HTTP 200, no log — so
+          // a reserve-mode fallback left NO server-side trace. Now it's one
+          // queryable line, identical in shape to the non-streaming path.
+          log.error({ event: "ai.request", route: "/api/ai", reqId, outcome: "exhausted", mode: "stream", error: result.failed });
+          send({ e: "exhausted" });
+        }
         controller.close();
       },
     });
@@ -290,12 +356,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // 6b. Plain JSON mode (nudges, tour scripts)
+  if (cachedContent !== null) {
+    log.info({ event: "ai.request", route: "/api/ai", reqId, outcome: "ok", mode: "json", cached: true });
+    return NextResponse.json({ content: cachedContent, ok: true, cached: true });
+  }
   const result = await runChain();
   if ("content" in result) {
+    respSet(cacheKey, result.content);
+    log.info({ event: "ai.request", route: "/api/ai", reqId, outcome: "ok", mode: "json" });
     return NextResponse.json({ content: result.content, ok: true });
   }
+  // Never leak the provider chain / config details to the client (see header
+  // contract above). The specific failure is logged server-side only.
+  log.error({ event: "ai.request", route: "/api/ai", reqId, outcome: "exhausted", mode: "json", error: result.failed });
   return NextResponse.json(
-    { error: "all_failed", message: `All providers exhausted: ${result.failed}` },
+    { error: "all_failed", exhausted: true, message: "Model channel unavailable." },
     { status: 503 },
   );
 }

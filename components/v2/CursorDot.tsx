@@ -90,7 +90,7 @@ export default function CursorDot() {
       />
       <div
         ref={ringRef}
-        className="fixed top-0 left-0 pointer-events-none rounded-full"
+        className="os-cursor-ring fixed top-0 left-0 pointer-events-none rounded-full"
         style={{
           zIndex: 100001,
           width: 30,

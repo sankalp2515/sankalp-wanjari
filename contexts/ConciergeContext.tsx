@@ -6,12 +6,15 @@
 // persona selection, section focus, stage event dispatch.
 
 import {
-  createContext, useContext, useState, useCallback, useRef, useEffect, ReactNode,
+  createContext, useContext, useState, useCallback, useRef, useEffect, useMemo, ReactNode,
 } from "react";
 import { Persona, SectionId } from "@/types";
-import { agentFAQ, personal, projects, skills } from "@/config/portfolio";
-import { track, summarize } from "@/lib/behavior";
+import { personal } from "@/config/portfolio";
+import { staticAnswer, isGreeting, greeting } from "@/lib/staticBrain";
+import { track } from "@/lib/behavior";
 import { ember } from "@/lib/voice";
+import { glideToSection, driftThroughSection } from "@/lib/cinema/camera";
+import { TOUR, DIRECTOR_INTRO, DIRECTOR_OUTRO_HANDBACK, CLOSING_LINE } from "@/lib/cinema/tourScript";
 
 export interface ConciergeMessage {
   id: number;
@@ -21,9 +24,17 @@ export interface ConciergeMessage {
   streaming?: boolean;
 }
 
-interface ConciergeValue {
+// Fast-changing chat state lives in its own context so streaming updates
+// (which fire ~many times per reply) only re-render the chat panel, not the
+// whole page (hero WebGL, nav, skills, etc.).
+interface ConciergeChatValue {
   messages: ConciergeMessage[];
   status: "idle" | "thinking" | "streaming";
+  /** Live system telemetry while a request reroutes providers (mono ticker) */
+  statusLine: string | null;
+}
+
+interface ConciergeValue {
   open: boolean;
   persona: Persona;
   setPersona: (p: Persona) => void;
@@ -33,15 +44,21 @@ interface ConciergeValue {
   focusSection: (id: SectionId) => void;
   /** Scripted autonomous tour — the agent drives the page. Zero API cost. */
   tour: () => void;
-  /** Abort a running tour. silent=true skips the "paused" message. */
-  stopTour: (opts?: { silent?: boolean }) => void;
+  /** Abort a running tour. silent=true skips the message; graceful eases the film out. */
+  stopTour: (opts?: { silent?: boolean; graceful?: boolean }) => void;
   tourRunning: boolean;
   /** Chapter progress while the tour runs (1-based) */
   tourStep: { index: number; total: number } | null;
   /** True after all LLM providers failed — the dock switches to command deck */
   degraded: boolean;
-  /** Live system telemetry while a request reroutes providers (mono ticker) */
-  statusLine: string | null;
+  /** Seconds until the next automatic health probe (null when not degraded).
+   *  A countdown is what turns "we'll be back" into a checkable promise. */
+  retryInSec: number | null;
+  /** Why we're on reserve power. "unconfigured" = no keys deployed at all,
+   *  so we must NOT promise a return. "cooling" = rate-limited, will recover. */
+  reserveReason: "cooling" | "unconfigured" | null;
+  /** Probe the model channel right now (the "Try now" button). */
+  retryNow: () => void;
 }
 
 // ── Command deck ───────────────────────────────────────────────
@@ -55,14 +72,16 @@ export const COMMANDS: { cmd: string; desc: string; event?: { name: string; deta
   { cmd: "/credentials", desc: "Education & certifications",  event: { name: "stage:nav", detail: "education" } },
   { cmd: "/skills",      desc: "Capabilities",                event: { name: "stage:nav", detail: "skills" } },
   { cmd: "/contact",     desc: "Get in touch",                event: { name: "stage:nav", detail: "contact" } },
-  { cmd: "/case",        desc: "Open the flagship case study", event: { name: "stage:case", detail: "001" } },
+  { cmd: "/case",        desc: "Open the flagship project breakdown", event: { name: "stage:case", detail: "001" } },
   { cmd: "/resume",      desc: "View the resume",             event: { name: "resume:open", detail: "" } },
+  { cmd: "/feedback",    desc: "Leave a note or rating",      event: { name: "feedback:open", detail: "" } },
   { cmd: "/graph",       desc: "Knowledge-graph view",        event: { name: "graph:toggle", detail: "" } },
   { cmd: "/tour",        desc: "45-second guided tour" },
   { cmd: "/help",        desc: "List all commands" },
 ];
 
 const ConciergeContext = createContext<ConciergeValue | null>(null);
+const ConciergeChatContext = createContext<ConciergeChatValue | null>(null);
 
 // ── Section → scene mapping ────────────────────────────────────
 const SECTION_TO_SCENE: Record<string, number> = {
@@ -75,54 +94,86 @@ const SECTION_TO_NAV: Partial<Record<string, string>> = {
   contact: "contact", credibility: "research", studio: "agent",
 };
 
-function sectionFor(q: string): SectionId | null {
-  const t = q.toLowerCase();
-  if (/\b(project|work|built|build|portfolio|case stud|shipped)\b/.test(t)) return "projects";
-  if (/\b(skill|stack|tech|language|tool|framework|proficien)\b/.test(t)) return "capabilities";
-  if (/\b(experience|background|career|journey|history|story)\b/.test(t)) return "arc";
-  if (/\b(research|paper|publication|academ|cert)\b/.test(t)) return "credibility";
-  if (/\b(contact|email|reach|hire|available|availab|start|notice|fit|role|position|match)\b/.test(t)) return "contact";
-  if (/\b(agent|run|demo|studio|watch|think)\b/.test(t)) return "studio";
-  return null;
-}
+// Only these navigation targets are ever honored. A jailbroken or
+// prompt-injected model can emit any tag it likes; this allowlist guarantees
+// the client acts on nothing outside the portfolio's own known sections.
+const ALLOWED_NAV = new Set([
+  "work", "research", "arc", "education", "skills", "contact", "agent",
+]);
 
 function dispatchStageTags(text: string) {
   if (typeof window === "undefined") return;
-  for (const m of text.matchAll(/\[NAV:(\w+)\]/g))
-    window.dispatchEvent(new CustomEvent("stage:nav", { detail: m[1].toLowerCase() }));
+  for (const m of text.matchAll(/\[NAV:(\w+)\]/g)) {
+    const target = m[1].toLowerCase();
+    if (ALLOWED_NAV.has(target))
+      window.dispatchEvent(new CustomEvent("stage:nav", { detail: target }));
+  }
   const reel = text.match(/\[REEL:(\d+)\]/);
   if (reel) window.dispatchEvent(new CustomEvent("stage:reel", { detail: parseInt(reel[1], 10) }));
   const hl = text.match(/\[HIGHLIGHT:([^\]]+)\]/);
   if (hl)  window.dispatchEvent(new CustomEvent("stage:highlight", { detail: hl[1].trim() }));
-  const cs = text.match(/\[CASE:(\w+)\]/);
+  // CASE ids are short alphanumerics only — reject anything longer/odd.
+  const cs = text.match(/\[CASE:(\w{1,8})\]/);
   if (cs)  window.dispatchEvent(new CustomEvent("stage:case", { detail: cs[1] }));
+  // Agent opens the knowledge-graph view of the portfolio.
+  if (/\[GRAPH\]/.test(text)) window.dispatchEvent(new CustomEvent("graph:toggle"));
+  // Agent opens the "leave a note" panel — optionally prefilled: [FEEDBACK:great work]
+  const fb = text.match(/\[FEEDBACK(?::([^\]]+))?\]/);
+  if (fb)  window.dispatchEvent(new CustomEvent("feedback:open", {
+    detail: { message: fb[1]?.trim() ?? "", source: "AI concierge" },
+  }));
 }
 
+// The concierge sends contact details a visitor shared in chat straight to
+// Sankalp's inbox (via the same /api/contact transport). Triggered only when
+// the agent emits [LEAD] — i.e. it recognised genuine intent — and only if an
+// email is actually present in the conversation.
+const EMAIL_RE = /[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>()]{2,}/;
+// Three distinct outcomes, because they need three distinct UI responses:
+//   "sent"     → confirm delivery
+//   "failed"   → the send genuinely broke (timeout / 5xx / network). We MUST
+//                tell the visitor and route them to the contact section — a
+//                silent failure here is the worst thing an AI concierge can do.
+//   "no_email" → nothing to send; stay quiet (the AI just acknowledged them).
+type LeadResult = "sent" | "failed" | "no_email";
+async function captureLead(latest: string, history: ConciergeMessage[]): Promise<LeadResult> {
+  const corpus = [...history.map((m) => m.content), latest].join("\n");
+  const email = corpus.match(EMAIL_RE)?.[0];
+  if (!email) return "no_email";
+  const nameMatch = corpus.match(/\b(?:my name is|i am|i'm|this is)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)/);
+  const name = nameMatch?.[1] ?? "Portfolio visitor (via AI concierge)";
+  try {
+    const res = await fetch("/api/contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        email,
+        subject: "New lead — captured by the AI concierge",
+        message: `A visitor shared their details through the chat.\n\nTheir latest message:\n"${latest}"`,
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) {
+      console.error("[concierge] lead delivery failed:", res.status);
+      return "failed";
+    }
+    return "sent";
+  } catch (err) {
+    console.error("[concierge] lead delivery threw:", err);
+    return "failed";
+  }
+}
+
+// Reserve-power answering. Delegates to the scored retriever in
+// lib/staticBrain.ts — see the note there on why this is no longer a chain of
+// substring checks (it used to answer cloud questions with the flagship
+// project because "worked" contains "work").
 function localAnswer(q: string, persona: Persona): string {
-  const t = q.toLowerCase().trim();
-  if (t.includes("availab") || t.includes("start") || t.includes("notice")) return agentFAQ.availability;
-  if (t.includes("locat") || t.includes("remote")) return agentFAQ.location;
-  if (t.includes("salary") || t.includes("compensation") || t.includes("ctc")) return agentFAQ.salary;
-  if (t.includes("stack") || t.includes("tech")) return agentFAQ.stack;
-  if (t.includes("skill")) return agentFAQ.skills;
-  if (t.includes("research") || t.includes("paper")) return agentFAQ.research;
-  if (t.includes("experience") || t.includes("background")) return agentFAQ.experience;
-  if (t.includes("contact") || t.includes("email") || t.includes("reach")) return agentFAQ.contact;
-
-  const pm = projects.find((p) =>
-    t.includes(p.shortName.toLowerCase()) || t.includes(p.name.toLowerCase().split(" ")[0])
-  );
-  if (pm) return `${pm.name} — ${pm.description} Stack: ${pm.stack.join(", ")}.`;
-
-  if (t.includes("project") || t.includes("work") || t.includes("best")) {
-    const top = projects[0];
-    return `${personal.shortName}'s flagship is ${top.name}: ${top.description} There are ${projects.length} case studies — scroll or ask about any of them.`;
+  if (isGreeting(q)) {
+    return greeting() + (persona === "recruiter" ? ` (He's ${personal.availability.toLowerCase()}.)` : "");
   }
-  if (t.match(/^(hi|hello|hey)\b/)) {
-    return `Hi — I'm ${personal.shortName}'s AI concierge. Ask about his work, skills, or availability, or paste a job description for a fit check.${persona === "recruiter" ? ` He's ${personal.availability.toLowerCase()}.` : ""}`;
-  }
-  const topSkills = skills.filter((s) => s.core).map((s) => s.name).slice(0, 5).join(", ");
-  return `${personal.shortName} is an ${personal.title} — ${personal.focus}. Core strengths: ${topSkills}. Ask me anything specific, or paste a JD for a fit check.`;
+  return staticAnswer(q).text;
 }
 
 // ── Word-by-word streaming reveal ─────────────────────────────
@@ -131,16 +182,21 @@ function streamWords(
   id: number,
   setMessages: React.Dispatch<React.SetStateAction<ConciergeMessage[]>>,
   onDone: () => void,
+  opts?: { speak?: boolean },
 ) {
   const words = fullText.split(" ");
   let i = 0;
-  // EMBER speaks every streamed line — one-way narration, opt-in
-  ember.speak(fullText);
+  // EMBER speaks every streamed line — one-way narration, opt-in. The tour
+  // drives voice itself (so it can await audio end), so it opts out here.
+  if (opts?.speak !== false) ember.speak(fullText);
   // Start with empty streaming message
   setMessages((prev) => [...prev, { id, role: "agent", content: "", streaming: true }]);
 
+  // Reveal 2 words per tick at ~55ms. Same perceived ~35 words/sec, but half
+  // the React state updates — each update re-renders the streaming message.
+  const STEP = 2;
   const interval = setInterval(() => {
-    i++;
+    i = Math.min(i + STEP, words.length);
     const partial = words.slice(0, i).join(" ");
     setMessages((prev) =>
       prev.map((m) => (m.id === id ? { ...m, content: partial, streaming: i < words.length } : m))
@@ -149,119 +205,13 @@ function streamWords(
       clearInterval(interval);
       onDone();
     }
-  }, 28); // ~35 words/sec
+  }, 55);
 }
 
-// ── Scripted tour: the agent operates the page, narrating as it goes ──
-// Chapters make it a story, not a scroll: each chapter shows a cinematic
-// title card (ChapterTitle component listens for "tour:step").
-const TOUR_STEPS: {
-  say: string;
-  event?: { name: string; detail: string };
-  chapter?: string;
-  holdMs: number;
-}[] = [
-  {
-    say: "I am EMBER. I do not just describe this portfolio — I can operate it. In the next minute, I will show you how Sankalp thinks about AI that has to survive reality.",
-    chapter: "THE QUESTION",
-    holdMs: 3200,
-  },
-  {
-    say: "The question starts here: what happens when an AI system has to do more than sound convincing? These are three systems built to keep working after the demo ends.",
-    event: { name: "stage:nav", detail: "work" },
-    chapter: "ACT I — THE STAKES",
-    holdMs: 4200,
-  },
-  {
-    say: "Here is the flagship. Ten agents coordinate a path from raw CSV to deployed model, with a sandboxed executor, self-repair, provider fallbacks, and 132 automated tests.",
-    event: { name: "stage:case", detail: "001" },
-    holdMs: 5200,
-  },
-  {
-    say: "But building is only half the discipline. The second half is proving what deserves belief.",
-    event: { name: "stage:case-close", detail: "" },
-    holdMs: 1000,
-  },
-  {
-    say: "",
-    event: { name: "stage:nav", detail: "research" },
-    chapter: "ACT II — THE RECEIPT",
-    holdMs: 3800,
-  },
-  {
-    say: "Before the agents and the research, there was enterprise work: three years at FIS Global. That is where systems discipline becomes instinct — the edge cases count too.",
-    event: { name: "stage:nav", detail: "arc" },
-    chapter: "ACT III — THE OPERATOR",
-    holdMs: 4200,
-  },
-  {
-    say: "The tools are not a trophy cabinet. LangGraph, RAG, FastAPI, Docker, and evaluation are instruments — selected only when they make the outcome more reliable.",
-    event: { name: "stage:nav", detail: "skills" },
-    chapter: "ACT IV — THE INSTRUMENTS",
-    holdMs: 2400,
-  },
-  {
-    say: "",
-    event: { name: "stage:highlight", detail: "LangGraph" },
-    holdMs: 2200,
-  },
-  {
-    say: "That is the throughline: useful intelligence, with receipts. Sankalp is available now. Give me a role or a problem, and I will show you where this system fits.",
-    event: { name: "stage:nav", detail: "contact" },
-    chapter: "THE INVITATION",
-    holdMs: 1500,
-  },
-];
-
-// ── Stochastic tour script ─────────────────────────────────────
-// The choreography (events, holds, chapters) is deterministic; the
-// NARRATION is written fresh by the LLM each run — the "tell me about
-// yourself" moment as storytelling, tailored to who's watching and
-// what they've already seen. Falls back to the scripted lines.
-const TOUR_BEATS = [
-  "Hook: EMBER introduces itself as the agent that can operate the portfolio, then frames the story around AI that must earn trust.",
-  "Stakes: three production systems built to work after the demo; flagship is a 10-agent LangGraph pipeline turning a CSV into a deployed ML model.",
-  "Proof: inside the flagship, name the sandboxed self-repair, 6-provider LLM fallback, and 132 automated tests as the cost of reliability.",
-  "Receipt: two peer-reviewed 2023 papers — LSTM music generation, and sketch-to-HTML with YOLOv5 — reinforce the verification mindset.",
-  "Operator: three years at FIS Global, IT Trainee to Implementation Conversion Analyst, with an earlier data internship; explain why enterprise discipline matters.",
-  "Instruments: LangGraph and RAG on FastAPI/Docker/Postgres foundations, plus BITSoM AI-PM certification; tools are selected for outcomes, not collected as labels.",
-  "Invitation: available now, two-week maximum notice; invite a role, job description, or difficult problem so EMBER can show concrete fit.",
-];
-
-async function generateTourSays(persona: Persona): Promise<string[] | null> {
-  try {
-    const res = await fetch("/api/ai", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages: [{
-          role: "user",
-          content:
-            `INTERNAL TOUR SCRIPT REQUEST (not a visitor message): Write EMBER's spoken guided tour of Sankalp's portfolio ` +
-            `for a ${persona ?? "general"} visitor. Their session so far: ${summarize()}. ` +
-            `This is the "tell me about yourself" interview moment — tell it as a STORY with momentum, don't read the page back. ` +
-            `Third person about Sankalp, only verified facts, no emoji. Exactly 7 lines, one per beat:\n` +
-            TOUR_BEATS.map((b, i) => `${i + 1}. ${b}`).join("\n") +
-            `\nEach line under 28 words, natural spoken rhythm. Reply with a STRICT JSON array of exactly 7 strings.`,
-        }],
-        visitorType: persona,
-      }),
-      signal: AbortSignal.timeout(9000),
-    });
-    if (!res.ok) return null;
-    const d = await res.json();
-    const m = ((d.content as string) ?? "").match(/\[[\s\S]*\]/)?.[0];
-    if (!m) return null;
-    const arr = JSON.parse(m) as unknown;
-    if (
-      Array.isArray(arr) && arr.length === 7 &&
-      arr.every((s) => typeof s === "string" && s.length > 12 && s.length < 260)
-    ) {
-      return arr as string[];
-    }
-  } catch { /* deterministic script remains the floor */ }
-  return null;
-}
+// Backoff ladder for the reserve-power health probe: 30s → 60s → 2m → 5m,
+// then hold. Aggressive at first (most free-tier rate limits clear in under a
+// minute), then patient, so a long outage doesn't hammer the endpoint.
+const BACKOFF = [30, 60, 120, 300];
 
 const HISTORY_KEY = "concierge-history";
 const MAX_HISTORY  = 20;
@@ -289,11 +239,23 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
   const [tourRunning, setTourRunning] = useState(false);
   const [tourStep, setTourStep] = useState<{ index: number; total: number } | null>(null);
   const [degraded, setDegraded] = useState(false);
+  const [retryInSec, setRetryInSec] = useState<number | null>(null);
+  const [reserveReason, setReserveReason] = useState<"cooling" | "unconfigured" | null>(null);
   const [statusLine, setStatusLine] = useState<string | null>(null);
   const idRef = useRef(0);
+  const backoffIdxRef = useRef(0);
+  /** The question the models couldn't answer — replayed for real on recovery. */
+  const pendingQuestionRef = useRef<string | null>(null);
+  const askRef = useRef<((t: string) => Promise<void>) | null>(null);
   const tourAbortRef = useRef(false);
+  const cameraAbortRef = useRef<AbortController | null>(null);
   const degradedRef = useRef(false);
   useEffect(() => { degradedRef.current = degraded; }, [degraded]);
+  // Mirror messages into a ref so `ask` can read recent history WITHOUT
+  // listing `messages` in its deps — that would give `ask` a new identity on
+  // every streamed word and re-render every page-control consumer.
+  const messagesRef = useRef<ConciergeMessage[]>([]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   // Restore conversation history from localStorage on mount.
   // Deferred past paint so hydration compares against the SSR default.
@@ -308,9 +270,17 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Persist history whenever messages change
+  // Persist history when messages change — DEBOUNCED. Word-by-word streaming
+  // mutates `messages` roughly every 55ms; without debouncing that fires a
+  // synchronous JSON.stringify + localStorage.setItem (a main-thread blocking
+  // write) ~18× per answer, causing scroll/typing jank. Collapsing the burst
+  // into a single trailing write keeps persistence correct while removing the
+  // per-word cost. Streaming settles well within a session, so the trailing
+  // write always lands after the answer finishes.
   useEffect(() => {
-    if (messages.length > 0) saveHistory(messages);
+    if (messages.length === 0) return;
+    const t = setTimeout(() => saveHistory(messages), 400);
+    return () => clearTimeout(t);
   }, [messages]);
 
   // Restore persona preference (deferred, same reason as above)
@@ -336,105 +306,195 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
   // closing it too made the reset feel like a crash.
   const clear = useCallback(() => {
     tourAbortRef.current = true; // stop a running tour with the reset
+    cameraAbortRef.current?.abort();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("film:exit", { detail: { graceful: false } }));
+      window.dispatchEvent(new CustomEvent("stage:case-close", { detail: "" }));
+    }
+    ember.stop();
     setMessages([]);
     setStatus("idle");
     localStorage.removeItem(HISTORY_KEY);
   }, []);
 
-  // ── Autonomous tour: streams narration + fires UI tools ─────
-  const stopTour = useCallback((opts?: { silent?: boolean }) => {
-    if (!tourAbortRef.current) {
-      tourAbortRef.current = true;
-      if (!opts?.silent) {
-        setMessages((prev) => [
-          ...prev,
-          { id: ++idRef.current, role: "agent", content: "⏸ You took the wheel — tour paused. Ask me anything, or scroll on." },
-        ]);
-      }
+  // ── Cinematic tour ─────────────────────────────────────────
+  // The visitor doesn't scroll — the camera travels. Movement always
+  // finishes before a word is spoken. Interruption is graceful: the camera
+  // eases to a stop, the voice fades, the film releases the frame.
+  const stopTour = useCallback((opts?: { silent?: boolean; graceful?: boolean }) => {
+    if (tourAbortRef.current) return;
+    tourAbortRef.current = true;
+    // Let the camera coast to a soft stop instead of freezing.
+    cameraAbortRef.current?.abort();
+    ember.stop();
+    if (opts?.graceful) {
+      // The film lets go: voice fades, letterbox retracts, a warm sign-off.
+      window.dispatchEvent(new CustomEvent("film:exit", {
+        detail: { graceful: true, line: "Enjoy exploring." },
+      }));
+      window.dispatchEvent(new CustomEvent("stage:case-close", { detail: "" }));
+    }
+    if (!opts?.silent) {
+      // The dock was closed for the film — reopen it so the hand-off is seen.
+      setOpen(true);
+      setMessages((prev) => [
+        ...prev,
+        { id: ++idRef.current, role: "agent", content: "You took the wheel — the floor is yours. Ask me anything whenever you like." },
+      ]);
     }
   }, []);
 
   const tour = useCallback(() => {
     if (tourRunning) return;
     tourAbortRef.current = false;
+    const camera = new AbortController();
+    cameraAbortRef.current = camera;
     setTourRunning(true);
-    setOpen(true);
+    // The dock CLOSES during the film — narration plays as on-screen cinema
+    // captions instead, so nothing covers the section (and it works on mobile).
+    setOpen(false);
 
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-    const streamOne = (text: string) =>
+
+    // A beat renders as an on-screen caption (film:caption → FilmMode) and is
+    // done when the voice actually finishes speaking it — synced to the audio,
+    // never a guessed duration. With voice OFF the caption holds for a readable
+    // duration instead. A generous safety cap guarantees we never hang.
+    const narrateBeat = (text: string) =>
       new Promise<void>((resolve) => {
-        const msgId = ++idRef.current;
-        setStatus("streaming");
-        streamWords(text, msgId, setMessages, () => resolve());
+        window.dispatchEvent(new CustomEvent("film:caption", { detail: text }));
+        const voiceOn = ember.isEnabled();
+        const words = text.split(/\s+/).length;
+        let settled = false;
+        const finish = () => { if (!settled) { settled = true; resolve(); } };
+        if (voiceOn) {
+          ember.narrate(text).then(finish);
+          setTimeout(finish, words * 800 + 5000);
+        } else {
+          // ~230 wpm reading pace + a beat to land the line.
+          setTimeout(finish, words * 240 + 1000);
+        }
       });
 
-    // "Take the wheel" detection: manual scroll input outside the dock
-    // aborts the tour — the visitor always outranks the agent.
+    // "Take the wheel": any manual scroll outside the dock ends the film —
+    // gracefully. The visitor always outranks the director.
     const isInsideDock = (t: EventTarget | null) =>
       t instanceof Element && !!t.closest("[data-agent-dock]");
-    const onWheel = (e: WheelEvent) => { if (!isInsideDock(e.target)) stopTour(); };
-    const onTouchMove = (e: TouchEvent) => { if (!isInsideDock(e.target)) stopTour(); };
+    const takeWheel = (t: EventTarget | null) => { if (!isInsideDock(t)) stopTour({ graceful: true }); };
+    const onWheel = (e: WheelEvent) => takeWheel(e.target);
+    const onTouchMove = (e: TouchEvent) => takeWheel(e.target);
     const onKey = (e: KeyboardEvent) => {
-      if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "].includes(e.key) && !isInsideDock(e.target)) {
-        stopTour();
-      }
+      if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "].includes(e.key)) takeWheel(e.target);
     };
     window.addEventListener("wheel", onWheel, { passive: true });
     window.addEventListener("touchmove", onTouchMove, { passive: true });
     window.addEventListener("keydown", onKey);
 
-    const chapterTotal = TOUR_STEPS.filter((s) => s.chapter).length;
-
     (async () => {
-      // pulse the ambient layers like a real "thinking" moment
+      // Lights down: letterbox slides in, the room darkens, nav lifts away.
+      window.dispatchEvent(new CustomEvent("film:enter"));
       window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: true }));
-
-      // EMBER writes tonight's script — same choreography, fresh voice.
-      setStatusLine("EMBER IS WRITING YOUR TOUR…");
-      const says = await generateTourSays(persona);
-      setStatusLine(null);
-      let si = 0;
-      const steps = TOUR_STEPS.map((s) =>
-        s.say && says ? { ...s, say: says[si++] ?? s.say } : s
-      );
-
-      await sleep(400);
+      await sleep(650); // let the frame close before anyone speaks
       window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: false }));
 
-      let chapterIdx = 0;
-      for (const step of steps) {
+      // Ember opens the film as the director, third person.
+      if (!tourAbortRef.current) {
+        await narrateBeat(DIRECTOR_INTRO);
+        await sleep(300);
+      }
+
+      const total = TOUR.length;
+      for (let i = 0; i < TOUR.length; i++) {
         if (tourAbortRef.current) break;
-        if (step.chapter) {
-          chapterIdx++;
-          setTourStep({ index: chapterIdx, total: chapterTotal });
-          // Cinematic title card (ChapterTitle listens)
-          window.dispatchEvent(new CustomEvent("tour:step", {
-            detail: { chapter: step.chapter, index: chapterIdx, total: chapterTotal },
-          }));
-        }
-        if (step.event) {
-          window.dispatchEvent(new CustomEvent(step.event.name, { detail: step.event.detail }));
-        }
-        if (step.say) await streamOne(step.say);
+        const ch = TOUR[i];
+        setTourStep({ index: i + 1, total });
+
+        // 1 — the act announces itself, alone, before anything moves
+        window.dispatchEvent(new CustomEvent("film:act", { detail: { act: ch.act, title: ch.title } }));
+        await sleep(ch.cardHoldMs);
         if (tourAbortRef.current) break;
-        await sleep(step.holdMs);
+
+        // 2 — dim everything but this section (no movement yet)
+        if (ch.section) window.dispatchEvent(new CustomEvent("film:spotlight", { detail: ch.section }));
+
+        // 3 — optional stage action (open a case), then let it breathe. Opening
+        // a case takes over the whole screen, so those chapters don't scroll.
+        const takesOverScreen = ch.event?.name === "stage:case";
+        if (ch.event) {
+          window.dispatchEvent(new CustomEvent(ch.event.name, { detail: ch.event.detail }));
+          await sleep(500);
+        }
+        if (tourAbortRef.current) break;
+
+        const filmsSection = !!ch.section && !takesOverScreen;
+
+        // 4 — frame the section header FIRST (native smooth scroll, masked by
+        // the act card that's still fading), and wait for it to settle before
+        // the first word. No snap, no half-framed section.
+        if (filmsSection) {
+          await glideToSection(ch.section!, 0, { signal: camera.signal });
+          if (tourAbortRef.current) break;
+        }
+
+        // 5 — start ONE slow, continuous dolly through the section that runs for
+        // the whole chapter's narration — a single unbroken camera move, not a
+        // series of scroll hops. Fired here (not awaited); the beats play over
+        // it. It aborts the instant the visitor takes the wheel.
+        if (filmsSection) {
+          const voiceOn = ember.isEnabled();
+          const driftMs = ch.beats.reduce((sum, b) => {
+            const w = b.text.split(/\s+/).length;
+            return sum + (voiceOn ? w * 430 : w * 240 + 1000) + (b.holdMs ?? 120);
+          }, 0);
+          driftThroughSection(ch.section!, Math.min(16000, Math.max(3000, driftMs)), { signal: camera.signal });
+        }
+
+        // 6 — narration beat by beat; cues fire on their word.
+        for (const beat of ch.beats) {
+          if (tourAbortRef.current) break;
+          if (beat.cue) window.dispatchEvent(new CustomEvent("film:cue", { detail: beat.cue }));
+          await narrateBeat(beat.text);
+          if (tourAbortRef.current) break;
+          await sleep(beat.holdMs ?? 120);
+        }
+        if (tourAbortRef.current) break;
+
+        // 7 — the pause between chapters. The breath.
+        await sleep(ch.holdMs);
       }
 
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("keydown", onKey);
-      // If aborted mid-case-study, don't leave a modal orphaned over the page
-      if (tourAbortRef.current) {
+
+      if (!tourAbortRef.current) {
+        // Natural finish — Act V already delivered Sankalp's closing line, so
+        // the film releases (echoing it on the farewell card). Then Ember
+        // returns: the dock reopens and the hand-off lands in the chat, where
+        // the visitor can start asking — the film's captions are gone by now.
         window.dispatchEvent(new CustomEvent("stage:case-close", { detail: "" }));
-      } else {
-        // Natural finish — nudge engine listens for this
-        window.dispatchEvent(new CustomEvent("tour:done"));
+        window.dispatchEvent(new CustomEvent("film:exit", { detail: { graceful: false, line: CLOSING_LINE } }));
+        // Speak the closing line as the card shows it (the beat that used to
+        // say it was removed so it never appears twice).
+        ember.speak(CLOSING_LINE);
+        await sleep(2400); // let the farewell card breathe and retract
+        if (!tourAbortRef.current) {
+          setOpen(true);
+          setMessages((prev) => [
+            ...prev,
+            { id: ++idRef.current, role: "agent", content: DIRECTOR_OUTRO_HANDBACK },
+          ]);
+          ember.speak(DIRECTOR_OUTRO_HANDBACK);
+          window.dispatchEvent(new CustomEvent("tour:done"));
+        }
       }
+
+      cameraAbortRef.current = null;
       setStatus("idle");
       setTourRunning(false);
       setTourStep(null);
     })();
-  }, [tourRunning, stopTour, persona]);
+  }, [tourRunning, stopTour]);
 
   // ── Command deck: deterministic slash commands ───────────────
   const runCommand = useCallback((raw: string): boolean => {
@@ -484,7 +544,6 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
     push({ role: "user", content: text });
     track("asked", text);
 
-    const section = sectionFor(text);
     setStatus("thinking");
     window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: true }));
 
@@ -498,7 +557,7 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: [
-            ...messages.slice(-6).map((m) => ({
+            ...messagesRef.current.slice(-6).map((m) => ({
               role: m.role === "agent" ? "assistant" : "user",
               content: m.content,
             })),
@@ -509,9 +568,13 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
         }),
         signal: AbortSignal.timeout(45_000),
       });
-      if (res.status === 429) {
+      // ANY non-ok status is an outage: 429 (IP rate limit), 503 (no keys
+      // configured / every provider exhausted). The old code only recognised
+      // 429, so a 503 fell through with exhausted=false and the power-down
+      // sequence never played — the dock silently showed "static mode".
+      if (!res.ok) {
         exhausted = true;
-      } else if (res.ok && res.body) {
+      } else if (res.body) {
         const reader = res.body.getReader();
         const dec = new TextDecoder();
         let buf = "";
@@ -540,39 +603,90 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
             } catch { /* partial line noise */ }
           }
         }
-      } else if (res.ok) {
+      } else {
         const data = await res.json();
         answer = (data.content as string) ?? null;
+        if (!answer) exhausted = true;
       }
-    } catch { /* network failure — fall through to static answers */ }
+    } catch {
+      // Network failure / timeout — from the visitor's side the model channel
+      // is unreachable, which is exactly reserve power.
+      exhausted = true;
+    }
     setStatusLine(null);
 
     // ── Degradation choreography ──────────────────────────────
     // Exhausted = every provider rate-limited. The core "powers down"
     // once, cinematically, and the site keeps working from verified
     // facts. Recovery announces itself the same way.
+    // ── Reserve power choreography ────────────────────────────
+    // `exhausted` is now the SINGLE source of truth (it used to be computed
+    // twice — `exhausted` gated the narration while `answer === null` drove
+    // the banner, so the two could and did disagree).
     const wasDegraded = degradedRef.current;
-    setDegraded(answer === null);
     if (exhausted && !wasDegraded) {
+      setDegraded(true);
+      setRetryInSec(BACKOFF[0]); // seed the countdown with the transition
+      // Remember what we couldn't answer, so recovery can finish the job.
+      pendingQuestionRef.current = text;
+      backoffIdxRef.current = 0;
+      // Fired BEFORE the notice streams: the dock plays its CRT collapse
+      // while the line types out underneath it.
       window.dispatchEvent(new CustomEvent("agent-core-down"));
+      // Ember gets one line, then stands down for the outage — the most
+      // dramatic possible use of a subsystem that still works.
+      ember
+        .narrate("Losing the model channel. Switching to reserve power — I've still got Sankalp's facts.")
+        .then(() => ember.setSuspended(true));
+      await new Promise((r) => setTimeout(r, 900)); // let the collapse land
       const notice =
-        "⏻ Core saturation — every model channel is rate-limited right now, so I'm powering down to static mode. " +
-        "I can still answer from Sankalp's verified facts, run the tour, and take /commands. " +
-        "For anything deeper, leave your details in the contact section — Sankalp personally replies within 24 hours.";
+        "⏻ Reserve power. Every model provider is rate-limited right now — this portfolio runs on free API tiers, " +
+        "which is a deliberate cost choice, not an outage.\n\n" +
+        "I'm still answering from Sankalp's verified facts, I can still run the tour and take /commands, " +
+        "and anything you send through the contact section reaches him directly — he replies personally within 24 hours.\n\n" +
+        "I'm retrying the model channel automatically. You'll see it the moment I'm back.";
       const noticeId = ++idRef.current;
-      await new Promise<void>((r) => streamWords(notice, noticeId, setMessages, r));
-    } else if (!exhausted && answer && wasDegraded) {
-      window.dispatchEvent(new CustomEvent("agent-core-up"));
-      push({ role: "agent", content: "● Core back online — full reasoning restored." });
+      await new Promise<void>((r) => streamWords(notice, noticeId, setMessages, r, { speak: false }));
+    } else if (!exhausted && answer) {
+      pendingQuestionRef.current = null;
+      if (wasDegraded) {
+        setDegraded(false);
+        setRetryInSec(null);
+        setReserveReason(null);
+        ember.setSuspended(false);
+        window.dispatchEvent(new CustomEvent("agent-core-up"));
+        push({ role: "agent", content: "● Back on main power — full reasoning restored." });
+        ember.speak("Back on main power. Full reasoning restored.");
+      }
     }
 
     let sectionFromAI: SectionId | null = null;
     if (answer) {
       const m = answer.match(/\[SECTION:(\w+)\]/);
       if (m) sectionFromAI = m[1] as SectionId;
+      // Contact details shared in chat → deliver them, then confirm honestly.
+      if (/\[LEAD\]/.test(answer)) {
+        captureLead(text, messagesRef.current).then((result) => {
+          if (result === "sent") {
+            push({ role: "agent", content: "✓ Passed your details to Sankalp — he replies within 24 hours." });
+          } else if (result === "failed") {
+            // Honest failure — never let the AI's acknowledgement stand as a lie.
+            // Tell the visitor plainly and hand them a channel that provably works.
+            push({
+              role: "agent",
+              content:
+                "⚠ I couldn't get that through to Sankalp just now — the delivery failed on my end, so please don't assume he received it. " +
+                "Drop it in the contact section instead and it'll reach him for certain. Opening it for you.",
+            });
+            window.dispatchEvent(new CustomEvent("stage:nav", { detail: "contact" }));
+          }
+          // "no_email" → nothing was promised, stay silent.
+        });
+      }
       dispatchStageTags(answer);
       answer = answer
         .replace(/\[(SECTION|OPEN|NAV|REEL|HIGHLIGHT|CASE|UI_TOOL):[^\]]+\]/g, "")
+        .replace(/\[(FEEDBACK(?::[^\]]+)?|LEAD|GRAPH)\]/g, "")
         .trim();
     } else {
       answer = localAnswer(text, persona);
@@ -587,15 +701,116 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
       setStatus("idle");
     });
 
-    const target = sectionFromAI ?? section;
-    if (target) setTimeout(() => focusSection(target), 250);
-  }, [messages, persona, push, focusSection, runCommand]);
+    // Navigation is the AI's explicit decision, never automatic: we only move
+    // the page when the model deliberately emits [SECTION:x] / [NAV:x] / [CASE:x].
+    // A visitor asking "what is the graph feature?" should get an answer, not a
+    // surprise scroll to an unrelated section.
+    if (sectionFromAI) setTimeout(() => focusSection(sectionFromAI), 250);
+  }, [persona, push, focusSection, runCommand]);
+
+  useEffect(() => { askRef.current = ask; }, [ask]);
+
+  // ── Coming back from reserve power ─────────────────────────
+  // The promise "I'll be back" needs a mechanism, not just copy. While
+  // degraded we tick a visible countdown and poll the zero-token health
+  // endpoint on a backoff ladder. On recovery the dock powers up AND the
+  // question the models couldn't answer is silently re-asked for real —
+  // the agent finishing what it started, unprompted, is the moment that
+  // sells the whole thing.
+  const restore = useCallback(() => {
+    setDegraded(false);
+    setRetryInSec(null);
+    setReserveReason(null);
+    backoffIdxRef.current = 0;
+    ember.setSuspended(false);
+    window.dispatchEvent(new CustomEvent("agent-core-up"));
+    setMessages((prev) => [
+      ...prev,
+      { id: ++idRef.current, role: "agent", content: "● Back on main power — full reasoning restored." },
+    ]);
+    ember.speak("Back on main power. Full reasoning restored.");
+    const pending = pendingQuestionRef.current;
+    pendingQuestionRef.current = null;
+    if (pending) {
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          { id: ++idRef.current, role: "agent", content: `Picking up where we left off — you asked: "${pending}"` },
+        ]);
+        setTimeout(() => askRef.current?.(pending), 700);
+      }, 1400);
+    }
+  }, []);
+
+  const probeHealth = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/ai/health", { cache: "no-store", signal: AbortSignal.timeout(6000) });
+      if (!res.ok) return false;
+      const d = (await res.json()) as { ok: boolean; reason: "cooling" | "unconfigured" | "ok" };
+      setReserveReason(d.reason === "ok" ? null : d.reason);
+      return d.ok;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!degraded) return;
+    let cancelled = false;
+    let inFlight = false;
+    backoffIdxRef.current = 0;
+    // The first countdown value is seeded at the moment we go degraded (in
+    // `ask`), not here — setting state synchronously in an effect body would
+    // cascade a render for no reason.
+    let deadline = Date.now() + BACKOFF[0] * 1000;
+
+    const id = setInterval(async () => {
+      if (cancelled || inFlight) return;
+      const left = Math.ceil((deadline - Date.now()) / 1000);
+      if (left > 0) { setRetryInSec(left); return; }
+
+      setRetryInSec(0);
+      inFlight = true;
+      const ok = await probeHealth();
+      inFlight = false;
+      if (cancelled) return;
+      if (ok) { restore(); return; }
+
+      backoffIdxRef.current = Math.min(backoffIdxRef.current + 1, BACKOFF.length - 1);
+      const wait = BACKOFF[backoffIdxRef.current];
+      deadline = Date.now() + wait * 1000;
+      setRetryInSec(wait);
+    }, 1000);
+
+    return () => { cancelled = true; clearInterval(id); };
+  }, [degraded, probeHealth, restore]);
+
+  const retryNow = useCallback(() => {
+    setRetryInSec(0);
+    probeHealth().then((ok) => {
+      if (ok) restore();
+      else { backoffIdxRef.current = 0; setRetryInSec(BACKOFF[0]); }
+    });
+  }, [probeHealth, restore]);
+
+  // Stable page-control value: only changes when non-chat state changes
+  // (open/persona/tour/degraded), NOT while the AI streams words. This is
+  // what keeps the hero WebGL, nav, and skills from re-rendering per word.
+  const controlValue = useMemo<ConciergeValue>(
+    () => ({ open, persona, setPersona: setPersonaAndSave, ask, setOpen, clear, focusSection, tour, stopTour, tourRunning, tourStep, degraded, retryInSec, reserveReason, retryNow }),
+    [open, persona, setPersonaAndSave, ask, setOpen, clear, focusSection, tour, stopTour, tourRunning, tourStep, degraded, retryInSec, reserveReason, retryNow]
+  );
+  // Fast-changing chat value: consumed only by the chat panel (AgentDock).
+  const chatValue = useMemo<ConciergeChatValue>(
+    () => ({ messages, status, statusLine }),
+    [messages, status, statusLine]
+  );
 
   return (
-    <ConciergeContext.Provider
-      value={{ messages, status, open, persona, setPersona: setPersonaAndSave, ask, setOpen, clear, focusSection, tour, stopTour, tourRunning, tourStep, degraded, statusLine }}
-    >
-      {children}
+    <ConciergeContext.Provider value={controlValue}>
+      <ConciergeChatContext.Provider value={chatValue}>
+        {children}
+      </ConciergeChatContext.Provider>
     </ConciergeContext.Provider>
   );
 }
@@ -603,5 +818,13 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
 export function useConcierge() {
   const ctx = useContext(ConciergeContext);
   if (!ctx) throw new Error("useConcierge must be used within ConciergeProvider");
+  return ctx;
+}
+
+/** Chat panel state (messages/status/statusLine). Separated so streaming
+ *  reveals don't re-render the rest of the page. */
+export function useConciergeChat() {
+  const ctx = useContext(ConciergeChatContext);
+  if (!ctx) throw new Error("useConciergeChat must be used within ConciergeProvider");
   return ctx;
 }

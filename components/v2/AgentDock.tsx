@@ -4,11 +4,11 @@
 // Desktop: bottom-right panel. Mobile: full-width bottom sheet.
 // It floats ABOVE the page and never displaces or hides content.
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { memo, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowUp, Bot, Mic, MicOff, RotateCcw, Sparkles, TerminalSquare, User, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowUp, Bot, Mic, MicOff, Power, RotateCcw, Sparkles, TerminalSquare, User, Volume2, VolumeX, X } from "lucide-react";
 import { personal } from "@/config/portfolio";
-import { useConcierge, COMMANDS } from "@/contexts/ConciergeContext";
+import { useConcierge, useConciergeChat, COMMANDS } from "@/contexts/ConciergeContext";
 import { ember } from "@/lib/voice";
 
 const CHIPS = [
@@ -24,6 +24,44 @@ const PLACEHOLDERS = [
   "What's the best thing he's built?",
   "What's his stack?",
 ];
+
+// One chat bubble, memoized. During word-by-word streaming the messages array
+// changes ~every 55ms, but only the streaming row's `content` actually differs.
+// Memoizing per-row means the other (stable) rows skip re-render entirely, so a
+// long conversation doesn't re-paint every bubble on every streamed word.
+type Msg = { id: number; role: string; content: string; streaming?: boolean };
+const MessageRow = memo(function MessageRow({ m }: { m: Msg }) {
+  const isUser = m.role === "user";
+  return (
+    <div className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
+      <span
+        className="grid place-items-center w-6 h-6 rounded-lg shrink-0 mt-0.5"
+        style={{
+          background: isUser
+            ? "var(--os-bg-surface)"
+            : "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))",
+          color: isUser ? "var(--os-text-muted)" : "#fff",
+        }}
+        aria-hidden
+      >
+        {isUser ? <User size={11} /> : <Bot size={11} />}
+      </span>
+      <div
+        className={`text-[13px] leading-relaxed px-3.5 py-2.5 rounded-2xl max-w-[85%] ${isUser ? "rounded-tr-md" : "rounded-tl-md"}`}
+        style={{
+          background: isUser
+            ? "color-mix(in srgb, var(--os-accent) 12%, var(--os-bg-surface))"
+            : "var(--os-bg-surface)",
+          color: "var(--os-text)",
+          whiteSpace: "pre-line", // /help lists render line-by-line
+        }}
+      >
+        {m.content}
+        {m.streaming && <span className="tw-cursor" aria-hidden />}
+      </div>
+    </div>
+  );
+});
 
 // JD detection → offer a structured fit check
 function looksLikeJD(text: string): boolean {
@@ -73,8 +111,38 @@ function useVoiceInput(onResult: (text: string) => void) {
 
 const isMobileViewport = () => window.matchMedia("(max-width: 639px)").matches;
 
+/** m:ss — a countdown is what turns "we'll be back" into a checkable promise. */
+function fmtCountdown(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return m > 0 ? `${m}:${String(s).padStart(2, "0")}` : `${s}s`;
+}
+
 export default function AgentDock() {
-  const { messages, status, open, setOpen, ask, clear, tourRunning, tourStep, stopTour, degraded, statusLine } = useConcierge();
+  const { open, setOpen, ask, clear, tourRunning, tourStep, stopTour, degraded, retryInSec, reserveReason, retryNow } = useConcierge();
+  const { messages, status, statusLine } = useConciergeChat();
+  // Power-transition animation state. Kept separate from `degraded` so the
+  // CRT cut plays ONCE on the transition rather than looping for the whole
+  // outage — the old build left .core-flicker on permanently, which read as
+  // visual noise instead of a moment.
+  const [collapsing, setCollapsing] = useState(false);
+  const [restoring, setRestoring]   = useState(false);
+  useEffect(() => {
+    const down = () => {
+      setCollapsing(true);
+      setTimeout(() => setCollapsing(false), 900);
+    };
+    const up = () => {
+      setRestoring(true);
+      setTimeout(() => setRestoring(false), 1400);
+    };
+    window.addEventListener("agent-core-down", down);
+    window.addEventListener("agent-core-up", up);
+    return () => {
+      window.removeEventListener("agent-core-down", down);
+      window.removeEventListener("agent-core-up", up);
+    };
+  }, []);
   // EMBER voice — one-way narration, opt-in, persisted. External store
   // (localStorage + change event) so state never desyncs across mounts.
   const voiceOn = useSyncExternalStore(
@@ -82,10 +150,16 @@ export default function AgentDock() {
       window.addEventListener("ember-voice-change", cb);
       return () => window.removeEventListener("ember-voice-change", cb);
     },
-    () => ember.isEnabled(),
+    () => ember.isEnabled() && !ember.isSuspended(),
     () => false
   );
+  // Voice is a separate service from the LLMs, but an agent that announced
+  // reserve power and then kept narrating would break the fiction. The toggle
+  // stays visible and explains itself — a disabled control with a reason is
+  // trust; a control that vanishes reads as a bug.
+  const voiceSuspended = degraded;
   const toggleVoice = () => {
+    if (voiceSuspended) return;
     const next = !ember.isEnabled();
     ember.setEnabled(next);
     if (next) ember.speak("Ember online. I'll narrate from here.");
@@ -145,9 +219,15 @@ export default function AgentDock() {
     ta.style.height = Math.min(ta.scrollHeight, 140) + "px";
   }, [value]);
 
-  // Scroll to newest message
+  // Scroll to newest message. During streaming this effect fires ~every 55ms;
+  // a "smooth" scroll would restart its animation on every tick (visible jank
+  // + repeated layout), so we pin instantly while streaming and reserve the
+  // smooth glide for a settled/new message.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    endRef.current?.scrollIntoView({
+      behavior: status === "streaming" ? "auto" : "smooth",
+      block: "nearest",
+    });
   }, [messages, status]);
 
   const submit = useCallback(
@@ -217,10 +297,12 @@ export default function AgentDock() {
           exit={{ opacity: 0, y: 24, scale: 0.98 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
           onKeyDown={(e) => { if (e.key === "Escape") close(); }}
-          className={`fixed z-[1300] inset-x-0 bottom-0 sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[420px] flex flex-col rounded-t-3xl sm:rounded-3xl border overflow-hidden ${degraded ? "core-flicker" : ""}`}
+          className={`fixed z-[1300] inset-x-0 bottom-0 sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[420px] flex flex-col rounded-t-3xl sm:rounded-3xl border overflow-hidden ${collapsing ? "core-flicker" : ""} ${degraded ? "reserve-dim" : ""} ${restoring ? "power-pulse" : ""}`}
           style={{
             background: "var(--os-bg-window)",
-            borderColor: "color-mix(in srgb, var(--os-accent) 25%, var(--os-border))",
+            borderColor: degraded
+              ? "color-mix(in srgb, var(--os-accent-orange) 35%, var(--os-border))"
+              : "color-mix(in srgb, var(--os-accent) 25%, var(--os-border))",
             boxShadow: "var(--os-shadow-accent)",
             maxHeight: "min(72vh, 640px)",
           }}
@@ -231,9 +313,17 @@ export default function AgentDock() {
           <div className="flex items-center justify-between px-4 py-3 border-b shrink-0"
             style={{ borderColor: "var(--os-border-subtle)" }}>
             <div className="flex items-center gap-2.5">
-              <div className="relative w-7 h-7 rounded-lg grid place-items-center"
-                style={{ background: "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))" }}>
-                <Bot size={14} className="text-white" aria-hidden />
+              <div className="relative w-7 h-7 rounded-lg grid place-items-center transition-all duration-700"
+                style={{
+                  // The avatar's gradient drains to flat on reserve power —
+                  // the smallest, most-seen signal that something changed.
+                  background: degraded
+                    ? "color-mix(in srgb, var(--os-accent-orange) 22%, var(--os-bg-surface))"
+                    : "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))",
+                }}>
+                {degraded
+                  ? <Power size={13} style={{ color: "var(--os-accent-orange)" }} aria-hidden />
+                  : <Bot size={14} className="text-white" aria-hidden />}
                 {thinking && (
                   <span className="absolute -inset-1 rounded-xl border-2 animate-ping"
                     style={{ borderColor: "color-mix(in srgb, var(--os-accent) 45%, transparent)" }} aria-hidden />
@@ -257,7 +347,7 @@ export default function AgentDock() {
                     </span>
                   ) : degraded ? (
                     <span className="uppercase tracking-[0.12em]" style={{ color: "var(--os-accent-orange)" }}>
-                      ⏻ static mode — verified facts + /commands still live
+                      ⏻ reserve power — verified facts only
                     </span>
                   ) : thinking ? "thinking…" : `answers about ${personal.shortName} — can be wrong; resume is the source of truth`}
                 </div>
@@ -268,12 +358,24 @@ export default function AgentDock() {
               {ember.supported() && (
                 <button
                   onClick={toggleVoice}
-                  aria-label={voiceOn ? "Mute EMBER's voice" : "Enable EMBER's voice narration"}
-                  title={voiceOn ? "EMBER: voice on" : "EMBER: voice off"}
-                  className="grid place-items-center w-8 h-8 rounded-lg transition-colors hover:bg-[var(--os-bg-hover)]"
-                  style={{ color: voiceOn ? "var(--os-accent)" : "var(--os-text-muted)" }}
+                  disabled={voiceSuspended}
+                  aria-label={
+                    voiceSuspended
+                      ? "Voice narration paused while on reserve power"
+                      : voiceOn ? "Mute EMBER's voice" : "Enable EMBER's voice narration"
+                  }
+                  title={
+                    voiceSuspended
+                      ? "Voice narration paused — reserve power. It returns with the models."
+                      : voiceOn ? "EMBER: voice on" : "EMBER: voice off"
+                  }
+                  className="relative grid place-items-center w-8 h-8 rounded-lg transition-colors hover:bg-[var(--os-bg-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{ color: voiceSuspended ? "var(--os-accent-orange)" : voiceOn ? "var(--os-accent)" : "var(--os-text-muted)" }}
                 >
-                  {voiceOn ? <Volume2 size={13} aria-hidden /> : <VolumeX size={13} aria-hidden />}
+                  {voiceOn && !voiceSuspended ? <Volume2 size={13} aria-hidden /> : <VolumeX size={13} aria-hidden />}
+                  {voiceSuspended && (
+                    <span className="absolute -top-0.5 -right-0.5 text-[8px] leading-none" aria-hidden>⏻</span>
+                  )}
                 </button>
               )}
               {tourRunning && (
@@ -307,7 +409,15 @@ export default function AgentDock() {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-[120px]" aria-live="polite">
+          <div
+            // The list collapses to a scanline, then blooms back in low-power
+            // trim — so the reserve notice types into a screen that visibly
+            // came back on, rather than one that never went dark.
+            className={`flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-[120px] ${
+              collapsing ? "crt-collapse" : degraded || restoring ? "crt-restore" : ""
+            }`}
+            aria-live="polite"
+          >
             {messages.length === 0 && (
               <div className="text-center py-4">
                 <p className="text-[13px] mb-4" style={{ color: "var(--os-text-secondary)" }}>
@@ -334,33 +444,7 @@ export default function AgentDock() {
             )}
 
             {messages.slice(-12).map((m) => (
-              <div key={m.id} className={`flex gap-2.5 ${m.role === "user" ? "flex-row-reverse" : ""}`}>
-                <span
-                  className="grid place-items-center w-6 h-6 rounded-lg shrink-0 mt-0.5"
-                  style={{
-                    background: m.role === "user"
-                      ? "var(--os-bg-surface)"
-                      : "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))",
-                    color: m.role === "user" ? "var(--os-text-muted)" : "#fff",
-                  }}
-                  aria-hidden
-                >
-                  {m.role === "user" ? <User size={11} /> : <Bot size={11} />}
-                </span>
-                <div
-                  className={`text-[13px] leading-relaxed px-3.5 py-2.5 rounded-2xl max-w-[85%] ${m.role === "user" ? "rounded-tr-md" : "rounded-tl-md"}`}
-                  style={{
-                    background: m.role === "user"
-                      ? "color-mix(in srgb, var(--os-accent) 12%, var(--os-bg-surface))"
-                      : "var(--os-bg-surface)",
-                    color: "var(--os-text)",
-                    whiteSpace: "pre-line", // /help lists render line-by-line
-                  }}
-                >
-                  {m.content}
-                  {m.streaming && <span className="tw-cursor" aria-hidden />}
-                </div>
-              </div>
+              <MessageRow key={m.id} m={m} />
             ))}
 
             {thinking && (
@@ -372,19 +456,67 @@ export default function AgentDock() {
             <div ref={endRef} />
           </div>
 
-          {/* Degraded mode — the concierge never dies, it switches protocol */}
-          {degraded && (
-            <div className="mx-4 mb-1 px-3 py-2 rounded-xl border flex items-start gap-2 shrink-0"
+          {/* ── Reserve power ──────────────────────────────────────
+              The concierge doesn't die, it visibly collapses into a smaller,
+              honest, still-competent form. Three jobs, in order: name the real
+              cause, reframe the limit as a deliberate engineering choice, and
+              put a NUMBER on the return so "we'll be back" is checkable. */}
+          {degraded && !collapsing && (
+            <div className="reserve-in mx-4 mb-1 rounded-xl border overflow-hidden shrink-0"
               style={{
                 borderColor: "color-mix(in srgb, var(--os-accent-orange) 40%, transparent)",
                 background: "color-mix(in srgb, var(--os-accent-orange) 8%, transparent)",
-              }}>
-              <TerminalSquare size={13} className="mt-0.5 shrink-0" style={{ color: "var(--os-accent-orange)" }} aria-hidden />
-              <div className="text-[11px] leading-relaxed" style={{ color: "var(--os-text-secondary)" }}>
-                <strong style={{ color: "var(--os-accent-orange)" }}>Command deck engaged</strong> — the language
-                models are napping, but I still drive. Type <span className="font-mono">/</span> for commands:{" "}
+              }}
+              role="status"
+              aria-live="polite"
+            >
+              <div className="flex items-center justify-between px-3 pt-2 pb-1.5">
+                <span className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.14em]"
+                  style={{ color: "var(--os-accent-orange)" }}>
+                  <Power size={10} aria-hidden /> Reserve power
+                </span>
+                {reserveReason === "unconfigured" ? (
+                  // No keys deployed at all is a config state, not an outage —
+                  // never promise a return that isn't coming.
+                  <span className="text-[10px] font-mono" style={{ color: "var(--os-text-muted)" }}>
+                    model channel offline
+                  </span>
+                ) : (
+                  <button
+                    onClick={retryNow}
+                    className="reserve-countdown text-[10px] font-mono px-2 py-0.5 rounded-md border transition-colors hover:bg-[var(--os-bg-hover)]"
+                    style={{ borderColor: "var(--os-border)", color: "var(--os-text-secondary)" }}
+                    title="Probe the model channel now"
+                  >
+                    {retryInSec === null || retryInSec === 0
+                      ? "retrying…"
+                      : `retry in ${fmtCountdown(retryInSec)}`}
+                  </button>
+                )}
+              </div>
+              <div className="px-3 pb-2 text-[11px] leading-relaxed" style={{ color: "var(--os-text-secondary)" }}>
+                {reserveReason === "unconfigured" ? (
+                  <>Every model provider is unreachable right now. I&apos;m answering from {personal.shortName}&apos;s
+                  verified facts — accurate, just not conversational.</>
+                ) : (
+                  <>Every model provider is rate-limited. This portfolio runs on free API tiers —
+                  a deliberate cost choice, not an outage. I&apos;m still answering from{" "}
+                  {personal.shortName}&apos;s verified facts, and I&apos;ll say so plainly when I don&apos;t have one.</>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap px-3 pb-2.5 pt-0.5">
+                <TerminalSquare size={11} className="shrink-0" style={{ color: "var(--os-accent-cyan)" }} aria-hidden />
                 {["/work", "/resume", "/tour", "/contact"].map((c) => (
-                  <button key={c} onClick={() => ask(c)} className="font-mono underline mr-1.5" style={{ color: "var(--os-accent-cyan)" }}>
+                  <button
+                    key={c}
+                    onClick={() => ask(c)}
+                    className="font-mono text-[11px] px-2 py-0.5 rounded-md border transition-all hover:-translate-y-0.5"
+                    style={{
+                      borderColor: "color-mix(in srgb, var(--os-accent-cyan) 35%, transparent)",
+                      color: "var(--os-accent-cyan)",
+                      background: "color-mix(in srgb, var(--os-accent-cyan) 8%, transparent)",
+                    }}
+                  >
                     {c}
                   </button>
                 ))}
@@ -443,7 +575,14 @@ export default function AgentDock() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
                 }}
-                placeholder={tourRunning ? "The AI is driving — scroll to take over…" : listening ? "Listening…" : PLACEHOLDERS[ph]}
+                placeholder={
+                  tourRunning ? "The AI is driving — scroll to take over…"
+                    : listening ? "Listening…"
+                    // The input stays live on reserve power — the static brain
+                    // still answers. Only the promise changes.
+                    : degraded ? "Ask — I'll answer from verified facts…"
+                    : PLACEHOLDERS[ph]
+                }
                 disabled={tourRunning}
                 spellCheck={false}
                 aria-label="Ask the AI concierge"

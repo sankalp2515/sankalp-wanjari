@@ -28,7 +28,7 @@ export default function FilmHero() {
         I build production AI where every confident answer has to earn the right to exist.
       </motion.p>
       <motion.div {...enter(0.46)} className="film-hero__actions">
-        <button onClick={begin} className="film-hero__primary">Enter the case files <ArrowDownRight size={17} aria-hidden /></button>
+        <button onClick={begin} className="film-hero__primary">Enter the work <ArrowDownRight size={17} aria-hidden /></button>
         <button onClick={() => tour()} disabled={tourRunning} className="film-hero__tour"><Play size={13} aria-hidden /> {tourRunning ? "EMBER IS GUIDING" : "Let EMBER narrate"}</button>
       </motion.div>
       <div className="film-hero__object" aria-label="Interactive proof core">

@@ -8,8 +8,37 @@ import { useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Float, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
+import { useCanvasVisible } from "@/hooks/useCanvasVisible";
 
-function Rings({ pulse }: { pulse: number }) {
+// Theme palettes. `dark` reproduces the original values EXACTLY, so the dark
+// experience is byte-identical. `light` swaps the near-black core + additive
+// brights (which go muddy / invisible on warm paper) for a crisp metallic
+// object with deepened accents that read against cream.
+type CorePalette = {
+  ringA: string; ringB: string; ringC: string; ringCOpacity: number;
+  coreColor: string; coreEmissive: string; coreEmissiveBase: number; coreEmissivePulse: number;
+  coreRoughness: number; coreMetalness: number; wire: string;
+  keyLight: string; keyBase: number; keyPulse: number; fillLight: string; fillIntensity: number;
+  ambient: number; field: string; fieldOpacity: number; sparkle: string;
+};
+const PALETTES: Record<"dark" | "light", CorePalette> = {
+  dark: {
+    ringA: "#F5A623", ringB: "#2DC7B0", ringC: "#F8F4E8", ringCOpacity: 0.3,
+    coreColor: "#15130F", coreEmissive: "#F5A623", coreEmissiveBase: 0.32, coreEmissivePulse: 0.7,
+    coreRoughness: 0.18, coreMetalness: 0.84, wire: "#2DC7B0",
+    keyLight: "#F5A623", keyBase: 4, keyPulse: 5, fillLight: "#2DC7B0", fillIntensity: 3,
+    ambient: 0.4, field: "#F8F4E8", fieldOpacity: 0.65, sparkle: "#F5A623",
+  },
+  light: {
+    ringA: "#B26A05", ringB: "#0B8477", ringC: "#6B5A3A", ringCOpacity: 0.55,
+    coreColor: "#241C12", coreEmissive: "#B26A05", coreEmissiveBase: 0.16, coreEmissivePulse: 0.4,
+    coreRoughness: 0.22, coreMetalness: 0.92, wire: "#0B8477",
+    keyLight: "#F5A623", keyBase: 2.4, keyPulse: 3, fillLight: "#0B8477", fillIntensity: 1.6,
+    ambient: 0.85, field: "#5A4A2E", fieldOpacity: 0.5, sparkle: "#B26A05",
+  },
+};
+
+function Rings({ pulse, p }: { pulse: number; p: CorePalette }) {
   const root = useRef<THREE.Group>(null);
   const ringA = useRef<THREE.Mesh>(null);
   const ringB = useRef<THREE.Mesh>(null);
@@ -32,25 +61,25 @@ function Rings({ pulse }: { pulse: number }) {
     <group ref={root}>
       <mesh rotation={[1.05, 0.18, 0]} ref={ringA}>
         <torusGeometry args={[1.75, 0.016, 10, 128]} />
-        <meshBasicMaterial color="#F5A623" transparent opacity={0.78} toneMapped={false} />
+        <meshBasicMaterial color={p.ringA} transparent opacity={0.78} toneMapped={false} />
       </mesh>
       <mesh rotation={[-0.68, 0.55, 0.25]} ref={ringB}>
         <torusGeometry args={[1.35, 0.021, 10, 128]} />
-        <meshBasicMaterial color="#2DC7B0" transparent opacity={0.72} toneMapped={false} />
+        <meshBasicMaterial color={p.ringB} transparent opacity={0.72} toneMapped={false} />
       </mesh>
       <mesh rotation={[0.1, -0.92, 0.7]} ref={ringC}>
         <torusGeometry args={[2.15, 0.009, 8, 128]} />
-        <meshBasicMaterial color="#F8F4E8" transparent opacity={0.3} toneMapped={false} />
+        <meshBasicMaterial color={p.ringC} transparent opacity={p.ringCOpacity} toneMapped={false} />
       </mesh>
       <Float speed={1.5} rotationIntensity={0.24} floatIntensity={0.35}>
         <mesh>
           <icosahedronGeometry args={[0.68, 3]} />
         <meshPhysicalMaterial
-          color="#15130F"
-            emissive="#F5A623"
-            emissiveIntensity={0.32 + pulse * 0.7}
-            roughness={0.18}
-            metalness={0.84}
+          color={p.coreColor}
+            emissive={p.coreEmissive}
+            emissiveIntensity={p.coreEmissiveBase + pulse * p.coreEmissivePulse}
+            roughness={p.coreRoughness}
+            metalness={p.coreMetalness}
             transmission={0.18}
             transparent
             opacity={0.94}
@@ -58,16 +87,16 @@ function Rings({ pulse }: { pulse: number }) {
         </mesh>
         <mesh scale={0.79}>
           <icosahedronGeometry args={[0.68, 2]} />
-          <meshBasicMaterial color="#2DC7B0" wireframe transparent opacity={0.38 + pulse * 0.25} toneMapped={false} />
+          <meshBasicMaterial color={p.wire} wireframe transparent opacity={0.38 + pulse * 0.25} toneMapped={false} />
         </mesh>
       </Float>
-      <pointLight color="#F5A623" intensity={4 + pulse * 5} distance={7} />
-      <pointLight color="#2DC7B0" intensity={3} distance={6} position={[1.8, -0.8, 1.8]} />
+      <pointLight color={p.keyLight} intensity={p.keyBase + pulse * p.keyPulse} distance={7} />
+      <pointLight color={p.fillLight} intensity={p.fillIntensity} distance={6} position={[1.8, -0.8, 1.8]} />
     </group>
   );
 }
 
-function Field({ pulse }: { pulse: number }) {
+function Field({ pulse, p }: { pulse: number; p: CorePalette }) {
   const points = useMemo(() => {
     // Deterministic pseudo-random sequence: stable under React re-renders,
     // yet visually irregular enough for the surrounding evidence field.
@@ -93,18 +122,27 @@ function Field({ pulse }: { pulse: number }) {
   return (
     <points ref={cloud}>
       <bufferGeometry><bufferAttribute attach="attributes-position" args={[points, 3]} /></bufferGeometry>
-      <pointsMaterial size={0.022} sizeAttenuation color="#F8F4E8" transparent opacity={0.65} depthWrite={false} />
+      <pointsMaterial size={0.022} sizeAttenuation color={p.field} transparent opacity={p.fieldOpacity} depthWrite={false} />
     </points>
   );
 }
 
-export default function ProofCore({ pulse }: { pulse: number }) {
+export default function ProofCore({ pulse, theme = "dark" }: { pulse: number; theme?: "light" | "dark" }) {
+  const p = PALETTES[theme];
+  const { ref, visible } = useCanvasVisible();
   return (
-    <Canvas camera={{ position: [0, 0, 6.5], fov: 42 }} dpr={[1, 1.75]} gl={{ alpha: true, antialias: true }}>
-      <ambientLight intensity={0.4} />
-      <Field pulse={pulse} />
-      <Rings pulse={pulse} />
-      <Sparkles count={42} scale={5.5} size={1.3} speed={0.3} color="#F5A623" />
-    </Canvas>
+    <div ref={ref} className="w-full h-full">
+      <Canvas
+        camera={{ position: [0, 0, 6.5], fov: 42 }}
+        dpr={[1, 1.75]}
+        frameloop={visible ? "always" : "never"} // pause the loop off-screen
+        gl={{ alpha: true, antialias: true }}
+      >
+        <ambientLight intensity={p.ambient} />
+        <Field pulse={pulse} p={p} />
+        <Rings pulse={pulse} p={p} />
+        <Sparkles count={42} scale={5.5} size={1.3} speed={0.3} color={p.sparkle} />
+      </Canvas>
+    </div>
   );
 }

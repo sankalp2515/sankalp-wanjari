@@ -1,12 +1,15 @@
 "use client";
 
 import { ReactNode, useRef } from "react";
-import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { motion, useReducedMotion, useScroll, useTransform, useInView } from "framer-motion";
 import Reveal from "./Reveal";
 
 const CHAPTER_INDEX: Record<string, string> = {
   "section-about": "01",
   "section-work": "02",
+  // Companion chapter to the work: product thinking, not engineering.
+  // Only rendered once config/portfolio.ts `caseStudies` has entries.
+  "section-cases": "2B",
   "section-research": "03",
   "section-arc": "04",
   "section-education": "05",
@@ -31,6 +34,13 @@ export default function SectionShell({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
+  // Drive the masked title reveal from the header container's in-view state —
+  // the SAME reliable signal Reveal uses. The title's own translated span
+  // (y:110%, clipped out of its box) could miss its intersection during a fast
+  // programmatic scroll, which is why the title alone stayed hidden during the
+  // tour. Watching the untranslated header instead reveals it consistently,
+  // whether the visitor scrolls normally or the camera frames it.
+  const inView = useInView(ref, { once: true, margin: "-60px" });
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start end", "start 0.4"],
@@ -74,8 +84,7 @@ export default function SectionShell({
               <motion.span
                 className="block"
                 initial={reduced ? undefined : { y: "110%" }}
-                whileInView={{ y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
+                animate={reduced ? undefined : { y: inView ? 0 : "110%" }}
                 transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
               >
                 {title}

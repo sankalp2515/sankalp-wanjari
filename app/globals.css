@@ -274,16 +274,18 @@ body {
 .text-shimmer {
   background: linear-gradient(
     90deg,
-    var(--os-text) 40%,
-    var(--os-accent) 50%,
-    var(--os-accent-cyan) 55%,
-    var(--os-text) 65%
+    var(--os-text) 28%,
+    var(--os-accent) 42%,
+    var(--os-accent-orange) 50%,
+    var(--os-accent-cyan) 58%,
+    var(--os-text) 72%
   );
-  background-size: 200% auto;
+  background-size: 220% auto;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: shimmer 6s linear infinite;
+  color: transparent; /* non-webkit browsers still clip via background-clip */
+  animation: shimmer 4.5s linear infinite;
 }
 
 /* ─── Photo ring spin ─────────────────────────────────────── */
@@ -405,6 +407,33 @@ body {
 }
 *::-webkit-scrollbar {
   display: none;
+}
+
+/* ─── Skills 3D constellation (Variant A hero piece) ───────────── */
+.skill-constellation {
+  position: relative;
+  width: 100%;
+  height: clamp(240px, 34vw, 360px);
+  margin: 0 auto 28px;
+  touch-action: pan-y; /* let the page scroll over it on touch */
+}
+.skill-constellation canvas { display: block; }
+.skill-constellation__label {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  transform: translateX(-50%);
+  max-width: 90%;
+  text-align: center;
+  color: var(--os-text-muted);
+  font: 10px var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  pointer-events: none;
+  transition: color 0.2s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skill-constellation { display: none; } /* the chip console below carries the section */
 }
 
 /* ─── 3D tilt cards (pointer-driven, GPU-cheap) ─────────────── */
@@ -642,6 +671,69 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .core-flicker { animation: none !important; }
+}
+
+/* ═══ RESERVE POWER — the graceful degrade ══════════════════════ */
+/* The dock does not vanish when the models die; it visibly collapses into a
+   smaller, honest, still-competent form. Shrinking on purpose reads as
+   engineering — vanishing reads as broken. */
+
+/* Brownout: accents drain to grey, the panel dims but stays legible. */
+.reserve-dim {
+  filter: saturate(0.35) brightness(0.92);
+  transition: filter 900ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* CRT power-off: the message list collapses to a bright scanline, which then
+   fades. The classic old-TV cut — instantly legible as "powering down". */
+@keyframes crt-collapse {
+  0%   { transform: scaleY(1);    opacity: 1; filter: brightness(1); }
+  55%  { transform: scaleY(0.06); opacity: 1; filter: brightness(2.6); }
+  75%  { transform: scaleY(0.012); opacity: 1; filter: brightness(3.4); }
+  100% { transform: scaleY(0.012); opacity: 0; filter: brightness(3.4); }
+}
+.crt-collapse {
+  animation: crt-collapse 820ms cubic-bezier(0.6, 0, 0.2, 1) forwards;
+  transform-origin: center;
+  overflow: hidden;
+}
+
+/* Reverse cut on recovery — the scanline blooms back into a full panel. */
+@keyframes crt-restore {
+  0%   { transform: scaleY(0.012); opacity: 0; filter: brightness(3.4); }
+  30%  { transform: scaleY(0.06);  opacity: 1; filter: brightness(2.4); }
+  100% { transform: scaleY(1);     opacity: 1; filter: brightness(1); }
+}
+.crt-restore {
+  animation: crt-restore 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  transform-origin: center;
+}
+
+/* The reserve panel rises out of the scanline the collapse left behind. */
+@keyframes reserve-in {
+  0%   { opacity: 0; transform: scaleY(0.1) translateY(6px); }
+  100% { opacity: 1; transform: scaleY(1) translateY(0); }
+}
+.reserve-in {
+  animation: reserve-in 520ms cubic-bezier(0.22, 1, 0.36, 1) 120ms backwards;
+  transform-origin: top;
+}
+
+/* Recovery: a single amber pulse travels the dock border. */
+@keyframes power-pulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--os-accent) 60%, transparent); }
+  70%  { box-shadow: 0 0 0 14px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.power-pulse { animation: power-pulse 1.1s cubic-bezier(0.22, 1, 0.36, 1) 2; }
+
+/* The countdown digits tick without shifting the layout around them. */
+.reserve-countdown { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .crt-collapse { animation: none !important; opacity: 0; height: 0; }
+  .crt-restore, .reserve-in, .power-pulse { animation: none !important; }
+  .reserve-dim { transition: none !important; }
 }
 
 /* ═══ CONTACT FORM FOCUS GLOW ═══════════════════════════════════ */
@@ -892,6 +984,7 @@ body {
 .proof-hero__explain > span { color: var(--os-accent-cyan); font: 8px var(--font-mono); letter-spacing: .15em; }
 .proof-hero__explain strong { display: block; margin-top: 7px; color: var(--os-text); font-family: var(--font-display); font-size: 15px; line-height: 1.05; }
 .proof-hero__explain p { margin: 7px 0 0; color: var(--os-text-secondary); font-size: 10px; line-height: 1.45; }
+.proof-hero__evidence { position: absolute; z-index: 4; left: 5%; bottom: 8%; width: min(270px, 52%); padding: 12px 13px; border-left: 2px solid var(--os-accent); background: color-mix(in srgb, var(--os-bg) 85%, transparent); box-shadow: 0 12px 35px rgba(0,0,0,.18); backdrop-filter: blur(10px); }.proof-hero__evidence > span { color: var(--os-accent); font: 8px var(--font-mono); letter-spacing: .15em; }.proof-hero__evidence strong { display: block; margin-top: 7px; color: var(--os-text); font-family: var(--font-display); font-size: 14px; line-height: 1.05; }.proof-hero__evidence p { margin: 7px 0; color: var(--os-text-secondary); font-size: 10px; line-height: 1.45; }.proof-hero__evidence button { display: inline-flex; align-items: center; gap: 5px; color: var(--os-accent-cyan); font: 9px var(--font-mono); letter-spacing: .1em; }.proof-hero__evidence button:hover { color: var(--os-text); }
 .proof-hero__proof { display: grid; position: relative; z-index: 3; grid-template-columns: repeat(3, 1fr); border-top: 1px solid color-mix(in srgb, var(--os-text) 16%, transparent); }
 .proof-hero__proof > div { min-height: 100px; padding: 14px 18px 0 0; }.proof-hero__proof > div + div { padding-left: 18px; border-left: 1px solid color-mix(in srgb, var(--os-text) 16%, transparent); }
 .proof-hero__proof span { color: var(--os-text-muted); font: 9px var(--font-mono); letter-spacing: .16em; }.proof-hero__proof strong { display: block; margin: 8px 0 4px; color: var(--os-accent); font-family: var(--font-display); font-size: clamp(1.6rem, 2.8vw, 2.8rem); line-height: .9; }.proof-hero__proof p { max-width: 160px; margin: 0; color: var(--os-text-secondary); font-size: 10px; line-height: 1.3; }
@@ -918,8 +1011,8 @@ body {
 .proof-hero--quiet .proof-hero__explain { right: 6%; bottom: 18%; max-width: 245px; background: color-mix(in srgb, var(--os-bg) 55%, transparent); backdrop-filter: blur(12px); }
 .proof-hero--quiet .proof-hero__meta > span:first-child { opacity: .62; }
 .proof-hero--quiet .proof-hero__grain { opacity: .024; }
-@media (max-width: 900px) { .proof-hero__stage, .proof-hero--quiet .proof-hero__stage { grid-template-columns: 1fr; }.proof-hero__copy { padding: 45px 0 0; }.proof-hero__object { order: -1; min-height: 315px; margin: -12px auto -18px; width: min(100%, 500px); }.proof-hero--quiet .proof-hero__object { min-height: 390px; }.proof-hero__statement { margin-top: 23px; }.proof-hero__annotation--a { left: 2%; }.proof-hero__annotation--b { right: 0; }.proof-hero__core-control { bottom: 3%; } }
-@media (max-width: 580px) { .proof-hero { padding: 20px 20px 24px; }.proof-hero__meta { font-size: 8px; }.proof-hero__stage { gap: 0; }.proof-hero__object { min-height: 275px; margin-top: 5px; }.proof-hero h1 { font-size: clamp(3.7rem, 18vw, 5.6rem); }.proof-hero__copy { padding: 12px 0 24px; }.proof-hero__annotation { font-size: 7px; }.proof-hero__annotation::before { display: none; }.proof-hero__proof > div { min-height: 95px; padding-right: 8px; }.proof-hero__proof > div + div { padding-left: 8px; }.proof-hero__proof span { font-size: 7px; }.proof-hero__proof p { font-size: 9px; }.proof-hero__scroll { display: none; } }
+@media (max-width: 900px) { .proof-hero__stage, .proof-hero--quiet .proof-hero__stage { grid-template-columns: 1fr; }.proof-hero__copy { padding: 45px 0 0; }.proof-hero__object { order: -1; min-height: 315px; margin: -12px auto -18px; width: min(100%, 500px); }.proof-hero--quiet .proof-hero__object { min-height: 390px; }.proof-hero__statement { margin-top: 23px; }.proof-hero__annotation--a { left: 2%; }.proof-hero__annotation--b { right: 0; }.proof-hero__core-control { bottom: 3%; }.proof-hero__evidence { bottom: 9%; } }
+@media (max-width: 580px) { .proof-hero { padding: 20px 20px 24px; }.proof-hero__meta { font-size: 8px; position: relative; z-index: 6; }.proof-hero__brand { flex: 0 0 auto; }.proof-hero__logo { width: 104px; height: auto; display: block; }.proof-hero__stage { gap: 0; }.proof-hero__object { min-height: 275px; margin-top: 5px; }.proof-hero h1 { font-size: clamp(3.7rem, 18vw, 5.6rem); }.proof-hero__copy { padding: 12px 0 24px; }.proof-hero__annotation { font-size: 7px; }.proof-hero__annotation::before { display: none; }.proof-hero__proof > div { min-height: 95px; padding-right: 8px; }.proof-hero__proof > div + div { padding-left: 8px; }.proof-hero__proof span { font-size: 7px; }.proof-hero__proof p { font-size: 9px; }.proof-hero__scroll { display: none; } }
 @media (prefers-reduced-motion: reduce) { .proof-hero__status i { animation: none; }.proof-hero__open:hover, .proof-hero__disturb:hover { transform: none; } }
 
 /* ═══ VARIANT B / THE EVIDENCE FILM ════════════════════════════
@@ -1114,6 +1207,15 @@ body {
 .signal-rail button:hover .signal-rail__label, .signal-rail button.is-active .signal-rail__label { max-width: 74px; opacity: 1; }
 .signal-rail button.is-active .signal-rail__dot { border-color: var(--os-accent); background: var(--os-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--os-accent) 17%, transparent), 0 0 12px color-mix(in srgb, var(--os-accent) 70%, transparent); }
 @media (min-width: 1280px) { .signal-rail { display: block; } }
+/* Variant A rail hides over the hero (its big heading shares the left edge)
+   and reveals once the visitor scrolls past it — matching the deferred rail. */
+.signal-rail:not(.signal-rail--deferred) { opacity: 0; pointer-events: none; transition: opacity .5s ease; }
+/* Scoped to non-film so it never out-specifies the film-mode hide rule below. */
+html:not(.film-mode) .signal-rail:not(.signal-rail--deferred).is-revealed { opacity: 1; pointer-events: auto; }
+
+/* Graph-tour caption: each line remounts (keyed on text) and fades up. */
+@keyframes graph-caption-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.graph-caption { animation: graph-caption-in .4s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 /* Work reads as an evidence trail, not a generic three-card gallery. */
 .project-case-file__index { position: relative; display: flex; align-items: flex-start; gap: 10px; }
@@ -1125,6 +1227,42 @@ body {
   .project-case-file__line { position: absolute; display: block; top: 8.5rem; bottom: -4rem; left: 16px; width: 1px; background: linear-gradient(var(--os-accent), transparent); opacity: .45; }
   .project-case-file:last-child .project-case-file__line { display: none; }
 }
+
+/* Visual case grid: projects are chosen through their moving proof, not read
+   as a timeline. Add `preview` to config/portfolio.ts to replace each signal
+   stage with a real GIF or thumbnail. */
+.project-grid { display: grid; gap: 18px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.project-grid__item--featured { grid-column: span 2; }.project-grid__card { display: grid; width: 100%; height: 100%; overflow: hidden; border: 1px solid color-mix(in srgb, var(--os-text) 17%, transparent); background: color-mix(in srgb, var(--os-bg-elevated) 35%, transparent); text-align: left; transition: border-color .25s ease, transform .35s cubic-bezier(.22,1,.36,1), background .25s ease; }.project-grid__card:hover { border-color: var(--os-accent); background: color-mix(in srgb, var(--os-accent) 5%, var(--os-bg-elevated)); transform: translateY(-5px); }.project-grid__item--featured .project-grid__card { grid-template-columns: minmax(0, 1.15fr) minmax(330px, .85fr); }.project-grid__media { position: relative; min-height: 250px; overflow: hidden; border-bottom: 1px solid color-mix(in srgb, var(--os-text) 15%, transparent); background: radial-gradient(circle at 50% 55%, color-mix(in srgb, var(--os-accent-cyan) 16%, transparent), transparent 52%), var(--os-bg); }.project-grid__item--featured .project-grid__media { min-height: 370px; border-right: 1px solid color-mix(in srgb, var(--os-text) 15%, transparent); border-bottom: 0; }.project-grid__media-image { width: 100%; height: 100%; min-height: inherit; object-fit: cover; }.project-grid__number, .project-grid__year { position: absolute; z-index: 2; font: 10px var(--font-mono); letter-spacing: .14em; }
+/* Index badge: a small, blurred chip in the corner instead of a bare giant
+   digit — it sits ABOVE the poster/video as UI chrome, so it never collides
+   with whatever the screenshot already has in that corner. */
+.project-grid__number { top: 14px; left: 14px; display: grid; place-items: center; min-width: 34px; height: 34px; padding: 0 9px; border-radius: 10px; color: var(--os-accent); font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: -.02em; line-height: 1; background: color-mix(in srgb, var(--os-bg) 62%, transparent); border: 1px solid color-mix(in srgb, var(--os-accent) 40%, transparent); backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%); box-shadow: 0 4px 16px rgba(0,0,0,.28); }
+.project-grid__item--featured .project-grid__number { top: 18px; left: 18px; min-width: 40px; height: 40px; font-size: 18px; border-radius: 12px; }.project-grid__year { right: 14px; bottom: 14px; padding: 4px 9px; border-radius: 8px; color: var(--os-text-secondary); background: color-mix(in srgb, var(--os-bg) 58%, transparent); border: 1px solid color-mix(in srgb, var(--os-text) 12%, transparent); backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%); }.project-grid__content { display: flex; min-height: 255px; flex-direction: column; padding: clamp(20px, 3vw, 36px); }.project-grid__signal { position: absolute; inset: 0; display: grid; place-items: center; color: var(--os-accent-cyan); }.project-grid__signal--agents span { position: absolute; width: clamp(32px, 5vw, 62px); aspect-ratio: 1; border: 1px solid currentColor; border-radius: 50%; box-shadow: 0 0 28px color-mix(in srgb, var(--os-accent-cyan) 42%, transparent); animation: grid-orbit 8s linear infinite; }.project-grid__signal--agents span:nth-child(1) { transform: translate(-78%, -40%); }.project-grid__signal--agents span:nth-child(2) { transform: translate(75%, -15%); animation-delay: -2.6s; }.project-grid__signal--agents span:nth-child(3) { transform: translate(-10%, 70%); animation-delay: -5.1s; }.project-grid__signal--agents i { position: absolute; width: 36%; height: 1px; background: linear-gradient(90deg, transparent, var(--os-accent), transparent); transform-origin: left; }.project-grid__signal--agents i:nth-child(4) { transform: rotate(24deg); }.project-grid__signal--agents i:nth-child(5) { transform: rotate(143deg); }.project-grid__signal--agents i:nth-child(6) { transform: rotate(-88deg); }.project-grid__signal--research { display: flex; flex-direction: column; align-items: center; gap: 16px; font: 10px var(--font-mono); letter-spacing: .18em; }.project-grid__signal--research i { width: min(58%, 260px); height: 1px; background: linear-gradient(90deg, transparent, var(--os-accent-cyan), transparent); }.project-grid__signal--research span:last-child { color: var(--os-accent-green); }.project-grid__signal--portfolio { display: flex; gap: 24px; align-items: center; justify-content: center; }.project-grid__signal--portfolio svg:first-child { padding: 17px; width: 78px; height: 78px; border: 1px solid currentColor; border-radius: 50%; color: var(--os-accent); box-sizing: content-box; }@keyframes grid-orbit { to { rotate: 360deg; } }
+/* Diagram figures inside the modals (architecture / user flow). The frame is a
+   button — click opens the zoomable lightbox. Surface bg so transparent PNGs
+   and SVGs stay legible in both themes. */
+.diagram-frame { position: relative; display: block; width: 100%; padding: 0; overflow: hidden; border-radius: 14px; border: 1px solid var(--os-border); background: var(--os-bg-surface); cursor: zoom-in; transition: border-color .2s ease, transform .25s cubic-bezier(.22,1,.36,1); }
+.diagram-frame:hover { border-color: var(--os-accent); transform: translateY(-2px); }
+.diagram-frame img { display: block; width: 100%; height: auto; }
+.diagram-frame__zoom { position: absolute; top: 10px; right: 10px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 8px; font: 10.5px var(--font-mono); letter-spacing: .1em; color: var(--os-text-secondary); background: color-mix(in srgb, var(--os-bg) 62%, transparent); border: 1px solid color-mix(in srgb, var(--os-text) 14%, transparent); backdrop-filter: blur(8px); opacity: 0; transform: translateY(-3px); transition: opacity .2s ease, transform .2s ease; }
+.diagram-frame:hover .diagram-frame__zoom, .diagram-frame:focus-visible .diagram-frame__zoom { opacity: 1; transform: translateY(0); }
+
+.project-grid__item { position: relative; }
+/* Video previews: the still frame (poster, or the first decoded frame) fills
+   the media plate; the clip only streams on hover — see ProjectMedia.tsx. */
+.project-grid__media-video { position: absolute; inset: 0; }
+.project-grid__media-video video { width: 100%; height: 100%; object-fit: cover; background: var(--os-bg); }
+.film-portfolio .project-grid--film .project-grid__media-video { display: none; }
+.project-grid__links { position: absolute; bottom: 14px; right: 14px; z-index: 4; display: flex; gap: 7px; }
+.project-grid__links a { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 9px; border: 1px solid color-mix(in srgb, var(--os-text) 20%, transparent); background: color-mix(in srgb, var(--os-bg) 74%, transparent); color: var(--os-text-secondary); backdrop-filter: blur(6px); transition: color .2s ease, border-color .2s ease, transform .2s ease; }
+.project-grid__links a:hover { color: var(--os-accent); border-color: var(--os-accent); transform: translateY(-2px); }
+
+/* The contact chapter takes the full canvas: a clear final invitation before
+   the practical details and form. */
+.contact-closing:not(.contact-closing--film) { min-height: 100svh; padding: clamp(90px, 12vw, 150px) clamp(20px, 7vw, 110px) 56px; color: #f4f1e9; background: #171715; }.contact-closing:not(.contact-closing--film)::before { background: linear-gradient(90deg, transparent, color-mix(in srgb, #2DC7B0 40%, transparent), transparent); }.contact-closing:not(.contact-closing--film) .contact-closing__header { max-width: 1200px; margin-left: auto; margin-right: auto; text-align: center; }.contact-closing:not(.contact-closing--film) .contact-closing__header h2 { margin: 0; color: #f4f1e9 !important; font-size: clamp(2.5rem, 5.6vw, 5rem) !important; font-weight: 600 !important; letter-spacing: -.055em !important; line-height: .92 !important; }.contact-closing:not(.contact-closing--film) .contact-closing__header p { max-width: 430px; margin: 30px auto 0 !important; color: #bcb7ac !important; }.contact-closing:not(.contact-closing--film) .contact-closing__header > div { color: var(--os-accent-cyan) !important; }.contact-closing:not(.contact-closing--film) .contact-closing__grid { max-width: 1200px; margin-left: auto; margin-right: auto; }.contact-closing:not(.contact-closing--film) .glass-card { border-color: color-mix(in srgb, #f4f1e9 25%, transparent); background: color-mix(in srgb, #f4f1e9 4%, transparent); }.contact-closing:not(.contact-closing--film) .glass-card, .contact-closing:not(.contact-closing--film) .glass-card * { color: inherit; }.contact-closing:not(.contact-closing--film) .glass-card div, .contact-closing:not(.contact-closing--film) .glass-card label { color: #f4f1e9 !important; }.contact-closing:not(.contact-closing--film) .glass-card p { color: #bcb7ac !important; }.contact-closing:not(.contact-closing--film) input, .contact-closing:not(.contact-closing--film) textarea, .contact-closing:not(.contact-closing--film) select { background: color-mix(in srgb, #f4f1e9 7%, transparent) !important; border-color: color-mix(in srgb, #f4f1e9 24%, transparent) !important; color: #f4f1e9 !important; }.contact-closing:not(.contact-closing--film) > .mt-14 { max-width: 1200px; margin-left: auto; margin-right: auto; border-color: color-mix(in srgb, #f4f1e9 18%, transparent) !important; color: #938e84 !important; }
+.contact-closing--film .contact-closing__header { max-width: 760px; margin: 0 auto 4rem; text-align: center; }.contact-closing--film .contact-closing__header h2 { font-size: clamp(2.2rem, 6vw, 4rem) !important; }.contact-closing--film .contact-closing__header p { margin-left: auto; margin-right: auto; }
+.film-portfolio .project-grid--film { display: block; max-width: 1050px; margin-left: auto; }.film-portfolio .project-grid--film .project-grid__item { margin: 0 0 2.5rem; }.film-portfolio .project-grid--film .project-grid__card { grid-template-columns: 150px 1fr; min-height: 260px; color: #f2eee5; border-color: color-mix(in srgb, #f2eee5 45%, transparent); background: transparent; }.film-portfolio .project-grid--film .project-grid__media { min-height: 0; border-right: 1px solid color-mix(in srgb, #f2eee5 34%, transparent); border-bottom: 0; background: transparent; }.film-portfolio .project-grid--film .project-grid__signal, .film-portfolio .project-grid--film .project-grid__media-image { display: none; }.film-portfolio .project-grid--film .project-grid__number { position: absolute; top: 28px; left: 18px; min-width: 0; height: auto; padding: 0; border: 0; border-radius: 0; background: none; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; font-size: clamp(1.7rem, 3.5vw, 3.5rem); letter-spacing: -.08em; color: var(--os-accent); }.film-portfolio .project-grid--film .project-grid__year { right: auto; bottom: 26px; left: 18px; width: 90px; line-height: 1.45; }.film-portfolio .project-grid--film .project-grid__content { min-height: 260px; }.film-portfolio .project-grid--film .project-grid__card:hover { color: #171715; background: #ed4a25; border-color: #ed4a25; }.film-portfolio .project-grid--film .project-grid__card:hover * { color: #171715 !important; border-color: #171715 !important; }
+@media (max-width: 700px) { .project-grid { grid-template-columns: 1fr; }.project-grid__item--featured { grid-column: auto; }.project-grid__item--featured .project-grid__card { grid-template-columns: 1fr; }.project-grid__item--featured .project-grid__media { min-height: 280px; border-right: 0; border-bottom: 1px solid color-mix(in srgb, var(--os-text) 15%, transparent); }.contact-closing__header h2 { font-size: clamp(2.2rem, 10vw, 3.4rem) !important; } }
 
 /* The section number is a navigation device and a recurring piece of the
    title sequence—not a decorative badge. It anchors every chapter to the
@@ -1173,7 +1311,24 @@ body {
   border: 1px solid color-mix(in srgb, var(--interlude-tone) 32%, transparent);
   border-radius: 50%;
   box-shadow: 0 0 110px color-mix(in srgb, var(--interlude-tone) 16%, transparent), inset 0 0 70px color-mix(in srgb, var(--interlude-tone) 8%, transparent);
-  transform: rotate(-15deg);
+  /* Hidden until the section is reached; .is-revealed draws it in once. */
+  opacity: 0;
+  transform: rotate(-34deg) scale(0.8);
+}
+.cinematic-interlude.is-revealed::before {
+  animation: interlude-ring 1.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes interlude-ring {
+  0%   { opacity: 0; transform: rotate(-34deg) scale(0.8); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: rotate(-15deg) scale(1); }
+}
+/* The center crosshair/glow fades in with the ring rather than being static. */
+.cinematic-interlude::after { opacity: 0; transition: opacity 1.2s ease 0.3s; }
+.cinematic-interlude.is-revealed::after { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .cinematic-interlude::before { opacity: 1; transform: rotate(-15deg) scale(1); animation: none; }
+  .cinematic-interlude::after { opacity: 1; transition: none; }
 }
 .cinematic-interlude::after {
   inset: 0;
@@ -1250,5 +1405,214 @@ body {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
+  }
+}
+
+/* ═══ PERF-LITE — the scaled-down experience ════════════════════ */
+/* Applied by the performance governor (lib/perf.ts) on low-tier devices or
+   after a live memory downgrade. Sheds the most expensive compositing work —
+   backdrop blur (very GPU/memory heavy), large animated gradients, and deep
+   shadows — so modest phones and low-RAM machines stay smooth. WebGL is
+   skipped separately by useHeavyOk(). The layout is untouched; only cost is. */
+/* Backdrop blur itself is killed by a runtime-injected sheet (lib/perf.ts) —
+   the build tool strips backdrop-filter overrides from authored CSS. Here we
+   just solidify the surfaces that relied on that blur so they stay legible. */
+html.perf-lite .os-glass,
+html.perf-lite header > div,
+html.perf-lite [class*="glass"] {
+  background: color-mix(in srgb, var(--os-bg) 92%, transparent) !important;
+}
+/* Drop the animated ambient layers entirely. */
+html.perf-lite .ambient-field__aurora,
+html.perf-lite .ambient-field__grain,
+html.perf-lite .ambient-field__coordinates { display: none !important; }
+/* Trim infinite background animations that keep the compositor awake. */
+html.perf-lite .ambient-field__horizon,
+html.perf-lite .marquee-track { animation-duration: 0s !important; animation: none !important; }
+html.perf-lite * { box-shadow: none !important; }
+
+/* ═══ FILM MODE — the cinema shell ══════════════════════════════ */
+/* When the tour runs the room changes: the navbar lifts away, the rail
+   fades, the cursor cools, and every section but the active one dims so the
+   eye always knows where to look. Driven by html.film-mode / .film-spotlight
+   (FilmMode.tsx) and per-section .film-active (Landing.tsx). */
+
+html.film-mode header,
+html.film-mode .signal-rail {
+  opacity: 0;
+  transform: translateY(-16px);
+  pointer-events: none;
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Cursor cools to cyan while the director drives */
+html.film-mode .os-cursor-ring { border-color: color-mix(in srgb, var(--os-accent-cyan) 70%, transparent) !important; }
+
+/* Spotlight — sections ease between bright and dim. OPACITY ONLY: blurring
+   full-height sections while the camera scrolls is a very expensive repaint
+   and was the source of the scroll jank. Opacity compositing is cheap. */
+html.film-mode [id^="section-"] {
+  transition: opacity 0.9s ease;
+}
+html.film-mode.film-spotlight [id^="section-"]:not(.film-active) {
+  opacity: 0.26;
+}
+html.film-mode.film-spotlight [id^="section-"].film-active {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.film-mode header,
+  html.film-mode .signal-rail,
+  html.film-mode [id^="section-"] { transition: none !important; }
+  html.film-mode.film-spotlight [id^="section-"]:not(.film-active) { opacity: 0.5; }
+}
+
+.proof-hero__brand{
+    display:flex;
+    align-items:center;
+}
+
+.proof-hero__logo{
+    width:120px;
+    height:auto;
+    display:block;
+}
+/* ═══════════════════════════════════════════════════════════════════════
+   MOBILE TUNING PASS  —  audit recommendations #1–#6
+   ───────────────────────────────────────────────────────────────────────
+   MASTER SWITCH: config/mobileTuning.ts (MOBILE_TUNING). When true, <html>
+   carries `mobile-tuned`; EVERY rule below is scoped under it AND gated by
+   (pointer: coarse) / max-width, so desktop is byte-identical either way.
+   To revert the whole pass: set MOBILE_TUNING=false — the class disappears
+   and none of these rules match anymore.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* #1 — perf-mid shedding (backdrop blur is killed via the runtime sheet in
+   lib/perf.ts; here we solidify the surfaces that relied on it and drop the
+   priciest ambient layer). perf-lite already covers low tier; mid had none. */
+@media (pointer: coarse) {
+  html.mobile-tuned.perf-mid .os-glass,
+  html.mobile-tuned.perf-mid header > div,
+  html.mobile-tuned.perf-mid [class*="glass"] {
+    background: color-mix(in srgb, var(--os-bg) 90%, transparent) !important;
+  }
+  /* SVG-turbulence grain is imperceptible but expensive to composite. */
+  html.mobile-tuned.perf-mid .ambient-field__grain { display: none !important; }
+}
+
+/* #5 — floating action buttons: honour the safe-area inset and sit a touch
+   tighter so they crowd scrolling content less on phones. */
+@media (max-width: 639px) {
+  html.mobile-tuned .ask-fab {
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 14px !important;
+  }
+  html.mobile-tuned .feedback-fab {
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 14px !important;
+  }
+}
+
+/* #3 — hero density: one narrative card on phones, not two. The evidence
+   card duplicates the story on a small screen and overlaps the headline;
+   hide it and let the primary CLAIM/EVIDENCE/VERDICT card breathe. */
+@media (max-width: 580px) {
+  html.mobile-tuned .proof-hero__evidence { display: none !important; }
+  html.mobile-tuned .proof-hero__stage { gap: 14px; }
+}
+
+/* #6 — readability & tap-target floor. Stat labels were 7–9px; hero controls
+   were under the 44px touch minimum. */
+@media (max-width: 580px) {
+  html.mobile-tuned .proof-hero__proof span { font-size: 9px !important; }
+  html.mobile-tuned .proof-hero__proof p { font-size: 11px !important; line-height: 1.35; }
+  html.mobile-tuned .proof-hero__annotation { font-size: 9px !important; }
+  html.mobile-tuned .proof-hero__core-control { min-height: 44px; }
+  html.mobile-tuned .proof-hero__open,
+  html.mobile-tuned .proof-hero__disturb { min-height: 44px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LIGHT THEME REFINEMENT
+   ───────────────────────────────────────────────────────────────────────
+   The effect system is built from additive glows (box-shadow blur + low-alpha
+   color-mixes) that read beautifully against near-black but go flat/muddy on
+   warm paper — a glow can't glow on light. These overrides trade glow for
+   DEFINITION (crisper strokes, denser lines, a focal vignette) so light has
+   the same intent as dark.
+
+   Every rule is scoped to [data-theme="light"] — it is physically impossible
+   for anything here to affect the dark theme. To revert: delete this block.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Interlude outlined word ("HARD PART.") — a faint tinted stroke on cream is
+   nearly invisible; thicken it and pull it toward the ink for real contrast. */
+[data-theme="light"] .cinematic-interlude__words strong {
+  -webkit-text-stroke: 1.5px color-mix(in srgb, var(--interlude-tone) 62%, var(--os-text));
+  text-stroke: 1.5px color-mix(in srgb, var(--interlude-tone) 62%, var(--os-text));
+}
+
+/* Interlude ring — the 110px outer glow is a smudge on paper. Drop it, and
+   let a firmer border + inner wash carry the shape. */
+[data-theme="light"] .cinematic-interlude::before {
+  border-color: color-mix(in srgb, var(--interlude-tone) 50%, transparent);
+  box-shadow: inset 0 0 80px color-mix(in srgb, var(--interlude-tone) 12%, transparent);
+}
+/* Center crosshair + focal wash: denser so the composition has a subject. */
+[data-theme="light"] .cinematic-interlude::after {
+  background:
+    linear-gradient(90deg, transparent 49.93%, color-mix(in srgb, var(--interlude-tone) 46%, transparent) 50%, transparent 50.07%),
+    radial-gradient(ellipse at 50% 50%, color-mix(in srgb, var(--interlude-tone) 15%, transparent), transparent 58%);
+}
+/* Axis node: crisp ring instead of a soft halo that vanishes on paper. */
+[data-theme="light"] .cinematic-interlude__axis b {
+  box-shadow: 0 0 8px color-mix(in srgb, var(--interlude-tone) 42%, transparent);
+}
+
+/* Ambient field — give the paper depth. On dark the vignette fades to black
+   for a focal center; on light it faded to more cream (flat). Restore the
+   focal falloff with a soft warm shadow, and firm up the structural lines. */
+[data-theme="light"] .ambient-field__vignette {
+  background: radial-gradient(ellipse at 50% 42%, transparent 32%, color-mix(in srgb, #5a4a26 13%, transparent) 100%);
+}
+[data-theme="light"] .ambient-field__coordinates { opacity: .5; }
+[data-theme="light"] .ambient-field__horizon { opacity: 1; }
+/* The aurora blobs turn muddy on paper; tighten their contribution so they
+   tint rather than smear. */
+[data-theme="light"] .ambient-field__aurora {
+  opacity: calc(var(--signal-energy) * 0.62);
+  mix-blend-mode: multiply;
+}
+
+/* Hero grid + focal glow: the accent radial is invisible on cream — deepen it
+   slightly and darken the ruled grid so the hero has the same lattice as dark. */
+[data-theme="light"] .proof-hero {
+  background:
+    radial-gradient(ellipse at 68% 47%, color-mix(in srgb, var(--os-accent) 14%, transparent), transparent 44%),
+    var(--os-bg);
+}
+[data-theme="light"] .proof-hero::before {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--os-text) 8%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--os-text) 8%, transparent) 1px, transparent 1px);
+}
+
+/* Interlude words primary line already uses ink; ensure the caption keeps
+   comfortable contrast against the lighter focal wash. */
+[data-theme="light"] .cinematic-interlude__content > p { color: var(--os-text-secondary); }
+
+/* Mobile-tuning #7 — interlude ring framing. On phones the display words hit
+   their clamp() floor and stop shrinking, but the ring keeps scaling with vw,
+   so the flat 80vw×42vw ellipse becomes too short to contain the stacked
+   words (they spill top/bottom and the -15deg tilt reads as off-centre).
+   Make the ring near-circular so it frames the stack symmetrically; a rotated
+   circle looks the same, so the tilt asymmetry disappears too.
+   Scoped to html.mobile-tuned + max-width → desktop is untouched; revert via
+   MOBILE_TUNING=false. */
+@media (max-width: 639px) {
+  html.mobile-tuned .cinematic-interlude::before {
+    width: min(88vw, 470px);
+    height: min(88vw, 470px);
   }
 }

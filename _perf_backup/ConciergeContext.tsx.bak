@@ -1,0 +1,609 @@
+"use client";
+
+// ── ConciergeContext ─────────────────────────────────────────
+// Owns conversation, status, persona, and drives the "morph".
+// Features: word-by-word streaming reveal, localStorage history,
+// persona selection, section focus, stage event dispatch.
+
+import {
+  createContext, useContext, useState, useCallback, useRef, useEffect, ReactNode,
+} from "react";
+import { Persona, SectionId } from "@/types";
+import { agentFAQ, personal, projects, skills } from "@/config/portfolio";
+import { track } from "@/lib/behavior";
+import { ember } from "@/lib/voice";
+import { glideToSection } from "@/lib/cinema/camera";
+import { TOUR, DIRECTOR_INTRO, DIRECTOR_OUTRO_HANDBACK, CLOSING_LINE } from "@/lib/cinema/tourScript";
+
+export interface ConciergeMessage {
+  id: number;
+  role: "user" | "agent";
+  content: string;
+  /** Partial content during streaming reveal */
+  streaming?: boolean;
+}
+
+interface ConciergeValue {
+  messages: ConciergeMessage[];
+  status: "idle" | "thinking" | "streaming";
+  open: boolean;
+  persona: Persona;
+  setPersona: (p: Persona) => void;
+  ask: (text: string) => Promise<void>;
+  setOpen: (v: boolean) => void;
+  clear: () => void;
+  focusSection: (id: SectionId) => void;
+  /** Scripted autonomous tour — the agent drives the page. Zero API cost. */
+  tour: () => void;
+  /** Abort a running tour. silent=true skips the message; graceful eases the film out. */
+  stopTour: (opts?: { silent?: boolean; graceful?: boolean }) => void;
+  tourRunning: boolean;
+  /** Chapter progress while the tour runs (1-based) */
+  tourStep: { index: number; total: number } | null;
+  /** True after all LLM providers failed — the dock switches to command deck */
+  degraded: boolean;
+  /** Live system telemetry while a request reroutes providers (mono ticker) */
+  statusLine: string | null;
+}
+
+// ── Command deck ───────────────────────────────────────────────
+// Slash commands work ALWAYS (power users) and become the primary
+// interface when every LLM provider is down — the concierge never dies,
+// it just switches from natural language to a deterministic protocol.
+export const COMMANDS: { cmd: string; desc: string; event?: { name: string; detail: string } }[] = [
+  { cmd: "/work",        desc: "Jump to the projects",        event: { name: "stage:nav", detail: "work" } },
+  { cmd: "/research",    desc: "Published papers",            event: { name: "stage:nav", detail: "research" } },
+  { cmd: "/career",      desc: "The career arc",              event: { name: "stage:nav", detail: "arc" } },
+  { cmd: "/credentials", desc: "Education & certifications",  event: { name: "stage:nav", detail: "education" } },
+  { cmd: "/skills",      desc: "Capabilities",                event: { name: "stage:nav", detail: "skills" } },
+  { cmd: "/contact",     desc: "Get in touch",                event: { name: "stage:nav", detail: "contact" } },
+  { cmd: "/case",        desc: "Open the flagship case study", event: { name: "stage:case", detail: "001" } },
+  { cmd: "/resume",      desc: "View the resume",             event: { name: "resume:open", detail: "" } },
+  { cmd: "/feedback",    desc: "Leave a note or rating",      event: { name: "feedback:open", detail: "" } },
+  { cmd: "/graph",       desc: "Knowledge-graph view",        event: { name: "graph:toggle", detail: "" } },
+  { cmd: "/tour",        desc: "45-second guided tour" },
+  { cmd: "/help",        desc: "List all commands" },
+];
+
+const ConciergeContext = createContext<ConciergeValue | null>(null);
+
+// ── Section → scene mapping ────────────────────────────────────
+const SECTION_TO_SCENE: Record<string, number> = {
+  hero: 0, studio: 2, arc: 3, projects: 1,
+  capabilities: 4, credibility: 4, fit: 4, contact: 4,
+};
+
+const SECTION_TO_NAV: Partial<Record<string, string>> = {
+  projects: "work", capabilities: "skills", arc: "arc",
+  contact: "contact", credibility: "research", studio: "agent",
+};
+
+function dispatchStageTags(text: string) {
+  if (typeof window === "undefined") return;
+  for (const m of text.matchAll(/\[NAV:(\w+)\]/g))
+    window.dispatchEvent(new CustomEvent("stage:nav", { detail: m[1].toLowerCase() }));
+  const reel = text.match(/\[REEL:(\d+)\]/);
+  if (reel) window.dispatchEvent(new CustomEvent("stage:reel", { detail: parseInt(reel[1], 10) }));
+  const hl = text.match(/\[HIGHLIGHT:([^\]]+)\]/);
+  if (hl)  window.dispatchEvent(new CustomEvent("stage:highlight", { detail: hl[1].trim() }));
+  const cs = text.match(/\[CASE:(\w+)\]/);
+  if (cs)  window.dispatchEvent(new CustomEvent("stage:case", { detail: cs[1] }));
+  // Agent opens the knowledge-graph view of the portfolio.
+  if (/\[GRAPH\]/.test(text)) window.dispatchEvent(new CustomEvent("graph:toggle"));
+  // Agent opens the "leave a note" panel — optionally prefilled: [FEEDBACK:great work]
+  const fb = text.match(/\[FEEDBACK(?::([^\]]+))?\]/);
+  if (fb)  window.dispatchEvent(new CustomEvent("feedback:open", {
+    detail: { message: fb[1]?.trim() ?? "", source: "AI concierge" },
+  }));
+}
+
+// The concierge sends contact details a visitor shared in chat straight to
+// Sankalp's inbox (via the same /api/contact transport). Triggered only when
+// the agent emits [LEAD] — i.e. it recognised genuine intent — and only if an
+// email is actually present in the conversation.
+const EMAIL_RE = /[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>()]{2,}/;
+async function captureLead(latest: string, history: ConciergeMessage[]): Promise<boolean> {
+  const corpus = [...history.map((m) => m.content), latest].join("\n");
+  const email = corpus.match(EMAIL_RE)?.[0];
+  if (!email) return false;
+  const nameMatch = corpus.match(/\b(?:my name is|i am|i'm|this is)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)/);
+  const name = nameMatch?.[1] ?? "Portfolio visitor (via AI concierge)";
+  try {
+    const res = await fetch("/api/contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        email,
+        subject: "New lead — captured by the AI concierge",
+        message: `A visitor shared their details through the chat.\n\nTheir latest message:\n"${latest}"`,
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function localAnswer(q: string, persona: Persona): string {
+  const t = q.toLowerCase().trim();
+  if (t.includes("availab") || t.includes("start") || t.includes("notice")) return agentFAQ.availability;
+  if (t.includes("locat") || t.includes("remote")) return agentFAQ.location;
+  if (t.includes("salary") || t.includes("compensation") || t.includes("ctc")) return agentFAQ.salary;
+  if (t.includes("stack") || t.includes("tech")) return agentFAQ.stack;
+  if (t.includes("skill")) return agentFAQ.skills;
+  if (t.includes("research") || t.includes("paper")) return agentFAQ.research;
+  if (t.includes("experience") || t.includes("background")) return agentFAQ.experience;
+  if (t.includes("contact") || t.includes("email") || t.includes("reach")) return agentFAQ.contact;
+
+  const pm = projects.find((p) =>
+    t.includes(p.shortName.toLowerCase()) || t.includes(p.name.toLowerCase().split(" ")[0])
+  );
+  if (pm) return `${pm.name} — ${pm.description} Stack: ${pm.stack.join(", ")}.`;
+
+  if (t.includes("project") || t.includes("work") || t.includes("best")) {
+    const top = projects[0];
+    return `${personal.shortName}'s flagship is ${top.name}: ${top.description} There are ${projects.length} case studies — scroll or ask about any of them.`;
+  }
+  if (t.match(/^(hi|hello|hey)\b/)) {
+    return `Hi — I'm ${personal.shortName}'s AI concierge. Ask about his work, skills, or availability, or paste a job description for a fit check.${persona === "recruiter" ? ` He's ${personal.availability.toLowerCase()}.` : ""}`;
+  }
+  const topSkills = skills.filter((s) => s.core).map((s) => s.name).slice(0, 5).join(", ");
+  return `${personal.shortName} is an ${personal.title} — ${personal.focus}. Core strengths: ${topSkills}. Ask me anything specific, or paste a JD for a fit check.`;
+}
+
+// ── Word-by-word streaming reveal ─────────────────────────────
+function streamWords(
+  fullText: string,
+  id: number,
+  setMessages: React.Dispatch<React.SetStateAction<ConciergeMessage[]>>,
+  onDone: () => void,
+  opts?: { speak?: boolean },
+) {
+  const words = fullText.split(" ");
+  let i = 0;
+  // EMBER speaks every streamed line — one-way narration, opt-in. The tour
+  // drives voice itself (so it can await audio end), so it opts out here.
+  if (opts?.speak !== false) ember.speak(fullText);
+  // Start with empty streaming message
+  setMessages((prev) => [...prev, { id, role: "agent", content: "", streaming: true }]);
+
+  const interval = setInterval(() => {
+    i++;
+    const partial = words.slice(0, i).join(" ");
+    setMessages((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, content: partial, streaming: i < words.length } : m))
+    );
+    if (i >= words.length) {
+      clearInterval(interval);
+      onDone();
+    }
+  }, 28); // ~35 words/sec
+}
+
+const HISTORY_KEY = "concierge-history";
+const MAX_HISTORY  = 20;
+
+function loadHistory(): ConciergeMessage[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveHistory(msgs: ConciergeMessage[]) {
+  try {
+    const toStore = msgs.slice(-MAX_HISTORY);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(toStore));
+  } catch { /* quota exceeded — ignore */ }
+}
+
+export function ConciergeProvider({ children }: { children: ReactNode }) {
+  const [messages, setMessages] = useState<ConciergeMessage[]>([]);
+  const [status, setStatus]     = useState<"idle" | "thinking" | "streaming">("idle");
+  const [open, setOpen]         = useState(false);
+  const [persona, setPersona]   = useState<Persona>(null);
+  const [tourRunning, setTourRunning] = useState(false);
+  const [tourStep, setTourStep] = useState<{ index: number; total: number } | null>(null);
+  const [degraded, setDegraded] = useState(false);
+  const [statusLine, setStatusLine] = useState<string | null>(null);
+  const idRef = useRef(0);
+  const tourAbortRef = useRef(false);
+  const cameraAbortRef = useRef<AbortController | null>(null);
+  const degradedRef = useRef(false);
+  useEffect(() => { degradedRef.current = degraded; }, [degraded]);
+
+  // Restore conversation history from localStorage on mount.
+  // Deferred past paint so hydration compares against the SSR default.
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      const history = loadHistory();
+      if (history.length > 0) {
+        setMessages(history);
+        idRef.current = Math.max(...history.map((m) => m.id), 0);
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // Persist history whenever messages change
+  useEffect(() => {
+    if (messages.length > 0) saveHistory(messages);
+  }, [messages]);
+
+  // Restore persona preference (deferred, same reason as above)
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      const saved = localStorage.getItem("concierge-persona") as Persona;
+      if (saved) setPersona(saved);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const setPersonaAndSave = useCallback((p: Persona) => {
+    setPersona(p);
+    if (p) localStorage.setItem("concierge-persona", p);
+    else localStorage.removeItem("concierge-persona");
+  }, []);
+
+  const push = useCallback((m: Omit<ConciergeMessage, "id">) => {
+    setMessages((prev) => [...prev, { ...m, id: ++idRef.current }]);
+  }, []);
+
+  // Reset clears the conversation but keeps the window open —
+  // closing it too made the reset feel like a crash.
+  const clear = useCallback(() => {
+    tourAbortRef.current = true; // stop a running tour with the reset
+    cameraAbortRef.current?.abort();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("film:exit", { detail: { graceful: false } }));
+      window.dispatchEvent(new CustomEvent("stage:case-close", { detail: "" }));
+    }
+    ember.stop();
+    setMessages([]);
+    setStatus("idle");
+    localStorage.removeItem(HISTORY_KEY);
+  }, []);
+
+  // ── Cinematic tour ─────────────────────────────────────────
+  // The visitor doesn't scroll — the camera travels. Movement always
+  // finishes before a word is spoken. Interruption is graceful: the camera
+  // eases to a stop, the voice fades, the film releases the frame.
+  const stopTour = useCallback((opts?: { silent?: boolean; graceful?: boolean }) => {
+    if (tourAbortRef.current) return;
+    tourAbortRef.current = true;
+    // Let the camera coast to a soft stop instead of freezing.
+    cameraAbortRef.current?.abort();
+    ember.stop();
+    if (opts?.graceful) {
+      // The film lets go: voice fades, letterbox retracts, a warm sign-off.
+      window.dispatchEvent(new CustomEvent("film:exit", {
+        detail: { graceful: true, line: "Enjoy exploring." },
+      }));
+      window.dispatchEvent(new CustomEvent("stage:case-close", { detail: "" }));
+    }
+    if (!opts?.silent) {
+      setMessages((prev) => [
+        ...prev,
+        { id: ++idRef.current, role: "agent", content: "You took the wheel — the floor is yours. Ask me anything whenever you like." },
+      ]);
+    }
+  }, []);
+
+  const tour = useCallback(() => {
+    if (tourRunning) return;
+    tourAbortRef.current = false;
+    const camera = new AbortController();
+    cameraAbortRef.current = camera;
+    setTourRunning(true);
+    setOpen(true); // the director narrates from the dock while the film plays
+
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    // A beat is done when the voice actually finishes speaking it — synced to
+    // the audio, never a guessed duration (that was the "cut-off" bug). With
+    // voice off, captions carry it: done when the words finish revealing. A
+    // generous safety cap guarantees we never hang if audio stalls.
+    const narrateBeat = (text: string) =>
+      new Promise<void>((resolve) => {
+        const msgId = ++idRef.current;
+        setStatus("streaming");
+        const voiceOn = ember.isEnabled();
+        let settled = false;
+        const finish = () => { if (!settled) { settled = true; resolve(); } };
+        streamWords(text, msgId, setMessages, () => { if (!voiceOn) finish(); }, { speak: false });
+        if (voiceOn) {
+          ember.narrate(text).then(finish);
+          setTimeout(finish, text.split(/\s+/).length * 800 + 5000);
+        } else {
+          setTimeout(finish, text.split(/\s+/).length * 60 + 1400);
+        }
+      });
+    // Rough spoken-duration estimate — only used to pace the background camera
+    // drift, never to gate narration.
+    const estMs = (text: string) =>
+      text.split(/\s+/).length * (ember.isEnabled() ? 380 : 110);
+
+    // "Take the wheel": any manual scroll outside the dock ends the film —
+    // gracefully. The visitor always outranks the director.
+    const isInsideDock = (t: EventTarget | null) =>
+      t instanceof Element && !!t.closest("[data-agent-dock]");
+    const takeWheel = (t: EventTarget | null) => { if (!isInsideDock(t)) stopTour({ graceful: true }); };
+    const onWheel = (e: WheelEvent) => takeWheel(e.target);
+    const onTouchMove = (e: TouchEvent) => takeWheel(e.target);
+    const onKey = (e: KeyboardEvent) => {
+      if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "].includes(e.key)) takeWheel(e.target);
+    };
+    window.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("keydown", onKey);
+
+    (async () => {
+      // Lights down: letterbox slides in, the room darkens, nav lifts away.
+      window.dispatchEvent(new CustomEvent("film:enter"));
+      window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: true }));
+      await sleep(650); // let the frame close before anyone speaks
+      window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: false }));
+
+      // Ember opens the film as the director, third person.
+      if (!tourAbortRef.current) {
+        await narrateBeat(DIRECTOR_INTRO);
+        await sleep(300);
+      }
+
+      const total = TOUR.length;
+      for (let i = 0; i < TOUR.length; i++) {
+        if (tourAbortRef.current) break;
+        const ch = TOUR[i];
+        setTourStep({ index: i + 1, total });
+
+        // 1 — the act announces itself, alone, before anything moves
+        window.dispatchEvent(new CustomEvent("film:act", { detail: { act: ch.act, title: ch.title } }));
+        await sleep(ch.cardHoldMs);
+        if (tourAbortRef.current) break;
+
+        // 2 — dim everything but this section (no movement yet)
+        if (ch.section) window.dispatchEvent(new CustomEvent("film:spotlight", { detail: ch.section }));
+
+        // 3 — optional stage action (open a case), then let it breathe
+        if (ch.event) {
+          window.dispatchEvent(new CustomEvent(ch.event.name, { detail: ch.event.detail }));
+          await sleep(500);
+        }
+        if (tourAbortRef.current) break;
+
+        // 4 — ONE continuous, slow camera travel to frame the section, running
+        // AT THE SAME TIME as the narration (movement + voice together, like a
+        // keynote). A single eased glide — no competing animations, no seams.
+        // We await it AFTER the beats so the next chapter starts from a settled
+        // position and the two chapters never fight over the scroll.
+        const chapterCam = new AbortController();
+        const onCam = () => chapterCam.abort();
+        camera.signal.addEventListener("abort", onCam, { once: true });
+        let scrollDone: Promise<void> = Promise.resolve();
+        if (ch.section && !ch.event) {
+          const narrationMs = ch.beats.reduce((s, b) => s + estMs(b.text) + (b.holdMs ?? 120), 0);
+          const duration = Math.min(7000, Math.max(2600, narrationMs));
+          scrollDone = glideToSection(ch.section, { signal: chapterCam.signal, align: ch.align, duration });
+        }
+
+        // 5 — narration, beat by beat, each cue firing on its word, each beat
+        // awaiting the ACTUAL voice so a line is never cut off.
+        for (const beat of ch.beats) {
+          if (tourAbortRef.current) break;
+          if (beat.cue) window.dispatchEvent(new CustomEvent("film:cue", { detail: beat.cue }));
+          await narrateBeat(beat.text);
+          if (tourAbortRef.current) break;
+          await sleep(beat.holdMs ?? 120);
+        }
+        // Let the camera finish its travel smoothly, then release it.
+        if (!tourAbortRef.current) await scrollDone;
+        camera.signal.removeEventListener("abort", onCam);
+        if (tourAbortRef.current) break;
+
+        // 6 — the pause between chapters. The breath.
+        await sleep(ch.holdMs);
+      }
+
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("keydown", onKey);
+
+      if (!tourAbortRef.current) {
+        // Natural finish — Act V already delivered Sankalp's closing line, so
+        // the film simply releases (echoing it on the farewell card), then
+        // Ember returns as the concierge.
+        window.dispatchEvent(new CustomEvent("stage:case-close", { detail: "" }));
+        window.dispatchEvent(new CustomEvent("film:exit", { detail: { graceful: false, line: CLOSING_LINE } }));
+        await sleep(1600);
+        await narrateBeat(DIRECTOR_OUTRO_HANDBACK);
+        window.dispatchEvent(new CustomEvent("tour:done"));
+      }
+
+      cameraAbortRef.current = null;
+      setStatus("idle");
+      setTourRunning(false);
+      setTourStep(null);
+    })();
+  }, [tourRunning, stopTour]);
+
+  // ── Command deck: deterministic slash commands ───────────────
+  const runCommand = useCallback((raw: string): boolean => {
+    const text = raw.trim().toLowerCase();
+    if (!text.startsWith("/")) return false;
+    const word = text.split(/\s+/)[0];
+    const found = COMMANDS.find((c) => c.cmd === word);
+
+    push({ role: "user", content: raw.trim() });
+    if (!found) {
+      push({ role: "agent", content: `Unknown command. Try: ${COMMANDS.map((c) => c.cmd).join("  ")}` });
+      return true;
+    }
+    if (found.cmd === "/help") {
+      push({ role: "agent", content: COMMANDS.map((c) => `${c.cmd} — ${c.desc}`).join("\n") });
+      return true;
+    }
+    if (found.cmd === "/tour") {
+      push({ role: "agent", content: "Starting the tour — buckle up." });
+      setTimeout(() => tour(), 400);
+      return true;
+    }
+    if (found.event) {
+      window.dispatchEvent(new CustomEvent(found.event.name, { detail: found.event.detail }));
+      push({ role: "agent", content: `→ ${found.desc}` });
+    }
+    return true;
+  }, [push, tour]);
+
+  const focusSection = useCallback((id: SectionId) => {
+    window.dispatchEvent(new CustomEvent("concierge-focus", { detail: id }));
+    const sceneIdx = SECTION_TO_SCENE[id];
+    if (sceneIdx !== undefined)
+      window.dispatchEvent(new CustomEvent("navigate-scene", { detail: sceneIdx }));
+    const nav = SECTION_TO_NAV[id];
+    if (nav) window.dispatchEvent(new CustomEvent("stage:nav", { detail: nav }));
+  }, []);
+
+  const ask = useCallback(async (raw: string) => {
+    const text = raw.trim();
+    if (!text) return;
+    setOpen(true);
+
+    // Slash commands short-circuit the LLM entirely
+    if (runCommand(text)) return;
+
+    push({ role: "user", content: text });
+    track("asked", text);
+
+    setStatus("thinking");
+    window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: true }));
+
+    // Try live LLM — NDJSON stream so provider reroutes surface as REAL
+    // status events, not invented theater.
+    let answer: string | null = null;
+    let exhausted = false;
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            ...messages.slice(-6).map((m) => ({
+              role: m.role === "agent" ? "assistant" : "user",
+              content: m.content,
+            })),
+            { role: "user", content: text },
+          ],
+          visitorType: persona,
+          stream: true,
+        }),
+        signal: AbortSignal.timeout(45_000),
+      });
+      if (res.status === 429) {
+        exhausted = true;
+      } else if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let nl: number;
+          while ((nl = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            if (!line) continue;
+            try {
+              const ev = JSON.parse(line) as { e: string; n?: number; total?: number; content?: string };
+              if (ev.e === "attempt" && (ev.n ?? 1) > 1) {
+                setStatusLine(
+                  ev.n === 2
+                    ? "PRIMARY CHANNEL SATURATED — REROUTING…"
+                    : `ENGAGING FALLBACK LATTICE ${(ev.n ?? 2) - 1} / ${(ev.total ?? 2) - 1}…`
+                );
+              } else if (ev.e === "content") {
+                answer = ev.content ?? null;
+              } else if (ev.e === "exhausted") {
+                exhausted = true;
+              }
+            } catch { /* partial line noise */ }
+          }
+        }
+      } else if (res.ok) {
+        const data = await res.json();
+        answer = (data.content as string) ?? null;
+      }
+    } catch { /* network failure — fall through to static answers */ }
+    setStatusLine(null);
+
+    // ── Degradation choreography ──────────────────────────────
+    // Exhausted = every provider rate-limited. The core "powers down"
+    // once, cinematically, and the site keeps working from verified
+    // facts. Recovery announces itself the same way.
+    const wasDegraded = degradedRef.current;
+    setDegraded(answer === null);
+    if (exhausted && !wasDegraded) {
+      window.dispatchEvent(new CustomEvent("agent-core-down"));
+      const notice =
+        "⏻ Core saturation — every model channel is rate-limited right now, so I'm powering down to static mode. " +
+        "I can still answer from Sankalp's verified facts, run the tour, and take /commands. " +
+        "For anything deeper, leave your details in the contact section — Sankalp personally replies within 24 hours.";
+      const noticeId = ++idRef.current;
+      await new Promise<void>((r) => streamWords(notice, noticeId, setMessages, r));
+    } else if (!exhausted && answer && wasDegraded) {
+      window.dispatchEvent(new CustomEvent("agent-core-up"));
+      push({ role: "agent", content: "● Core back online — full reasoning restored." });
+    }
+
+    let sectionFromAI: SectionId | null = null;
+    if (answer) {
+      const m = answer.match(/\[SECTION:(\w+)\]/);
+      if (m) sectionFromAI = m[1] as SectionId;
+      // Contact details shared in chat → deliver them, then confirm honestly.
+      if (/\[LEAD\]/.test(answer)) {
+        captureLead(text, messages).then((ok) => {
+          if (ok) push({ role: "agent", content: "✓ Passed your details to Sankalp — he replies within 24 hours." });
+        });
+      }
+      dispatchStageTags(answer);
+      answer = answer
+        .replace(/\[(SECTION|OPEN|NAV|REEL|HIGHLIGHT|CASE|UI_TOOL):[^\]]+\]/g, "")
+        .replace(/\[(FEEDBACK(?::[^\]]+)?|LEAD|GRAPH)\]/g, "")
+        .trim();
+    } else {
+      answer = localAnswer(text, persona);
+    }
+
+    // Switch to streaming mode — reveal words one by one
+    setStatus("streaming");
+    window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: false }));
+
+    const msgId = ++idRef.current;
+    streamWords(answer, msgId, setMessages, () => {
+      setStatus("idle");
+    });
+
+    // Navigation is the AI's explicit decision, never automatic: we only move
+    // the page when the model deliberately emits [SECTION:x] / [NAV:x] / [CASE:x].
+    // A visitor asking "what is the graph feature?" should get an answer, not a
+    // surprise scroll to an unrelated section.
+    if (sectionFromAI) setTimeout(() => focusSection(sectionFromAI), 250);
+  }, [messages, persona, push, focusSection, runCommand]);
+
+  return (
+    <ConciergeContext.Provider
+      value={{ messages, status, open, persona, setPersona: setPersonaAndSave, ask, setOpen, clear, focusSection, tour, stopTour, tourRunning, tourStep, degraded, statusLine }}
+    >
+      {children}
+    </ConciergeContext.Provider>
+  );
+}
+
+export function useConcierge() {
+  const ctx = useContext(ConciergeContext);
+  if (!ctx) throw new Error("useConcierge must be used within ConciergeProvider");
+  return ctx;
+}

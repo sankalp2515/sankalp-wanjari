@@ -53,7 +53,7 @@ function StripContent({ persona }: { persona: Persona }) {
             6-provider LLM fallback, CI-gated groundedness evals — full architecture write-ups inside
           </span>
           <button onClick={openCase} className="persona-strip-cta shrink-0">
-            AutoML case study <ArrowRight size={11} aria-hidden />
+            AutoML breakdown <ArrowRight size={11} aria-hidden />
           </button>
         </>
       );
