@@ -13,7 +13,7 @@ export const personal = {
   initials: "SKW",
   title: "AI Engineer",
   focus: "Agentic Systems · RAG · LLM Infrastructure", // specialization areas, NOT an employer
-  roles: ["AI Engineer", "AI Product Manager"],
+  roles: ["AI Engineer", "AI Product Owner"],
   tagline: "Research first. Systems second. Products that matter.",
   bio: `I enjoy understanding complex problems before writing a single line of code. Whether it's reading research papers, analysing markets, or exploring how existing systems work, I believe great products begin with deep understanding rather than quick solutions.
 
@@ -63,7 +63,7 @@ export const social = {
   github: "https://github.com/sankalp2515",
   linkedin: "https://www.linkedin.com/in/sankalp-w-a37721134/",
   twitter: "",
-  website: "https://sankalpwanjari.dev",
+  website: "https://sankalp-wanjari.vercel.app",
 };
 
 export const skills = [
