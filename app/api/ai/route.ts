@@ -301,17 +301,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         lastError = msg;
-        recordProviderFailure(provider.id);
         const code = (err as NodeJS.ErrnoException).code;
-        if (code === "429" || msg.includes("429")) {
-          recordProviderFailure(provider.id); // extra penalty
+        const status = Number(code);
+        // 400/401/403/404 = wrong endpoint/key/model → sideline hard. Everything
+        // else (429, 5xx, timeout, DNS) is transient → normal 3-strike cooldown.
+        const kind: "config" | "transient" =
+          status === 400 || status === 401 || status === 403 || status === 404
+            ? "config"
+            : "transient";
+        recordProviderFailure(provider.id, kind);
+        if (kind === "transient" && (code === "429" || msg.includes("429"))) {
+          recordProviderFailure(provider.id); // extra penalty for rate limits
         }
         // Every failed provider attempt is now visible — the reroute that used
         // to happen silently is one queryable log line per hop.
         log.warn({
           event: "ai.provider", route: "/api/ai", reqId, provider: provider.id,
-          outcome: "failed", attempt: tried, durationMs: Date.now() - t0,
-          status: code ? Number(code) || undefined : undefined, error: msg,
+          outcome: "failed", failureKind: kind, attempt: tried, durationMs: Date.now() - t0,
+          status: Number.isFinite(status) ? status : undefined, error: msg,
         });
         continue;
       }

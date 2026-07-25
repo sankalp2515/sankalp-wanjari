@@ -39,7 +39,7 @@ export const PROVIDERS: LLMProvider[] = [
     id:        "openrouter",
     name:      "OpenRouter",
     endpoint:  "https://openrouter.ai/api/v1/chat/completions",
-    model:     "qwen/qwen3-next-80b-a3b-instruct:free",
+    model:     "nvidia/nemotron-3.5-content-safety:free",
     apiKeyEnv: "OPENROUTER_API_KEY",
     maxTokens: 1024,
     type:      "openai-compat",

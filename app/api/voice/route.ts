@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClientIP } from "@/lib/clientIP";
 import { rateLimit } from "@/lib/rateStore";
+import { log, newReqId } from "@/lib/observability/log";
 
 // ── /api/voice — EMBER's real voice via ElevenLabs TTS ─────────
 // Why server-side: the ElevenLabs key is a secret and must never reach
@@ -48,6 +49,25 @@ function cacheSet(key: string, buf: Buffer) {
 const WINDOW_MS = 60 * 60 * 1000;
 const MAX_PER_WINDOW = 60;
 
+// ── Upstream circuit breaker ───────────────────────────────────
+// When ElevenLabs is unreachable (connect timeout / DNS), EMBER narrates
+// line after line, each POST eating the full 15s timeout before the client
+// falls back to the browser voice. That's a 15s stall PER utterance for an
+// outage that isn't going to clear mid-tour. After a couple of connect-level
+// failures we "open the circuit": POSTs return 503 instantly (client falls
+// back with no stall) until a short cooldown elapses and we probe again.
+const BREAKER_THRESHOLD = 2;            // consecutive connect failures to trip
+const BREAKER_COOLDOWN_MS = 60 * 1000; // stay open for 1 min, then retry once
+let ttsConnectFails = 0;
+let ttsCircuitUntil = 0;
+// A connect/timeout error means the host was never reached — distinct from a
+// 4xx/5xx (which means ElevenLabs answered, so the network is fine).
+function isConnectError(err: unknown): boolean {
+  const code = (err as { cause?: { code?: string } })?.cause?.code ?? (err as { code?: string })?.code;
+  return code === "UND_ERR_CONNECT_TIMEOUT" || code === "ENOTFOUND" ||
+         code === "ECONNREFUSED" || code === "ETIMEDOUT" || (err instanceof Error && err.name === "TimeoutError");
+}
+
 // Trim to a sentence boundary near the cap so we never cut a word in half.
 function clampText(raw: string): string {
   const text = raw.trim();
@@ -68,10 +88,18 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const reqId = newReqId();
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
     // Not an error the user should see — the client falls back silently.
     return NextResponse.json({ error: "voice_not_configured" }, { status: 503 });
+  }
+
+  // Circuit open → fail fast so the client falls back to the browser voice
+  // instantly instead of waiting out another 15s connect timeout.
+  if (Date.now() < ttsCircuitUntil) {
+    log.warn({ event: "voice.tts", route: "/api/voice", reqId, outcome: "circuit_open", status: 503 });
+    return NextResponse.json({ error: "tts_unavailable" }, { status: 503 });
   }
 
   const ip = getClientIP(req);
@@ -132,17 +160,29 @@ export async function POST(req: NextRequest) {
       // without leaking the key.
       const detail = await res.json().catch(() => null);
       const reason = detail?.detail?.message ?? detail?.detail?.status ?? `HTTP ${res.status}`;
-      console.warn("ElevenLabs error:", res.status, reason);
+      // ElevenLabs answered (just unhappily) — the network is fine, so the
+      // breaker stays closed; this is a per-request problem, not an outage.
+      ttsConnectFails = 0;
+      log.warn({ event: "voice.tts", route: "/api/voice", reqId, outcome: "tts_failed", status: 502, providerStatus: res.status, error: reason });
       return NextResponse.json({ error: "tts_failed", status: res.status, reason }, { status: 502 });
     }
 
     const buf = Buffer.from(await res.arrayBuffer());
     cacheSet(cacheKey, buf);
+    ttsConnectFails = 0; // healthy response — reset the breaker
     return new NextResponse(new Uint8Array(buf), {
       headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store", "X-Voice-Cache": "MISS" },
     });
   } catch (err) {
-    console.error("Voice route error:", err);
+    const connect = isConnectError(err);
+    if (connect && ++ttsConnectFails >= BREAKER_THRESHOLD) {
+      ttsCircuitUntil = Date.now() + BREAKER_COOLDOWN_MS; // trip the breaker
+    }
+    log.error({
+      event: "voice.tts", route: "/api/voice", reqId,
+      outcome: connect ? "connect_failed" : "internal", status: 500,
+      breakerOpen: Date.now() < ttsCircuitUntil, error: err instanceof Error ? err.message : String(err),
+    });
     return NextResponse.json({ error: "internal" }, { status: 500 });
   }
 }

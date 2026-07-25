@@ -12,16 +12,37 @@ interface ProviderHealth {
 // Per-provider failure counter
 const provHealth = new Map<string, ProviderHealth>();
 
-const FAILURE_THRESHOLD     = 3;   // failures before provider is cooled off
-const COOLDOWN_MS           = 5 * 60 * 1000; // 5 minutes
+const FAILURE_THRESHOLD     = 3;   // transient failures before a provider is cooled off
+const COOLDOWN_MS           = 5 * 60 * 1000;  // 5 min — for transient trouble (429/5xx/timeout)
+const CONFIG_COOLDOWN_MS    = 30 * 60 * 1000; // 30 min — for misconfiguration (4xx that won't self-heal)
+
+// Why two classes: a 429 or a network timeout is worth retrying soon — the
+// provider is fine, just busy. A 400/401/403/404 means the endpoint, model
+// slug, or key is WRONG; retrying it every few minutes just burns latency on
+// every visitor (see the openrouter/ollama 404s in the logs). Sideline those
+// hard, so a dead provider costs the chain one strike, not one per request.
+export type FailureKind = "transient" | "config";
 
 // ── Provider health tracking ───────────────────────────────
 
 /** Record a failure for a provider. Returns true if now in cooldown. */
-export function recordProviderFailure(providerId: string): boolean {
+export function recordProviderFailure(
+  providerId: string,
+  kind: FailureKind = "transient",
+): boolean {
   const h = provHealth.get(providerId) ?? { failures: 0, cooledUntil: 0 };
-  h.failures++;
 
+  if (kind === "config") {
+    // One strike is enough — a misconfig won't fix itself mid-session. Cools
+    // for a long stretch; clears on process restart / redeploy (where a config
+    // change would actually land).
+    h.cooledUntil = Date.now() + CONFIG_COOLDOWN_MS;
+    h.failures    = 0;
+    provHealth.set(providerId, h);
+    return true;
+  }
+
+  h.failures++;
   if (h.failures >= FAILURE_THRESHOLD) {
     h.cooledUntil = Date.now() + COOLDOWN_MS;
     h.failures    = 0; // reset counter so it can fail again after cooldown
