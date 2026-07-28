@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
+import { safeLocal } from "@/lib/safeStorage";
 
 type Theme = "dark" | "light";
 
@@ -21,7 +22,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // below can overwrite it); apply after paint so hydration compares
   // against the SSR default.
   useEffect(() => {
-    const saved = localStorage.getItem("portfolio-theme") as Theme | null;
+    const saved = safeLocal.get("portfolio-theme") as Theme | null;
     if (saved !== "light" && saved !== "dark") return;
     const raf = requestAnimationFrame(() => setTheme(saved));
     return () => cancelAnimationFrame(raf);
@@ -29,7 +30,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("portfolio-theme", theme);
+    safeLocal.set("portfolio-theme", theme);
   }, [theme]);
 
   // Radial-wipe theme toggle using View Transitions API where available

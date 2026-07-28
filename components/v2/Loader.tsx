@@ -1,239 +1,231 @@
 "use client";
 
-// Boot loader — a warp-speed starfield you fly through while the
-// site "boots". Shown once per session, then the warp accelerates
-// and the overlay wipes away. Skipped for reduced-motion.
+// Boot loader — a "system coming online" sequence: a wireframe core
+// (see LoaderScene) warming from teal to amber as a short boot log
+// counts up to 100%, then the overlay wipes away.
 //
-// The starfield is a 2D canvas (no Three.js cost at boot): each star
-// lives in pseudo-3D (x, y, z) flying toward the camera; drawing a
-// line from its previous projection to the current one produces the
-// streaks, and a translucent background fill each frame leaves the
-// motion trails. Streak length grows toward the edges for free via
-// perspective division.
+// Design rules carried over from the previous starfield loader
+// (kept as Loader.starfield.bak.tsx):
+//   • Shown ONCE per session — gated on safeSession "booted", which is
+//     set on *completion*, not eagerly (eager-set made StrictMode's
+//     double-effect skip the loader in dev).
+//   • safeSession never throws — raw sessionStorage threw in
+//     storage-blocked browsers (Brave Shields / private mode) and left
+//     the site stuck on boot. It degrades to an in-memory flag instead.
+//   • Reduced-motion users skip it entirely (via useReducedMotion, read
+//     at render — not a ref set in an effect, so there's no first-frame
+//     flash of motion).
+//
+// The Three.js scene is dynamically imported (ssr:false), so the overlay
+// — name, boot log, progress — paints immediately and the 3D core streams
+// in behind it. Boot never blocks on the 3D bundle.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { personal } from "@/config/portfolio";
+import { PROVIDERS } from "@/lib/llm/providers";
+import { safeSession } from "@/lib/safeStorage";
 
-const DURATION_MS = 2200;
-const STAR_COUNT = 560;
+const LoaderScene = dynamic(() => import("./LoaderScene"), { ssr: false });
+
+// Boot log — every line is a REAL fact about this site, sourced where
+// possible from config so it can never drift into fiction:
+//   • runtime versions, the knowledge graph, the multi-provider
+//     orchestrator + its adaptive failover, and Helios (Ctrl+K).
+const PROVIDER_CHAIN = PROVIDERS.map((p) => p.id).join(" → ");
+const BOOT_SEQUENCE: { label: string; sub: string }[] = [
+  { label: "Spinning up runtime", sub: "next 16 · react 19" },
+  { label: "Linking knowledge graph", sub: "nodes · edges · verified facts" },
+  { label: "Arming orchestrator", sub: PROVIDER_CHAIN },
+  { label: "Resolving failover order", sub: "adaptive self-reordering" },
+  { label: "Helios online", sub: "concierge ready · Ctrl+K" },
+];
+
+const STEP_MS = 560; // per boot-log line
+const TOTAL_MS = STEP_MS * BOOT_SEQUENCE.length;
 
 export default function Loader() {
   const reduced = useReducedMotion();
   const [show, setShow] = useState(false);
   const [progress, setProgress] = useState(0);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  // Canvas loop reads progress from a ref so it never re-renders React
-  const progressRef = useRef(0);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [ignition, setIgnition] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  const rafRef = useRef(0);
 
+  // Drive the count-up + boot log on rAF (smoother than setInterval and
+  // auto-throttles when backgrounded). Runs once, on mount.
   useEffect(() => {
     if (reduced) return;
-    if (sessionStorage.getItem("booted") === "1") return;
-    // NOTE: "booted" is set on *completion* (below), not here — setting it
-    // eagerly made StrictMode's double-effect skip the loader entirely in dev.
+    if (safeSession.get("booted") === "1") return;
 
+    const total = BOOT_SEQUENCE.length;
+    const perStep = 100 / total;
     const t0 = performance.now();
-    let raf = 0;
-    // Defer the first setState past the effect body (avoids the
-    // cascading-render lint rule) then drive the count-up on rAF.
+    let finished = false;
+
+    const finish = () => {
+      finished = true;
+      setProgress(100);
+      setStepIndex(total - 1);
+      setIgnition(true);
+      safeSession.set("booted", "1");
+      setTimeout(() => setExiting(true), 520);
+    };
+
     const tick = () => {
-      const p = Math.min((performance.now() - t0) / DURATION_MS, 1);
+      const elapsed = performance.now() - t0;
       setShow(true);
-      // ease-out so the count feels like it's settling, not racing
-      const eased = 1 - Math.pow(1 - p, 2);
-      progressRef.current = eased;
-      setProgress(Math.round(eased * 100));
-      if (p < 1) {
-        raf = requestAnimationFrame(tick);
-      } else {
-        sessionStorage.setItem("booted", "1");
-        setTimeout(() => setShow(false), 420);
-      }
+      if (elapsed >= TOTAL_MS) return finish();
+      const step = Math.min(total - 1, Math.floor(elapsed / STEP_MS));
+      setStepIndex(step);
+      if (step === total - 1) setIgnition(true);
+      const withinStep = (elapsed - step * STEP_MS) / STEP_MS;
+      const eased = 1 - Math.pow(1 - Math.min(1, withinStep), 2);
+      setProgress(Math.min(99, Math.round(step * perStep + eased * perStep)));
+      rafRef.current = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [reduced]);
-
-  // Warp starfield — runs only while the overlay is up
-  useEffect(() => {
-    if (!show) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-
-    const css = getComputedStyle(document.documentElement);
-    const bg = css.getPropertyValue("--os-bg").trim() || "#0C0B09";
-    const tones = [
-      css.getPropertyValue("--os-text-secondary").trim() || "#C9BEAC",
-      css.getPropertyValue("--os-accent").trim() || "#F5A623",
-      css.getPropertyValue("--os-accent-cyan").trim() || "#2DC7B0",
-    ];
-
-    let w = 0;
-    let h = 0;
-    const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      w = window.innerWidth;
-      h = window.innerHeight;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, w, h); // opaque base so trail fills accumulate
-    };
-    resize();
-    window.addEventListener("resize", resize);
-
-    type Star = { x: number; y: number; z: number; color: string };
-    const spawn = (z?: number): Star => ({
-      x: Math.random() * 2 - 1,
-      y: Math.random() * 2 - 1,
-      // mostly neutral streaks, occasional amber/teal glints
-      color: tones[Math.random() < 0.7 ? 0 : Math.random() < 0.5 ? 1 : 2],
-      z: z ?? Math.random() * 0.9 + 0.1,
-    });
-    const stars: Star[] = Array.from({ length: STAR_COUNT }, () => spawn());
-
-    let raf = 0;
-    const frame = () => {
-      // translucent fill instead of clear = motion trails
-      ctx.globalAlpha = 0.35;
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, w, h);
-      ctx.globalAlpha = 1;
-
-      const cx = w / 2;
-      const cy = h / 2;
-      const scale = Math.max(w, h) * 0.5;
-      // warp accelerates as loading completes — the "jump" at 100%
-      const p = progressRef.current;
-      const speed = 0.0035 * (1 + 6 * p * p);
-
-      ctx.lineCap = "round";
-      for (const s of stars) {
-        const pz = s.z;
-        s.z -= speed;
-        if (s.z <= 0.02) {
-          Object.assign(s, spawn(1));
-          continue;
-        }
-        const px = cx + (s.x / pz) * scale;
-        const py = cy + (s.y / pz) * scale;
-        const nx = cx + (s.x / s.z) * scale;
-        const ny = cy + (s.y / s.z) * scale;
-        if (nx < -50 || nx > w + 50 || ny < -50 || ny > h + 50) {
-          Object.assign(s, spawn(1));
-          continue;
-        }
-        const depth = 1 - s.z; // 0 far → 1 near
-        // Center void: streaks fade to nothing near the middle and
-        // brighten outward — the "flying out of blackness" depth cue.
-        const dx = nx - cx;
-        const dy = ny - cy;
-        const rNorm = Math.sqrt(dx * dx + dy * dy) / scale;
-        const centerFade = Math.min(1, rNorm * 2.1);
-        ctx.strokeStyle = s.color;
-        ctx.globalAlpha = Math.min(1, depth * 1.4) * 0.8 * centerFade;
-        ctx.lineWidth = 0.25 + depth * 1.1;
-        ctx.beginPath();
-        ctx.moveTo(px, py);
-        ctx.lineTo(nx, ny);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-      raf = requestAnimationFrame(frame);
-    };
-    raf = requestAnimationFrame(frame);
+    rafRef.current = requestAnimationFrame(tick);
 
     return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("resize", resize);
+      if (!finished) cancelAnimationFrame(rafRef.current);
     };
-  }, [show]);
+  }, [reduced]);
+
+  // Wipe the overlay, then unmount (disposing the WebGL context with it).
+  useEffect(() => {
+    if (!exiting) return;
+    const t = setTimeout(() => setShow(false), 700);
+    return () => clearTimeout(t);
+  }, [exiting]);
+
+  const handleSkip = useCallback(() => {
+    cancelAnimationFrame(rafRef.current);
+    setProgress(100);
+    setStepIndex(BOOT_SEQUENCE.length - 1);
+    setIgnition(true);
+    safeSession.set("booted", "1");
+    setExiting(true);
+  }, []);
+
+  const step = BOOT_SEQUENCE[stepIndex];
 
   return (
     <AnimatePresence>
       {show && (
         <motion.div
           key="boot"
-          exit={{ opacity: 0, scale: 1.06 }}
+          animate={{ opacity: exiting ? 0 : 1 }}
+          exit={{ opacity: 0, scale: 1.04 }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           className="fixed inset-0 z-[2000] flex flex-col items-center justify-center overflow-hidden"
           style={{ background: "var(--os-bg)" }}
-          aria-hidden
+          role="status"
+          aria-live="polite"
+          aria-label="Booting portfolio"
         >
-          {/* Starfield */}
-          <canvas ref={canvasRef} className="absolute inset-0" />
+          {/* 3D core — streams in behind the overlay; null until loaded */}
+          <div className="absolute inset-0">
+            <LoaderScene ignition={ignition} reduceMotion={false} />
+          </div>
 
-          {/* Nebula washes — soft brand-color glows breathing in the corners */}
-          <motion.div
-            className="absolute inset-0 pointer-events-none"
-            animate={{ opacity: [0.55, 0.85, 0.55] }}
-            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-            style={{
-              backgroundImage: `
-                radial-gradient(closest-side at 12% 18%, color-mix(in srgb, var(--os-accent-cyan) 26%, transparent), transparent 70%),
-                radial-gradient(closest-side at 88% 82%, color-mix(in srgb, var(--os-accent) 22%, transparent), transparent 70%)
-              `,
-              backgroundRepeat: "no-repeat",
-              backgroundSize: "70% 70%, 76% 76%",
-            }}
-          />
-
-          {/* Vignette keeps the center readable */}
+          {/* Vignette keeps the center readable over the scene */}
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
               background:
-                "radial-gradient(ellipse at 50% 50%, color-mix(in srgb, var(--os-bg) 55%, transparent) 0%, transparent 45%)",
+                "radial-gradient(ellipse at 50% 45%, transparent 30%, color-mix(in srgb, var(--os-bg) 92%, transparent) 92%)",
             }}
           />
 
-          {/* The name — still the monument, now floating in the warp */}
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="relative font-display font-bold tracking-tight text-center leading-none"
-            style={{ fontSize: "clamp(2.6rem, 8vw, 5.5rem)", color: "var(--os-text)" }}
-          >
-            {personal.shortName}{" "}
-            <span className="text-shimmer">{personal.name.split(" ").slice(-1)[0]}</span>
-          </motion.div>
-
-          {/* Counter — quiet, bottom-center, like the reference */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.15 }}
-            className="absolute bottom-14 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3"
-          >
-            <div
-              className="font-display font-light tabular-nums leading-none tracking-wide"
-              style={{ fontSize: "clamp(1.6rem, 3.2vw, 2.2rem)", color: "var(--os-text)" }}
-            >
-              {progress}
-              <span className="text-[0.5em] align-super ml-0.5" style={{ color: "var(--os-text-muted)" }}>
-                %
-              </span>
+          {/* Content overlay */}
+          <div className="relative z-10 flex w-full max-w-xl flex-col items-center px-6">
+            {/* Identity badge — cool→warm at ignition */}
+            <div className="mb-10 flex items-center gap-3">
+              <div
+                className="relative flex h-11 w-11 items-center justify-center rounded-xl border transition-colors duration-500"
+                style={{
+                  borderColor: `color-mix(in srgb, ${ignition ? "var(--os-accent)" : "var(--os-accent-cyan)"} 50%, transparent)`,
+                  background: `color-mix(in srgb, ${ignition ? "var(--os-accent)" : "var(--os-accent-cyan)"} 10%, transparent)`,
+                }}
+              >
+                <span
+                  className="font-display text-lg font-bold transition-colors duration-500"
+                  style={{ color: ignition ? "var(--os-accent)" : "var(--os-accent-cyan)" }}
+                >
+                  {personal.shortName.charAt(0)}
+                </span>
+                <span
+                  className="absolute -right-1 -top-1 h-2 w-2 rounded-full transition-colors duration-500"
+                  style={{
+                    background: ignition ? "var(--os-accent)" : "var(--os-accent-cyan)",
+                    boxShadow: `0 0 8px 2px color-mix(in srgb, ${ignition ? "var(--os-accent)" : "var(--os-accent-cyan)"} 60%, transparent)`,
+                  }}
+                />
+              </div>
+              <div className="flex flex-col leading-tight text-left">
+                <span className="font-display text-sm font-semibold tracking-wide" style={{ color: "var(--os-text)" }}>
+                  {personal.name}
+                </span>
+                <span
+                  className="font-mono text-[10px] uppercase tracking-[0.2em] transition-colors duration-500"
+                  style={{ color: `color-mix(in srgb, ${ignition ? "var(--os-accent)" : "var(--os-accent-cyan)"} 80%, transparent)` }}
+                >
+                  {personal.title}
+                </span>
+              </div>
             </div>
-            {/* Progress line — thin track, glowing fill head */}
+
+            {/* Boot log — current line */}
+            <div className="mb-5 h-6 w-full">
+              <motion.p
+                key={stepIndex}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="text-center font-mono text-xs"
+                style={{ color: "var(--os-text-secondary)" }}
+              >
+                <span style={{ color: ignition ? "var(--os-accent)" : "var(--os-accent-cyan)" }}>›</span>{" "}
+                <span style={{ color: "var(--os-text)" }}>{step.label}</span>
+                <span style={{ color: "var(--os-text-muted)" }}> — {step.sub}</span>
+              </motion.p>
+            </div>
+
+            {/* Progress track + glowing fill */}
             <div
-              className="relative h-px w-[190px] overflow-visible"
+              className="h-px w-full overflow-hidden"
               style={{ background: "color-mix(in srgb, var(--os-text-muted) 22%, transparent)" }}
             >
               <div
-                className="absolute inset-y-0 left-0"
+                className="h-full transition-[width] duration-100 ease-out"
                 style={{
                   width: `${progress}%`,
-                  background: "linear-gradient(90deg, transparent, var(--os-accent) 55%, var(--os-accent-cyan))",
-                  boxShadow: "0 0 8px color-mix(in srgb, var(--os-accent-cyan) 65%, transparent)",
+                  background: ignition
+                    ? "linear-gradient(90deg, transparent, var(--os-accent) 55%, var(--os-accent))"
+                    : "linear-gradient(90deg, transparent, var(--os-accent-cyan) 55%, var(--os-accent-cyan))",
+                  boxShadow: `0 0 10px color-mix(in srgb, ${ignition ? "var(--os-accent)" : "var(--os-accent-cyan)"} 65%, transparent)`,
                 }}
               />
             </div>
-          </motion.div>
 
-          {/* Film grain — the dithered texture that keeps the void from banding */}
+            {/* Percent + Skip */}
+            <div className="mt-3 flex w-full items-center justify-between font-mono text-[10px]" style={{ color: "var(--os-text-muted)" }}>
+              <span className="tabular-nums">{progress.toString().padStart(3, "0")}%</span>
+              <button
+                onClick={handleSkip}
+                className="cursor-pointer uppercase tracking-[0.18em] transition-colors focus:outline-none"
+                style={{ color: "var(--os-text-muted)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--os-text)")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--os-text-muted)")}
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+
+          {/* Film grain — keeps the void from banding */}
           <div
             className="absolute inset-0 pointer-events-none opacity-[0.05]"
             style={{

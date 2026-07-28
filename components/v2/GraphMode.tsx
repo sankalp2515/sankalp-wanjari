@@ -22,7 +22,8 @@ import { OrbitControls, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { X, ArrowRight, Play, Square, Volume2, VolumeX, Info, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { projects, research, experience, education, graphLinks } from "@/config/portfolio";
-import { ember } from "@/lib/voice";
+import { helios } from "@/lib/voice";
+import { GRAPH_TOUR } from "@/lib/cinema/graphTourScript";
 
 // Minimal structural type for the OrbitControls instance we drive
 interface ControlsLike { target: THREE.Vector3; update: () => void }
@@ -570,61 +571,9 @@ function frameNode(node: GNode): { pos: THREE.Vector3; look: THREE.Vector3 } {
 
 const OVERVIEW = { pos: new THREE.Vector3(0.5, 4.2, 10.4), look: new THREE.Vector3(0.4, 0, 0.2) };
 
-// ── Guided tour: the evolution, not the categories ──────────────
-// v1's tour read the table of contents. This one tells the actual arc —
-// education → research → enterprise engineering → production AI → product
-// thinking → the whole system — and every line explains WHY the next thing
-// follows from the last. Narrated by Ember (ElevenLabs when configured,
-// browser voice otherwise); captions carry it when sound is off.
-interface GraphStep {
-  /** Node the camera flies to, and the subgraph that lights up. */
-  nodeId: string;
-  say: string;
-  /** Minimum dwell (ms) when there is no voice; real dwell scales with length. */
-  holdMs: number;
-  /** Pull back to see the whole lit system instead of framing one node. */
-  overview?: boolean;
-}
-
-const GRAPH_TOUR: GraphStep[] = [
-  {
-    nodeId: "me",
-    say: "Every résumé is a list. This is the same career drawn as a system — and systems can be traced. Follow one line.",
-    holdMs: 4000,
-    overview: true,
-  },
-  {
-    nodeId: "hub-education",
-    say: "It starts here, because everything downstream inherits from it. AI/ML honours engineering, then an executive product programme.",
-    holdMs: 4200,
-  },
-  {
-    nodeId: "hub-research",
-    say: "The honours track led straight to publication. Two peer-reviewed papers — and their edges don't stop at the journal. They feed capabilities still in use.",
-    holdMs: 4600,
-  },
-  {
-    nodeId: "hub-career",
-    say: "Then three years of bank data migrations at FIS. That teaches one thing: systems fail. It's why the AI work has circuit breakers instead of hope.",
-    holdMs: 4600,
-  },
-  {
-    nodeId: "hub-work",
-    say: "So the work looks like this. Six production systems, each wired to the capability it proves — and to the evaluation edges that back it with tests, not adjectives.",
-    holdMs: 4800,
-  },
-  {
-    nodeId: "cap-product",
-    say: "And this node is the difference between an engineer and an AI product engineer: deciding what is worth building is a capability too, with edges of its own.",
-    holdMs: 4600,
-  },
-  {
-    nodeId: "me",
-    say: "Education holds up research. Research holds up capability. Capability holds up the work — and the work points back here. Nothing on this map stands alone. Click any node to see why.",
-    holdMs: 5600,
-    overview: true,
-  },
-];
+// The graph tour's data (GraphStep + GRAPH_TOUR) now lives in
+// lib/cinema/graphTourScript.ts so the build-time voice generator can import
+// the narration without pulling in React/three.js. Every line here is Helios.
 
 // ── Overlay ─────────────────────────────────────────────────────
 
@@ -673,15 +622,15 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
   );
 
   useEffect(() => {
-    setVoiceOn(ember.isEnabled());
+    setVoiceOn(helios.isEnabled());
     const onVoiceChange = (e: Event) => setVoiceOn(!!(e as CustomEvent<boolean>).detail);
-    window.addEventListener("ember-voice-change", onVoiceChange);
-    return () => window.removeEventListener("ember-voice-change", onVoiceChange);
+    window.addEventListener("helios-voice-change", onVoiceChange);
+    return () => window.removeEventListener("helios-voice-change", onVoiceChange);
   }, []);
 
   const stopGraphTour = useCallback(() => {
     tourAbort.current = true;
-    ember.stop();
+    helios.stop();
     setTouring(false);
     setTourNarration(null);
     setTourProg(null);
@@ -692,6 +641,10 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
 
   const startGraphTour = useCallback(() => {
     if (touring) return;
+    // Bless the shared audio element inside this tap — mobile autoplay policy
+    // only lets audio started from a user gesture play, and the tour speaks
+    // many lines long after the gesture ends.
+    helios.unlock();
     tourAbort.current = false;
     setTouring(true);
     setSelected(null);
@@ -720,8 +673,8 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
 
         // Sync to the voice when it's on — the caption never outruns the line.
         // Silent mode falls back to a read-speed hold.
-        if (ember.isEnabled()) {
-          await ember.narrate(step.say);
+        if (helios.isEnabled()) {
+          await helios.narrate(step.say, "helios");
           if (tourAbort.current) break;
           await new Promise((r) => setTimeout(r, 700)); // beat between steps
         } else {
@@ -774,13 +727,13 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
-      ember.stop(); // never keep talking after the overlay is gone
+      helios.stop(); // never keep talking after the overlay is gone
     };
   }, [onClose]);
 
   const openInPortfolio = (n: GNode) => {
     if (!n.action) return;
-    ember.stop();
+    helios.stop();
     onClose();
     // Let the overlay unmount + scroll unlock before navigating
     setTimeout(() => window.dispatchEvent(new CustomEvent(n.action!.event, { detail: n.action!.detail })), 120);
@@ -895,7 +848,7 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
         </div>
         <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
-            onClick={() => ember.setEnabled(!voiceOn)}
+            onClick={() => helios.setEnabled(!voiceOn)}
             aria-label={voiceOn ? "Mute narration" : "Unmute narration"}
             aria-pressed={voiceOn}
             className="grid place-items-center w-9 h-9 rounded-xl border transition-colors hover:bg-[var(--os-bg-hover)]"

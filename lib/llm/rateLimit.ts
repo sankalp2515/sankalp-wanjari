@@ -89,18 +89,7 @@ export function recordProviderSuccess(providerId: string): void {
   if (h) { h.failures = 0; h.cooledUntil = 0; }
 }
 
-// ── IP → Provider hash assignment ─────────────────────────
-
-/**
- * Deterministically maps an IP string to a starting index in the provider list.
- * Same IP always starts from the same provider (session affinity).
- */
-export function hashIPToProviderIndex(ip: string, providerCount: number): number {
-  if (providerCount === 0) return 0;
-  let hash = 5381;
-  for (let i = 0; i < ip.length; i++) {
-    hash = ((hash << 5) + hash) + ip.charCodeAt(i);
-    hash = hash & hash; // convert to 32-bit int
-  }
-  return Math.abs(hash) % providerCount;
-}
+// NOTE: provider *ordering* now lives in lib/llm/orchestrator.ts (adaptive,
+// task-aware). This module keeps only hard health/cooldown state. The old
+// hashIPToProviderIndex (static IP→start-index affinity) was removed — the
+// orchestrator's success/penalty ranking supersedes it.

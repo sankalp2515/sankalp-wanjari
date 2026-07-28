@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowUp, Bot, Mic, MicOff, Power, RotateCcw, Sparkles, TerminalSquare, User, Volume2, VolumeX, X } from "lucide-react";
 import { personal } from "@/config/portfolio";
 import { useConcierge, useConciergeChat, COMMANDS } from "@/contexts/ConciergeContext";
-import { ember } from "@/lib/voice";
+import { helios } from "@/lib/voice";
 
 const CHIPS = [
   "What's his best work?",
@@ -143,14 +143,14 @@ export default function AgentDock() {
       window.removeEventListener("agent-core-up", up);
     };
   }, []);
-  // EMBER voice — one-way narration, opt-in, persisted. External store
+  // HELIOS voice — one-way narration, opt-in, persisted. External store
   // (localStorage + change event) so state never desyncs across mounts.
   const voiceOn = useSyncExternalStore(
     (cb) => {
-      window.addEventListener("ember-voice-change", cb);
-      return () => window.removeEventListener("ember-voice-change", cb);
+      window.addEventListener("helios-voice-change", cb);
+      return () => window.removeEventListener("helios-voice-change", cb);
     },
-    () => ember.isEnabled() && !ember.isSuspended(),
+    () => helios.isEnabled() && !helios.isSuspended(),
     () => false
   );
   // Voice is a separate service from the LLMs, but an agent that announced
@@ -160,9 +160,9 @@ export default function AgentDock() {
   const voiceSuspended = degraded;
   const toggleVoice = () => {
     if (voiceSuspended) return;
-    const next = !ember.isEnabled();
-    ember.setEnabled(next);
-    if (next) ember.speak("Ember online. I'll narrate from here.");
+    const next = !helios.isEnabled();
+    helios.setEnabled(next);
+    if (next) helios.speak("Helios online. I'll narrate from here.");
   };
   const [value, setValue] = useState("");
   const [ph, setPh] = useState(0);
@@ -355,7 +355,7 @@ export default function AgentDock() {
             </div>
             <div className="flex items-center gap-1">
               {/* EMBER voice toggle — the concierge narrates when lit */}
-              {ember.supported() && (
+              {helios.supported() && (
                 <button
                   onClick={toggleVoice}
                   disabled={voiceSuspended}

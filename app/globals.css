@@ -24,6 +24,9 @@
   --os-accent-cyan:     #2DC7B0;   /* complementary teal */
   --os-accent-green:    #5FD08A;
   --os-accent-orange:   #FF6B4A;
+  /* Text/icon color that sits ON an accent-filled button. Dark theme's accent
+     is BRIGHT amber, so white text washes out — near-black reads cleanly. */
+  --os-on-accent:       #1A1206;
   --os-titlebar:        #151210;
   --os-titlebar-inactive: #100E0C;
   --os-scrollbar:       #352E25;
@@ -58,6 +61,8 @@
   --os-accent-cyan:     #0B8477;   /* deep teal */
   --os-accent-green:    #2C8F52;
   --os-accent-orange:   #C6431F;
+  /* Light theme's accent is DEEP amber — white text passes AA on it. */
+  --os-on-accent:       #FFFFFF;
   --os-titlebar:        #EFE8DA;
   --os-titlebar-inactive: #F3EDE1;
   --os-scrollbar:       #DBD0BB;
@@ -1499,6 +1504,18 @@ html.film-mode.film-spotlight [id^="section-"].film-active {
   }
   /* SVG-turbulence grain is imperceptible but expensive to composite. */
   html.mobile-tuned.perf-mid .ambient-field__grain { display: none !important; }
+}
+
+/* The contact chapter is intentionally dark in BOTH themes (see the
+   .contact-closing rule above). The perf-mid glass-solidify rule repaints
+   [class*="glass"] with --os-bg, which is LIGHT in light theme — that turned
+   the form/info cards cream on the dark section (half-dark/half-light on
+   phones). Re-pin the contact cards to the same dark translucent surface the
+   desktop uses so they stay on-theme. */
+@media (pointer: coarse) {
+  html.mobile-tuned.perf-mid .contact-closing:not(.contact-closing--film) [class*="glass"] {
+    background: color-mix(in srgb, #f4f1e9 4%, transparent) !important;
+  }
 }
 
 /* #5 — floating action buttons: honour the safe-area inset and sit a touch

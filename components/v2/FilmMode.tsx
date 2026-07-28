@@ -15,7 +15,7 @@
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Volume2, VolumeX } from "lucide-react";
-import { ember } from "@/lib/voice";
+import { helios } from "@/lib/voice";
 
 interface Act { act: string; title: string }
 type CueState = { tests: boolean; recover: boolean; evalNode: boolean; agents: boolean; label: string | null };
@@ -39,7 +39,7 @@ export default function FilmMode() {
     const onEnter = () => {
       setExiting(null);
       setCaption(null);
-      setVoiceOn(ember.isEnabled());
+      setVoiceOn(helios.isEnabled());
       setOn(true);
       setCue({ tests: false, recover: false, evalNode: false, agents: false, label: null });
       setCount(0);
@@ -59,8 +59,10 @@ export default function FilmMode() {
       setCue({ tests: false, recover: false, evalNode: false, agents: false, label: null });
       setCount(0);
       clearTimeout(actTimer.current);
-      // Card lives ~1.9s, then dissolves — camera and narration take over.
-      actTimer.current = setTimeout(() => setAct(null), 1900);
+      // Card lives ~1.2s, then dissolves — camera and narration take over.
+      // (Trimmed from 1.9s to match the brisker tour pace so it never lingers
+      // over the first caption.)
+      actTimer.current = setTimeout(() => setAct(null), 1200);
     };
 
     const onCue = (e: Event) => {
@@ -84,9 +86,11 @@ export default function FilmMode() {
       } else if (c === "flagship:agents") {
         setCue((p) => ({ ...p, agents: true, label: "10 AGENTS" }));
       } else if (c === "arc:impact") {
-        setCue((p) => ({ ...p, label: "−90% MANUAL WORK" }));
+        setCue((p) => ({ ...p, label: "−90% MANUAL ENTRY" }));
       } else if (c === "arc:fis") {
         setCue((p) => ({ ...p, label: "3 YEARS · FIS GLOBAL" }));
+      } else if (c === "think:verify") {
+        setCue((p) => ({ ...p, label: "ZERO FABRICATED CITATIONS" }));
       } else if (c === "think:stack") {
         setCue((p) => ({ ...p, label: "LANGGRAPH · RAG · EVAL" }));
       } else if (c === "why:meta") {
@@ -116,14 +120,14 @@ export default function FilmMode() {
     window.addEventListener("film:cue", onCue);
     window.addEventListener("film:exit", onExit);
     window.addEventListener("film:caption", onCaption);
-    window.addEventListener("ember-voice-change", onVoiceChange);
+    window.addEventListener("helios-voice-change", onVoiceChange);
     return () => {
       window.removeEventListener("film:enter", onEnter);
       window.removeEventListener("film:act", onAct);
       window.removeEventListener("film:cue", onCue);
       window.removeEventListener("film:exit", onExit);
       window.removeEventListener("film:caption", onCaption);
-      window.removeEventListener("ember-voice-change", onVoiceChange);
+      window.removeEventListener("helios-voice-change", onVoiceChange);
       clearTimeout(actTimer.current);
       cancelAnimationFrame(countRaf.current);
       root.classList.remove("film-mode", "film-spotlight");
@@ -269,10 +273,13 @@ export default function FilmMode() {
         <motion.div
           className="fixed inset-x-0 bottom-0 z-[1430] flex items-end justify-center px-4 pointer-events-none"
           style={{
-            height: "38vh",
+            // Taller + darker veil so even a two-line caption sits on solid
+            // shade rather than drifting up over a busy canvas (BioScanner,
+            // ProofCore) where it used to clash.
+            height: "46vh",
             paddingBottom: "12vh",
             background:
-              "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.72) 22%, rgba(0,0,0,0.36) 50%, transparent 100%)",
+              "linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.86) 28%, rgba(0,0,0,0.5) 58%, transparent 100%)",
           }}
           animate={{ opacity: caption && !act ? 1 : 0 }}
           transition={{ duration: 0.5, ease: EASE }}
@@ -285,12 +292,20 @@ export default function FilmMode() {
                 animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                 exit={{ opacity: 0, y: -8, filter: "blur(4px)" }}
                 transition={{ duration: 0.4, ease: EASE }}
-                className="text-center font-display font-medium max-w-[46rem]"
+                className="text-center font-display font-medium max-w-[42rem]"
                 style={{
                   fontSize: "clamp(1.05rem, 2.4vw, 1.6rem)",
                   lineHeight: 1.4,
                   color: "#fff",
-                  textShadow: "0 2px 18px rgba(0,0,0,0.9)",
+                  textShadow: "0 2px 18px rgba(0,0,0,0.95)",
+                  // A soft, blurred plate that hugs the text — guarantees the
+                  // caption stays legible over any canvas behind it, without the
+                  // hard-edged "pill" that clashed. Padding keeps it off the words.
+                  padding: "0.55em 1.1em",
+                  borderRadius: "14px",
+                  background: "rgba(0,0,0,0.42)",
+                  backdropFilter: "blur(6px)",
+                  WebkitBackdropFilter: "blur(6px)",
                 }}
                 aria-live="polite"
               >
@@ -307,7 +322,7 @@ export default function FilmMode() {
       {on && (
         <div className="fixed z-[1460] pointer-events-auto" style={{ top: "12vh", right: "1.25rem" }}>
           <button
-            onClick={() => ember.setEnabled(!voiceOn)}
+            onClick={() => helios.setEnabled(!voiceOn)}
             aria-label={voiceOn ? "Mute narration" : "Unmute narration"}
             aria-pressed={voiceOn}
             className="grid place-items-center w-10 h-10 rounded-full border backdrop-blur-md transition-colors hover:bg-white/10 active:scale-95"

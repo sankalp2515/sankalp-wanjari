@@ -3,6 +3,8 @@ import { JetBrains_Mono, Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { personal, social, projects } from "@/config/portfolio";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 const jetbrainsMono = JetBrains_Mono({
@@ -80,6 +82,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </main>
         </ThemeProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

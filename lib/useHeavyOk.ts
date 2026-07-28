@@ -7,24 +7,24 @@
 
 import { useEffect, useState } from "react";
 import { computeDeviceTier } from "./perf";
-import { MOBILE_TUNING } from "@/config/mobileTuning";
+import { logEvent } from "./log";
 
 export function useHeavyOk(): boolean {
   const [ok, setOk] = useState(false);
   useEffect(() => {
-    // #2 — on touch devices, skip the hero WebGL point cloud and use the
-    // CSS ProofCore instead. Same silhouette, no GPU context / rAF. Gated by
-    // the master switch, so MOBILE_TUNING=false restores the old behaviour.
-    const coarse =
-      MOBILE_TUNING &&
-      typeof matchMedia !== "undefined" &&
-      matchMedia("(pointer: coarse)").matches;
-    const decide = () =>
-      setOk(
-        !coarse &&
-        computeDeviceTier() !== "low" &&
-        !document.documentElement.classList.contains("perf-lite"),
-      );
+    // The WebGL hero now mounts on touch devices too, so the 3D object is
+    // consistent with desktop — a phone shows the same object, not a swapped-in
+    // CSS stand-in. We only fall back for a genuine capability floor: a `low`
+    // tier (data-saver / very slow net / 4-core-or-less / ≤4GB RAM) or a live
+    // memory downgrade (perf-lite). Those are about the device being unable to
+    // afford WebGL, never about battery.
+    const decide = () => {
+      const tier = computeDeviceTier();
+      const lite = document.documentElement.classList.contains("perf-lite");
+      const heavy = tier !== "low" && !lite;
+      setOk(heavy);
+      logEvent("hero_mode", { mode: heavy ? "webgl" : "proofcore", tier, perfLite: lite });
+    };
     decide();
     const onLite = () => setOk(false);
     window.addEventListener("perf:lite", onLite);

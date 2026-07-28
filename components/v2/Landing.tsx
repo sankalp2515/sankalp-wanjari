@@ -43,7 +43,7 @@ import NudgeLayer from "./NudgeLayer";
 import BehaviorTracker from "./BehaviorTracker";
 import FeedbackWidget from "./FeedbackWidget";
 import SoundPrompt from "./SoundPrompt";
-import { ember } from "@/lib/voice";
+import { helios } from "@/lib/voice";
 
 const VALID_PERSONAS = ["recruiter", "cto", "developer", "explorer"];
 
@@ -87,9 +87,9 @@ function LandingInner({ variant }: { variant: "a" | "b" }) {
   // EMBER announces graph mode — one line, spoken, never repeated back-to-back
   useEffect(() => {
     if (graphOpen) {
-      ember.speak("Graph mode. Every node here is a real skill, project, or credential — hover and drag to trace how the system connects.");
+      helios.speak("Graph mode. Every node here is a real skill, project, or credential — hover and drag to trace how the system connects.");
     } else {
-      ember.stop();
+      helios.stop();
     }
   }, [graphOpen]);
 
@@ -182,13 +182,13 @@ function LandingInner({ variant }: { variant: "a" | "b" }) {
               className="flex items-center gap-2 text-[13px] font-medium pl-3.5 pr-4 py-3 rounded-full transition-all hover:scale-[1.04] active:scale-95"
               style={{
                 background: "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))",
-                color: "#fff",
+                color: "var(--os-on-accent)",
                 boxShadow: "var(--os-shadow-accent)",
               }}
             >
               <MessageSquare size={15} aria-hidden />
-              <span className="hidden sm:inline">Ask AI</span>
-              <kbd className="hidden md:inline-flex items-center text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/20">
+              <span className="hidden sm:inline">Ask Helios</span>
+              <kbd className="hidden md:inline-flex items-center text-[10px] font-mono px-1.5 py-0.5 rounded bg-black/15">
                 Ctrl K
               </kbd>
             </button>

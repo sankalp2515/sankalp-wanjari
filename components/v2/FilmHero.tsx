@@ -29,7 +29,7 @@ export default function FilmHero() {
       </motion.p>
       <motion.div {...enter(0.46)} className="film-hero__actions">
         <button onClick={begin} className="film-hero__primary">Enter the work <ArrowDownRight size={17} aria-hidden /></button>
-        <button onClick={() => tour()} disabled={tourRunning} className="film-hero__tour"><Play size={13} aria-hidden /> {tourRunning ? "EMBER IS GUIDING" : "Let EMBER narrate"}</button>
+        <button onClick={() => tour()} disabled={tourRunning} className="film-hero__tour"><Play size={13} aria-hidden /> {tourRunning ? "HELIOS IS GUIDING" : "Let Helios guide you"}</button>
       </motion.div>
       <div className="film-hero__object" aria-label="Interactive proof core">
         <ProofCore pulse={0.18} />

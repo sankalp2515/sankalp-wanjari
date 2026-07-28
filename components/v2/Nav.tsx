@@ -159,10 +159,10 @@ export default function Nav({ variant = "a" }: { variant?: "a" | "b" }) {
               onClick={askAI}
               aria-label={open ? "Close AI concierge" : "Open AI concierge"}
               className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-xl transition-all hover:opacity-90 active:scale-95"
-              style={{ background: "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))", color: "#fff" }}
+              style={{ background: "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))", color: "var(--os-on-accent)" }}
             >
               <MessageSquare size={12} aria-hidden />
-              Ask AI
+              Ask Helios
             </button>
 
             <button

@@ -5,16 +5,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PROVIDERS, LLMProvider } from "@/lib/llm/providers";
 import {
-  hashIPToProviderIndex,
   isProviderHealthy,
   markChainExhausted,
   recordProviderFailure,
   recordProviderSuccess,
 } from "@/lib/llm/rateLimit";
+import { planProviders, noteSuccess, notePenalty } from "@/lib/llm/orchestrator";
+import { GATEWAY_ENDPOINT, gatewayEnabled } from "@/lib/llm/gateway";
 import { buildSystemPrompt } from "@/lib/llm/systemPrompt";
 import { getClientIP } from "@/lib/clientIP";
 import { rateLimit } from "@/lib/rateStore";
 import { log, newReqId } from "@/lib/observability/log";
+import { reportError } from "@/lib/observability/alert";
 
 export const runtime = "nodejs"; // Required for in-memory Map state
 
@@ -104,22 +106,31 @@ async function callOpenAICompat(
   provider: LLMProvider,
   systemPrompt: string,
   messages: ChatMessage[],
+  viaGateway = false,
 ): Promise<ProviderResult> {
-  const apiKey = provider.apiKeyEnv ? (process.env[provider.apiKeyEnv] ?? "") : "";
+  // Gateway transport: same OpenAI-compatible shape, but the endpoint, model
+  // id, and auth key are the gateway's. Direct transport uses the provider's
+  // own endpoint/model/key. See lib/llm/gateway.ts.
+  const endpoint = viaGateway ? GATEWAY_ENDPOINT : provider.endpoint;
+  const model    = viaGateway ? (provider.gatewayModel ?? provider.model) : provider.model;
+  const apiKey   = viaGateway
+    ? (process.env.AI_GATEWAY_API_KEY ?? "")
+    : (process.env[provider.apiKeyEnv] ?? "");
 
-  if (provider.apiKeyEnv && !apiKey) throw new Error(`Missing env: ${provider.apiKeyEnv}`);
+  if (!apiKey) throw new Error(`Missing env: ${viaGateway ? "AI_GATEWAY_API_KEY" : provider.apiKeyEnv}`);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "Authorization": `Bearer ${apiKey}`,
   };
-  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
-  if (provider.id === "openrouter") {
-    headers["HTTP-Referer"] = "https://sankalpwanjari.dev";
+  // OpenRouter's ranking headers only apply on the direct transport.
+  if (!viaGateway && provider.id === "openrouter") {
+    headers["HTTP-Referer"] = "https://sankalp-wanjari.vercel.app";
     headers["X-Title"]      = "SKW Portfolio OS";
   }
 
   const body = {
-    model:      provider.model,
+    model,
     messages:   [
       { role: "system", content: systemPrompt },
       ...messages.map((m) => ({
@@ -131,11 +142,11 @@ async function callOpenAICompat(
     temperature: 0.7,
   };
 
-  const res = await fetch(provider.endpoint, {
+  const res = await fetch(endpoint, {
     method:  "POST",
     headers,
     body:    JSON.stringify(body),
-    signal:  AbortSignal.timeout(14_000),
+    signal:  AbortSignal.timeout(provider.timeoutMs ?? 14_000),
   });
 
   if (!res.ok) {
@@ -178,7 +189,7 @@ async function callGemini(
     // far more likely to be captured in proxy/access logs than headers.
     headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
     body:    JSON.stringify(body),
-    signal:  AbortSignal.timeout(14_000),
+    signal:  AbortSignal.timeout(provider.timeoutMs ?? 14_000),
   });
 
   if (!res.ok) {
@@ -198,6 +209,11 @@ async function callProvider(
   systemPrompt: string,
   messages: ChatMessage[],
 ): Promise<ProviderResult> {
+  // When the gateway is on and this provider has a gateway slug, route through
+  // it (OpenAI-compatible) — even for Gemini, which the gateway fronts too.
+  if (gatewayEnabled() && provider.gatewayModel) {
+    return callOpenAICompat(provider, systemPrompt, messages, true);
+  }
   if (provider.type === "gemini") {
     return callGemini(provider, systemPrompt, messages);
   }
@@ -207,10 +223,9 @@ async function callProvider(
 // ── Available providers (have API keys set) ────────────────────
 
 function getAvailableProviders(): LLMProvider[] {
-  return PROVIDERS.filter((p) => {
-    if (!p.apiKeyEnv) return true; // Ollama needs no key
-    return !!process.env[p.apiKeyEnv];
-  });
+  // Every provider requires a key now (no local/keyless providers) — a provider
+  // is available iff its key is set in the environment.
+  return PROVIDERS.filter((p) => !!process.env[p.apiKeyEnv]);
 }
 
 // ── Main handler ───────────────────────────────────────────────
@@ -262,6 +277,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const available = getAvailableProviders();
   if (available.length === 0) {
     log.error({ event: "ai.request", route: "/api/ai", reqId, outcome: "no_providers", status: 503 });
+    void reportError({
+      event: "ai.no_providers", route: "/api/ai", reqId, status: 503,
+      error: "No LLM providers are configured — every provider API key is missing from the environment.",
+    });
     return NextResponse.json(
       { error: "no_providers", exhausted: true, message: "Model channel unavailable." },
       { status: 503 },
@@ -272,26 +291,40 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const cacheKey = respKey(visitorType, contextMessages);
   const cachedContent = respGet(cacheKey);
 
-  // 5. IP-hash starting index (session affinity — same IP, same starting provider)
-  const startIdx = hashIPToProviderIndex(ip, available.length);
+  // 5. Orchestrator plan — order the providers for THIS request. Small chat
+  //    keeps the fast tier first; genuinely large input escalates to the
+  //    big-context providers. A rate-limited/failed provider is already demoted
+  //    to the back by the adaptive layer, so the chain never waits on it.
+  const promptText = systemPrompt + "\n" + contextMessages.map((m) => m.content).join("\n");
+  const plan = planProviders(available, promptText);
+  log.info({
+    event: "ai.plan", route: "/api/ai", reqId,
+    estTokens: plan.estTokens, large: plan.large,
+    order: plan.providers.map((p) => p.id).join(">"),
+    transport: gatewayEnabled() ? "gateway" : "direct",
+  });
 
-  // Shared provider loop. onAttempt fires before each try — the streaming
-  // mode forwards these as live status events (no provider names leak).
+  // Shared provider loop over the planned order. onAttempt fires before each
+  // try — the streaming mode forwards these as live status events (no provider
+  // names leak).
   async function runChain(
     onAttempt?: (attempt: number, total: number) => void,
-  ): Promise<{ content: string } | { failed: string }> {
+  ): Promise<{ content: string } | { failed: string; realError: string | null }> {
     let lastError = "unknown";
+    // Rate-limit exhaustion is EXPECTED reserve-power (not alert-worthy). A
+    // config error (bad key/model) or a provider 5xx is a real break the owner
+    // should hear about — we capture the worst such reason to alert on.
+    let realError: string | null = null;
     let tried = 0;
-    for (let attempt = 0; attempt < available.length; attempt++) {
-      const idx      = (startIdx + attempt) % available.length;
-      const provider = available[idx];
+    for (const provider of plan.providers) {
       if (!isProviderHealthy(provider.id)) continue;
       tried++;
-      onAttempt?.(tried, available.length);
+      onAttempt?.(tried, plan.providers.length);
       const t0 = Date.now();
       try {
         const { content, tokens } = await callProvider(provider, systemPrompt, contextMessages);
         recordProviderSuccess(provider.id);
+        noteSuccess(provider.id); // adaptive: pin this working provider to the front
         // Per-provider success span: latency + token cost, filterable by provider.
         log.info({
           event: "ai.provider", route: "/api/ai", reqId, provider: provider.id,
@@ -310,8 +343,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             ? "config"
             : "transient";
         recordProviderFailure(provider.id, kind);
-        if (kind === "transient" && (code === "429" || msg.includes("429"))) {
+        notePenalty(provider.id, kind); // adaptive: demote to the back of the queue now
+        const isRateLimit = code === "429" || msg.includes("429");
+        if (kind === "transient" && isRateLimit) {
           recordProviderFailure(provider.id); // extra penalty for rate limits
+        }
+        // Flag the alert-worthy failures: a misconfig (config kind) or a
+        // provider 5xx. Rate-limits and plain timeouts are expected/noisy → skip.
+        if (kind === "config" || (status >= 500 && status < 600)) {
+          realError = `${provider.id}: ${msg}`;
         }
         // Every failed provider attempt is now visible — the reroute that used
         // to happen silently is one queryable log line per hop.
@@ -325,8 +365,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
     // Nothing answered — record it so /api/ai/health reports the outage
     // honestly instead of trusting per-provider strike counts.
-    markChainExhausted(available.map((p) => p.id));
-    return { failed: lastError };
+    markChainExhausted(plan.providers.map((p) => p.id));
+    return { failed: lastError, realError };
   }
 
   // 6a. Streaming mode — NDJSON live status
@@ -352,6 +392,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           // a reserve-mode fallback left NO server-side trace. Now it's one
           // queryable line, identical in shape to the non-streaming path.
           log.error({ event: "ai.request", route: "/api/ai", reqId, outcome: "exhausted", mode: "stream", error: result.failed });
+          if (result.realError) {
+            void reportError({ event: "ai.exhausted", route: "/api/ai", reqId, status: 503, error: result.realError, context: { mode: "stream" } });
+          }
           send({ e: "exhausted" });
         }
         controller.close();
@@ -376,6 +419,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Never leak the provider chain / config details to the client (see header
   // contract above). The specific failure is logged server-side only.
   log.error({ event: "ai.request", route: "/api/ai", reqId, outcome: "exhausted", mode: "json", error: result.failed });
+  if (result.realError) {
+    void reportError({ event: "ai.exhausted", route: "/api/ai", reqId, status: 503, error: result.realError, context: { mode: "json" } });
+  }
   return NextResponse.json(
     { error: "all_failed", exhausted: true, message: "Model channel unavailable." },
     { status: 503 },

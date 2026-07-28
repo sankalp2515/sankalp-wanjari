@@ -3,6 +3,7 @@ import { getClientIP } from "@/lib/clientIP";
 import { isSameOrigin } from "@/lib/sameOrigin";
 import { rateLimit } from "@/lib/rateStore";
 import { log, newReqId } from "@/lib/observability/log";
+import { reportError } from "@/lib/observability/alert";
 
 // ── Contact delivery via Resend (REST API, no SDK) ─────────────
 // Why Resend REST: zero npm dependencies (no supply-chain surface),
@@ -122,6 +123,13 @@ export async function POST(req: NextRequest) {
         event: "contact.send", route: "/api/contact", reqId, outcome: "delivery_failed",
         status: 502, provider: "resend", providerStatus: res.status, error: data?.message ?? "(no body)",
       });
+      // A visitor tried to reach Sankalp and it failed to send — exactly the
+      // kind of break worth an email (the alert uses the same transport, so if
+      // Resend is fully down this may also fail — logged, never thrown).
+      void reportError({
+        event: "contact.send", route: "/api/contact", reqId, provider: "resend",
+        status: res.status, error: `Contact delivery failed: ${data?.message ?? "(no body)"}`,
+      });
       return NextResponse.json({ error: "delivery_failed" }, { status: 502 });
     }
 
@@ -130,10 +138,12 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     // This is the branch the visitor's timeout hit — now a structured line
     // ("contact.send"/"internal") you can alert on, not just a stack trace.
+    const detail = err instanceof Error ? err.message : String(err);
     log.error({
       event: "contact.send", route: "/api/contact", reqId, outcome: "internal", status: 500,
-      error: err instanceof Error ? err.message : String(err),
+      error: detail,
     });
+    void reportError({ event: "contact.send", route: "/api/contact", reqId, status: 500, error: detail });
     return NextResponse.json({ error: "internal" }, { status: 500 });
   }
 }

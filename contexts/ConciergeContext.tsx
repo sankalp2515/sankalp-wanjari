@@ -12,7 +12,8 @@ import { Persona, SectionId } from "@/types";
 import { personal } from "@/config/portfolio";
 import { staticAnswer, isGreeting, greeting } from "@/lib/staticBrain";
 import { track } from "@/lib/behavior";
-import { ember } from "@/lib/voice";
+import { safeLocal } from "@/lib/safeStorage";
+import { helios } from "@/lib/voice";
 import { glideToSection, driftThroughSection } from "@/lib/cinema/camera";
 import { TOUR, DIRECTOR_INTRO, DIRECTOR_OUTRO_HANDBACK, CLOSING_LINE } from "@/lib/cinema/tourScript";
 
@@ -79,6 +80,14 @@ export const COMMANDS: { cmd: string; desc: string; event?: { name: string; deta
   { cmd: "/tour",        desc: "45-second guided tour" },
   { cmd: "/help",        desc: "List all commands" },
 ];
+
+// ── Tour pacing knob ───────────────────────────────────────────
+// Scales EVERY pause in the tour (act-card holds, between-beat breaths,
+// between-act silences, and the fixed sleeps) — never the speech itself, and
+// never a word of the script. 1 = original cadence; lower = brisker. Tuned
+// down so the tour moves without feeling rushed. Set to 1 to restore the
+// original timing.
+const TOUR_PACE = 0.5;
 
 const ConciergeContext = createContext<ConciergeValue | null>(null);
 const ConciergeChatContext = createContext<ConciergeChatValue | null>(null);
@@ -188,7 +197,7 @@ function streamWords(
   let i = 0;
   // EMBER speaks every streamed line — one-way narration, opt-in. The tour
   // drives voice itself (so it can await audio end), so it opts out here.
-  if (opts?.speak !== false) ember.speak(fullText);
+  if (opts?.speak !== false) helios.speak(fullText);
   // Start with empty streaming message
   setMessages((prev) => [...prev, { id, role: "agent", content: "", streaming: true }]);
 
@@ -219,7 +228,7 @@ const MAX_HISTORY  = 20;
 function loadHistory(): ConciergeMessage[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(HISTORY_KEY);
+    const raw = safeLocal.get(HISTORY_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch { return []; }
 }
@@ -227,7 +236,7 @@ function loadHistory(): ConciergeMessage[] {
 function saveHistory(msgs: ConciergeMessage[]) {
   try {
     const toStore = msgs.slice(-MAX_HISTORY);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(toStore));
+    safeLocal.set(HISTORY_KEY, JSON.stringify(toStore));
   } catch { /* quota exceeded — ignore */ }
 }
 
@@ -286,7 +295,7 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
   // Restore persona preference (deferred, same reason as above)
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
-      const saved = localStorage.getItem("concierge-persona") as Persona;
+      const saved = safeLocal.get("concierge-persona") as Persona;
       if (saved) setPersona(saved);
     });
     return () => cancelAnimationFrame(raf);
@@ -294,8 +303,8 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
 
   const setPersonaAndSave = useCallback((p: Persona) => {
     setPersona(p);
-    if (p) localStorage.setItem("concierge-persona", p);
-    else localStorage.removeItem("concierge-persona");
+    if (p) safeLocal.set("concierge-persona", p);
+    else safeLocal.remove("concierge-persona");
   }, []);
 
   const push = useCallback((m: Omit<ConciergeMessage, "id">) => {
@@ -311,10 +320,10 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
       window.dispatchEvent(new CustomEvent("film:exit", { detail: { graceful: false } }));
       window.dispatchEvent(new CustomEvent("stage:case-close", { detail: "" }));
     }
-    ember.stop();
+    helios.stop();
     setMessages([]);
     setStatus("idle");
-    localStorage.removeItem(HISTORY_KEY);
+    safeLocal.remove(HISTORY_KEY);
   }, []);
 
   // ── Cinematic tour ─────────────────────────────────────────
@@ -326,7 +335,7 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
     tourAbortRef.current = true;
     // Let the camera coast to a soft stop instead of freezing.
     cameraAbortRef.current?.abort();
-    ember.stop();
+    helios.stop();
     if (opts?.graceful) {
       // The film lets go: voice fades, letterbox retracts, a warm sign-off.
       window.dispatchEvent(new CustomEvent("film:exit", {
@@ -346,6 +355,17 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
 
   const tour = useCallback(() => {
     if (tourRunning) return;
+    // tour() is called synchronously from a tap/click, so the gesture is still
+    // active here — bless the shared audio element now so every scripted line
+    // that follows can play on mobile (the "voice starts then breaks" fix).
+    helios.unlock();
+    // The moving-camera dolly is a per-frame scroll loop that low-end phones
+    // can't composite smoothly — it's the source of the mobile lag. On mobile
+    // (or any coarse-pointer device) we frame each section with a single native
+    // smooth-scroll and hold still while the voice plays.
+    const staticFraming =
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 768px), (pointer: coarse)").matches;
     tourAbortRef.current = false;
     const camera = new AbortController();
     cameraAbortRef.current = camera;
@@ -355,20 +375,23 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
     setOpen(false);
 
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    // Every PAUSE goes through pause() so the single TOUR_PACE knob tightens the
+    // whole tour at once. Safety caps and speech timing deliberately do NOT.
+    const pause = (ms: number) => sleep(Math.round(ms * TOUR_PACE));
 
     // A beat renders as an on-screen caption (film:caption → FilmMode) and is
     // done when the voice actually finishes speaking it — synced to the audio,
     // never a guessed duration. With voice OFF the caption holds for a readable
     // duration instead. A generous safety cap guarantees we never hang.
-    const narrateBeat = (text: string) =>
+    const narrateBeat = (text: string, voice?: "helios" | "sankalp") =>
       new Promise<void>((resolve) => {
         window.dispatchEvent(new CustomEvent("film:caption", { detail: text }));
-        const voiceOn = ember.isEnabled();
+        const voiceOn = helios.isEnabled();
         const words = text.split(/\s+/).length;
         let settled = false;
         const finish = () => { if (!settled) { settled = true; resolve(); } };
         if (voiceOn) {
-          ember.narrate(text).then(finish);
+          helios.narrate(text, voice).then(finish);
           setTimeout(finish, words * 800 + 5000);
         } else {
           // ~230 wpm reading pace + a beat to land the line.
@@ -394,13 +417,13 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
       // Lights down: letterbox slides in, the room darkens, nav lifts away.
       window.dispatchEvent(new CustomEvent("film:enter"));
       window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: true }));
-      await sleep(650); // let the frame close before anyone speaks
+      await pause(650); // let the frame close before anyone speaks
       window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: false }));
 
-      // Ember opens the film as the director, third person.
+      // Helios opens the film as the director, third person — its own voice.
       if (!tourAbortRef.current) {
-        await narrateBeat(DIRECTOR_INTRO);
-        await sleep(300);
+        await narrateBeat(DIRECTOR_INTRO, "helios");
+        await pause(300);
       }
 
       const total = TOUR.length;
@@ -411,7 +434,7 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
 
         // 1 — the act announces itself, alone, before anything moves
         window.dispatchEvent(new CustomEvent("film:act", { detail: { act: ch.act, title: ch.title } }));
-        await sleep(ch.cardHoldMs);
+        await pause(ch.cardHoldMs);
         if (tourAbortRef.current) break;
 
         // 2 — dim everything but this section (no movement yet)
@@ -422,7 +445,7 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
         const takesOverScreen = ch.event?.name === "stage:case";
         if (ch.event) {
           window.dispatchEvent(new CustomEvent(ch.event.name, { detail: ch.event.detail }));
-          await sleep(500);
+          await pause(500);
         }
         if (tourAbortRef.current) break;
 
@@ -440,27 +463,37 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
         // the whole chapter's narration — a single unbroken camera move, not a
         // series of scroll hops. Fired here (not awaited); the beats play over
         // it. It aborts the instant the visitor takes the wheel.
-        if (filmsSection) {
-          const voiceOn = ember.isEnabled();
+        // On mobile we DON'T dolly — the per-frame scroll is the lag. The
+        // section was already framed by glideToSection above; it simply holds.
+        // We also skip the dolly on sections that run heavy, continuous
+        // animation — the Experience timeline's scroll-linked spring and the
+        // About BioScanner canvas both fight the rAF scroll for the main thread,
+        // making the dolly stutter there. Those sections hold static instead
+        // (the compositor-driven initial glide already framed them cleanly).
+        const heavySection = ch.section === "section-arc" || ch.section === "section-about";
+        if (filmsSection && !staticFraming && !heavySection) {
+          const voiceOn = helios.isEnabled();
           const driftMs = ch.beats.reduce((sum, b) => {
             const w = b.text.split(/\s+/).length;
-            return sum + (voiceOn ? w * 430 : w * 240 + 1000) + (b.holdMs ?? 120);
+            // Speech time is unscaled; only the pause between beats follows the pace.
+            return sum + (voiceOn ? w * 430 : w * 240 + 1000) + (b.holdMs ?? 120) * TOUR_PACE;
           }, 0);
           driftThroughSection(ch.section!, Math.min(16000, Math.max(3000, driftMs)), { signal: camera.signal });
         }
 
-        // 6 — narration beat by beat; cues fire on their word.
+        // 6 — narration beat by beat; cues fire on their word. Every beat is
+        // Sankalp in the first person — his voice, not the director's.
         for (const beat of ch.beats) {
           if (tourAbortRef.current) break;
           if (beat.cue) window.dispatchEvent(new CustomEvent("film:cue", { detail: beat.cue }));
-          await narrateBeat(beat.text);
+          await narrateBeat(beat.text, "sankalp");
           if (tourAbortRef.current) break;
-          await sleep(beat.holdMs ?? 120);
+          await pause(beat.holdMs ?? 120);
         }
         if (tourAbortRef.current) break;
 
         // 7 — the pause between chapters. The breath.
-        await sleep(ch.holdMs);
+        await pause(ch.holdMs);
       }
 
       window.removeEventListener("wheel", onWheel);
@@ -469,22 +502,35 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
 
       if (!tourAbortRef.current) {
         // Natural finish — Act V already delivered Sankalp's closing line, so
-        // the film releases (echoing it on the farewell card). Then Ember
+        // the film releases (echoing it on the farewell card). Then Helios
         // returns: the dock reopens and the hand-off lands in the chat, where
         // the visitor can start asking — the film's captions are gone by now.
         window.dispatchEvent(new CustomEvent("stage:case-close", { detail: "" }));
         window.dispatchEvent(new CustomEvent("film:exit", { detail: { graceful: false, line: CLOSING_LINE } }));
-        // Speak the closing line as the card shows it (the beat that used to
-        // say it was removed so it never appears twice).
-        ember.speak(CLOSING_LINE);
-        await sleep(2400); // let the farewell card breathe and retract
+        // Sankalp's closing line, in his own voice, shown on the farewell card.
+        // CRITICAL: AWAIT it. The old code spoke it and then, after a fixed
+        // 2.4s, spoke the hand-off — which CANCELLED the closing line whenever
+        // it ran long, so the last sentence got cut off and the chat popped
+        // open mid-word. Waiting for the audio to actually finish lets the tour
+        // end on a complete sentence, every time. A generous cap still guards
+        // against a hang if the voice never resolves.
+        if (helios.isEnabled()) {
+          await Promise.race([
+            helios.narrate(CLOSING_LINE, "sankalp"),
+            sleep(CLOSING_LINE.split(/\s+/).length * 800 + 5000),
+          ]);
+        } else {
+          await pause(2400); // no voice — just let the farewell card breathe
+        }
+        await pause(500); // a held beat before the room comes back
         if (!tourAbortRef.current) {
           setOpen(true);
           setMessages((prev) => [
             ...prev,
             { id: ++idRef.current, role: "agent", content: DIRECTOR_OUTRO_HANDBACK },
           ]);
-          ember.speak(DIRECTOR_OUTRO_HANDBACK);
+          // Helios returns in its own voice to hand the floor back.
+          helios.speak(DIRECTOR_OUTRO_HANDBACK, undefined, { voice: "helios" });
           window.dispatchEvent(new CustomEvent("tour:done"));
         }
       }
@@ -633,11 +679,11 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
       // Fired BEFORE the notice streams: the dock plays its CRT collapse
       // while the line types out underneath it.
       window.dispatchEvent(new CustomEvent("agent-core-down"));
-      // Ember gets one line, then stands down for the outage — the most
+      // Helios gets one line, then stands down for the outage — the most
       // dramatic possible use of a subsystem that still works.
-      ember
+      helios
         .narrate("Losing the model channel. Switching to reserve power — I've still got Sankalp's facts.")
-        .then(() => ember.setSuspended(true));
+        .then(() => helios.setSuspended(true));
       await new Promise((r) => setTimeout(r, 900)); // let the collapse land
       const notice =
         "⏻ Reserve power. Every model provider is rate-limited right now — this portfolio runs on free API tiers, " +
@@ -653,10 +699,10 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
         setDegraded(false);
         setRetryInSec(null);
         setReserveReason(null);
-        ember.setSuspended(false);
+        helios.setSuspended(false);
         window.dispatchEvent(new CustomEvent("agent-core-up"));
         push({ role: "agent", content: "● Back on main power — full reasoning restored." });
-        ember.speak("Back on main power. Full reasoning restored.");
+        helios.speak("Back on main power. Full reasoning restored.");
       }
     }
 
@@ -722,13 +768,13 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
     setRetryInSec(null);
     setReserveReason(null);
     backoffIdxRef.current = 0;
-    ember.setSuspended(false);
+    helios.setSuspended(false);
     window.dispatchEvent(new CustomEvent("agent-core-up"));
     setMessages((prev) => [
       ...prev,
       { id: ++idRef.current, role: "agent", content: "● Back on main power — full reasoning restored." },
     ]);
-    ember.speak("Back on main power. Full reasoning restored.");
+    helios.speak("Back on main power. Full reasoning restored.");
     const pending = pendingQuestionRef.current;
     pendingQuestionRef.current = null;
     if (pending) {

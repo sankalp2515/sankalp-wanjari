@@ -1,22 +1,22 @@
 "use client";
 
-// A one-time, quiet invitation to turn on Ember's voice. Voice is opt-in (and
-// costs ElevenLabs credits), so we never autoplay — we ask. Appears once per
+// A one-time, quiet invitation to turn on Helios's voice. Voice is opt-in (and
+// costs TTS credits), so we never autoplay — we ask. Appears once per
 // session, only when voice is currently off and the browser can speak. Variant
 // A only.
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Volume2, X } from "lucide-react";
-import { ember } from "@/lib/voice";
+import { helios } from "@/lib/voice";
 
-const SEEN_KEY = "ember-sound-prompt";
+const SEEN_KEY = "helios-sound-prompt";
 
 export default function SoundPrompt() {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    if (!ember.supported() || ember.isEnabled()) return;
+    if (!helios.supported() || helios.isEnabled()) return;
     if (sessionStorage.getItem(SEEN_KEY)) return;
     const t = setTimeout(() => setShow(true), 2600); // let the hero breathe first
     return () => clearTimeout(t);
@@ -26,8 +26,8 @@ export default function SoundPrompt() {
 
   const enable = () => {
     // This click is the user gesture that unlocks audio playback.
-    ember.setEnabled(true);
-    ember.speak("Voice on. I'm Ember — I'll talk you through Sankalp's work whenever you like.");
+    helios.setEnabled(true);
+    helios.speak("Voice on. I'm Helios — I'll talk you through Sankalp's work whenever you like.");
     dismiss();
   };
 
@@ -55,12 +55,12 @@ export default function SoundPrompt() {
             <Volume2 size={14} aria-hidden />
           </span>
           <span className="text-[12.5px] leading-tight" style={{ color: "var(--os-text-secondary)" }}>
-            Want <strong style={{ color: "var(--os-text)" }}>Ember</strong> to speak as it guides you?
+            Want <strong style={{ color: "var(--os-text)" }}>Helios</strong> to speak as it guides you?
           </span>
           <button
             onClick={enable}
             className="shrink-0 text-[12.5px] font-semibold px-3.5 py-1.5 rounded-full transition-transform hover:scale-[1.03] active:scale-95"
-            style={{ background: "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))", color: "#fff" }}
+            style={{ background: "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))", color: "var(--os-on-accent)" }}
           >
             Turn on
           </button>

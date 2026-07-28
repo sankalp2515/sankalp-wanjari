@@ -17,6 +17,8 @@
 // and `data-tier`. CSS keys off perf-lite site-wide; components read the tier
 // to skip mounting WebGL. A `perf:lite` event fires on downgrade.
 
+import { logEvent, installClientErrorHandlers } from "./log";
+
 export type DeviceTier = "high" | "mid" | "low";
 
 // Hard budget: past this we shed heavy layers regardless of the reported tier.
@@ -35,18 +37,20 @@ export function computeDeviceTier(): DeviceTier {
   const cores = navigator.hardwareConcurrency || 4;
   const saveData = !!nav.connection?.saveData;
   const slowNet = /(^|-)2g$/.test(nav.connection?.effectiveType ?? "");
-  const reduced =
-    typeof matchMedia !== "undefined" &&
-    matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const coarse =
-    typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
 
-  // Explicit "give me less": honour it as the lowest tier.
-  if (saveData || slowNet || reduced) return "low";
-  // Clearly constrained hardware.
-  if ((mem !== undefined && mem <= 4) || cores <= 4) return coarse ? "low" : "mid";
-  // Touch devices with unknown/modest memory: mid by default (phones/tablets).
-  if (coarse && (mem === undefined || mem <= 6)) return "mid";
+  // Data-saver or a genuinely slow (2g) connection → give less; that's an
+  // explicit "I want less data/work" signal, not a guess.
+  //
+  // NOTE: we deliberately do NOT tier down on prefers-reduced-motion or on
+  // touch alone anymore. Reduced-motion is an accessibility MOTION preference
+  // (and iOS Low Power Mode toggles it) — it must only calm decorative motion,
+  // never change which visual/3D build a device receives. Battery state must
+  // never silently swap the experience: a visitor can't tell "low-power build"
+  // from "bug", so the 3D hero and marquee stay consistent with desktop.
+  if (saveData || slowNet) return "low";
+  // Clearly constrained hardware — a real capability floor, so we never try to
+  // hydrate a WebGL scene a weak GPU/low-RAM device can't afford.
+  if ((mem !== undefined && mem <= 4) || cores <= 4) return "mid";
   return "high";
 }
 
@@ -78,11 +82,32 @@ export function startPerfGovernor(): void {
   if (started || typeof document === "undefined") return;
   started = true;
 
+  // Global safety net: uncaught errors / rejections become telemetry instead
+  // of a silent white screen (this is how we'll see a browser like mobile
+  // Brave failing where others don't).
+  installClientErrorHandlers();
+
   injectLiteSheet();
   const root = document.documentElement;
   const tier = computeDeviceTier();
   root.dataset.tier = tier;
   if (tier !== "high") root.classList.add(tier === "low" ? "perf-lite" : "perf-mid");
+
+  // Make the tier decision visible: this is the single most useful signal for
+  // "why does my phone look different?" — it records the raw inputs, not just
+  // the verdict, so a device reports exactly why it landed where it did.
+  const nav = navigator as NavigatorExt;
+  const mm = typeof matchMedia !== "undefined" ? matchMedia : undefined;
+  logEvent("device_tier", {
+    tier,
+    deviceMemory: nav.deviceMemory ?? null,
+    cores: navigator.hardwareConcurrency ?? null,
+    saveData: !!nav.connection?.saveData,
+    effectiveType: nav.connection?.effectiveType ?? null,
+    coarsePointer: mm ? mm("(pointer: coarse)").matches : null,
+    reducedMotion: mm ? mm("(prefers-reduced-motion: reduce)").matches : null,
+    hasHeapApi: !!(performance as Performance & { memory?: unknown }).memory,
+  });
 
   const mem = (performance as Performance & {
     memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number };
@@ -97,6 +122,7 @@ export function startPerfGovernor(): void {
     if (!lite && (usedMB > HEAP_BUDGET_MB || usedMB > limitMB * 0.8)) {
       lite = true;
       root.classList.add("perf-lite");
+      logEvent("perf_downgrade", { usedMB: Math.round(usedMB), limitMB: Math.round(limitMB) }, "warn");
       window.dispatchEvent(
         new CustomEvent("perf:lite", { detail: { usedMB: Math.round(usedMB) } }),
       );

@@ -340,7 +340,7 @@ export const projects = [
 
     preview: "/projects/structagent/demo.mp4",
 
-    poster: "", // optional still frame, e.g. "/projects/x/poster.jpg"
+    poster: "/projects/structagent/poster.webp", // optional still frame, e.g. "/projects/x/poster.jpg"
     diagrams: [], // architecture / data-flow images (Diagram[]) — see CONTENT-GUIDE
 
     year: "2026",
@@ -493,7 +493,7 @@ export const projects = [
 
     preview: "/projects/sqllens/demo.mp4",
 
-    poster: "", // optional still frame, e.g. "/projects/x/poster.jpg"
+    poster: "/projects/sqllens/poster.webp", // optional still frame, e.g. "/projects/x/poster.jpg"
     diagrams: [], // architecture / data-flow images (Diagram[]) — see CONTENT-GUIDE
 
     year: "2025",
@@ -541,14 +541,14 @@ export const projects = [
       "Server-rendered content with a progressive AI layer on top",
     ],
     github: "https://github.com/sankalp2515/sankalp-wanjari", // TODO: replace with the actual repo URL
-    liveUrl: "https://sankalpwanjari.dev",
+    liveUrl: "https://sankalp-wanjari.vercel.app",
     // The portfolio IS the live site — its strongest hover preview is a short
     // screen recording of the concierge operating the page. Drop it at
     // /projects/portfolio/demo.mp4 and set preview below. Until then the poster
     // reuses the site's own generated OG card, so the card shows a real branded
     // still instead of the fallback signal animation.
     preview: "",
-    poster: "/opengraph-image",
+    poster: "/projects/portfolio_os/poster.webp", // optional still frame, e.g. "/projects/x/poster.jpg"
     diagrams: [], // architecture / data-flow images (Diagram[]) — see CONTENT-GUIDE
     year: "2026",
     breakdown: {
