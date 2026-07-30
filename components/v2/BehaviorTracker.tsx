@@ -6,7 +6,7 @@
 // grounds the nudge engine. Renders nothing.
 
 import { useEffect } from "react";
-import { track } from "@/lib/behavior";
+import { track, noteScroll } from "@/lib/behavior";
 
 export default function BehaviorTracker() {
   useEffect(() => {
@@ -33,7 +33,22 @@ export default function BehaviorTracker() {
     );
     sections.forEach((s) => io.observe(s));
 
+    // Deepest scroll reached — a cheap intent signal ("read most of the page"
+    // vs "bounced at the hero"). Throttled to a passive rAF; records the max.
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        if (max > 0) noteScroll((window.scrollY / max) * 100);
+        ticking = false;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+
     return () => {
+      window.removeEventListener("scroll", onScroll);
       window.removeEventListener("stage:case", onCase);
       window.removeEventListener("stage:highlight", onHighlight);
       window.removeEventListener("stage:nav", onNav);

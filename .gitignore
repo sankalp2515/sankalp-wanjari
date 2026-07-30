@@ -44,3 +44,9 @@ next-env.d.ts
 .assistant/
 .ai/
 Pre-loader/*
+/components/v3/
+/components/lab/
+/app/lab/
+.claude/settings.json
+components/spiral/
+config/spiral.ts

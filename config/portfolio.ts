@@ -52,9 +52,9 @@ My teammates know me as a problem solver who enjoys simplifying complexity and a
   profilePhoto: "/profile_pic_2.png",
 
   stats: [
-    { value: "3+", label: "years shipping software" },
-    { value: "10", label: "agents in one LangGraph pipeline" },
-    { value: "90%", label: "less manual data entry at FIS" },
+    { value: "3+", label: "years solving business problems with software" },
+    { value: "90%", label: "less manual effort through intelligent automation" },
+    { value: "AI × Product", label: "engineering driven by product thinking" },
     { value: "132", label: "automated tests in AutoML Orchestrator" },
   ],
 };
@@ -527,18 +527,22 @@ export const projects = [
     name: "Live Portfolio OS",
     shortName: "portfolio_os",
     description:
-      "This portfolio. An AI concierge with real UI tools — it navigates sections, opens case studies, and highlights skills in real time while answering questions about my work.",
+      "This portfolio — and a live proof of what I build. An AI concierge, \"Helios,\" doesn't sit in a chat box; it operates the page: navigating sections, opening case studies, highlighting skills, opening a 3D knowledge graph, and narrating a cinematic guided tour — backed by a 5-provider streaming LLM router that runs at zero paid API cost.",
     longDescription:
-      "Designed and built a portfolio where the AI is not a chatbot inside a website — it operates the website. The agent has real UI tools: navigate, open case study, highlight skill. Multi-provider LLM fallback (6 providers) with zero paid API cost. The entire portfolio is a proof of what Sankalp builds.",
-    stack: ["Next.js", "TypeScript", "Framer Motion", "Tailwind"],
+      "Designed and built a portfolio where the AI isn't a chatbot bolted onto a website — it runs the website. Helios answers questions about my work and operates the UI through real tool calls (navigate, open a case study, highlight a skill, open the 3D knowledge graph), streams its answers token-by-token, and can narrate a five-act cinematic tour in two voices. Under the hood: a server-side LLM router across five free providers with health-tracking circuit-breakers, adaptive ordering, per-provider multi-key rotation, and response caching; true token streaming with sentence-chunked text-to-speech; a small-model orchestrator that trims the context sent per request; a 'reserve power' mode that keeps the whole site answerable from verified facts when every provider is rate-limited; guardrails against prompt injection; and end-to-end structured logging with usage stats. The entire site is the argument: reliability engineered in, at zero paid API cost.",
+    stack: ["Next.js", "React", "TypeScript", "Tailwind CSS", "Framer Motion", "Three.js / R3F", "Multi-provider LLM router", "ElevenLabs + Gemini TTS"],
     category: "AI Product",
     status: "LIVE",
     impact: "CRITICAL",
     highlights: [
-      "Agent operates the page via tagged tool calls — navigate, highlight, open case study",
-      "6-provider LLM fallback — zero paid API cost",
-      "Decoupled event bus: concierge dispatches CustomEvents, UI listens",
-      "Server-rendered content with a progressive AI layer on top",
+      "Agentic UI control — Helios navigates, opens case studies, highlights skills & opens the 3D graph via tagged tool calls on a decoupled CustomEvent bus",
+      "5-provider LLM router (Groq · Gemini · Mistral · OpenRouter · NVIDIA) with health circuit-breaker, adaptive ordering, per-provider multi-key rotation & response cache — zero paid API cost",
+      "True token streaming (provider SSE → NDJSON) with fallback-before-first-token — a real typing effect, not a paste",
+      "Cinematic 5-act guided tour: letterbox film mode, compositor-driven camera dolly, two-voice narration (ElevenLabs + Gemini TTS) pre-generated at build time",
+      "Opt-in voice with a TTS fallback chain (ElevenLabs → Gemini → browser Web Speech) and sentence-chunk streaming for low latency",
+      "Reserve-power mode — a static verified-fact brain answers, with an auto health-probe that recovers and re-asks, so the chat never dies",
+      "Interactive 3D knowledge graph of every skill, project & credential (React Three Fiber)",
+      "Guardrails: prompt-injection filters, an intent gate, a server-owned system prompt, and a navigation allowlist — plus per-step structured logging and a /api/ai/stats usage counter",
     ],
     github: "https://github.com/sankalp2515/sankalp-wanjari", // TODO: replace with the actual repo URL
     liveUrl: "https://sankalp-wanjari.vercel.app",
@@ -553,21 +557,68 @@ export const projects = [
     year: "2026",
     breakdown: {
       problem:
-        "Every portfolio is a document. Visitors browse it like a website. Recruiters skim, developers scroll, and nobody remembers the candidate. The goal: make the portfolio itself the proof of what Sankalp builds.",
+        "Every portfolio is a document. Visitors browse it like a website — recruiters skim, developers scroll, and nobody remembers the candidate. Worse, a portfolio for an AI engineer usually just *claims* AI skills instead of demonstrating them. The goal: make the portfolio itself the proof — a live AI system reliable enough to run in front of strangers, at zero paid cost.",
       approach:
-        "Designed the portfolio as content-first with an agentic layer. The concierge doesn't just answer questions — it operates the page as a set of UI tools: navigate to sections, highlight skills, open case studies. Built a multi-provider LLM backend (6 fallbacks) so it works at zero API cost, with a static-FAQ fallback so the chat never dies.",
+        "Built content-first with an agentic layer on top, so the site works fully with the AI (and JavaScript) turned off, then gets better with it on. The concierge, Helios, operates the page through real UI tool calls emitted as tags and dispatched over a decoupled CustomEvent bus — navigate, highlight a skill, open a case study, open the 3D knowledge graph. The whole LLM stack is server-owned: a router across five free providers with a health circuit-breaker, adaptive ordering that pins whatever is currently working, per-provider multi-key rotation, and a response cache. Answers stream token-by-token via provider SSE re-emitted as NDJSON (fallback only happens before the first token, then it commits). A small-model orchestrator trims the context sent per request. Voice is a separate service with its own fallback chain and sentence-chunk streaming so audio tracks the text. When every provider is exhausted, a 'reserve power' mode answers from a static verified-fact brain and auto-probes for recovery. Guardrails (injection filters, an intent gate, a nav allowlist, a server-owned prompt) and per-step structured logging run throughout.",
       results: [
-        "Agent controls the page via tagged tool calls with visible consequences",
-        "6-provider LLM fallback with health tracking and cooldown — zero paid cost",
-        "Decoupled event bus: concierge context dispatches, sections listen — no circular deps",
-        "Two-level project deep-dive: overview, then full case study",
+        "Helios operates the page via tagged tool calls with visible, followable consequences — navigation, skill highlights, case studies, and a 3D knowledge graph",
+        "5-provider LLM router with health tracking, cooldown, adaptive ordering, per-provider multi-key rotation and caching — zero paid API cost",
+        "True token streaming with a real typing effect; sentence-chunked TTS keeps the optional voice in sync",
+        "A cinematic five-act guided tour with two-voice narration, pre-generated at build time so it costs nothing to play",
+        "Reserve-power mode + auto-recovery means the concierge never dies, even when all providers are rate-limited",
+        "Decoupled event bus (context dispatches, sections listen) — no circular deps; a static-FAQ brain and slash-command deck work with the AI off",
       ],
       lessons:
-        "The hard part wasn't the AI, it was making the AI controlling the page feel natural instead of gimmicky. Every action it takes needs a visible, followable consequence — and the site has to work fine with the AI turned off.",
-      role: "Full product: concept, architecture, design system, Next.js frontend, LLM backend, agent design, motion choreography",
+        "The hard part wasn't the AI — it was making an AI that controls the page feel natural instead of gimmicky, and making it never break in front of someone. Every action needs a visible consequence, the site has to work with the AI off, and the reliability layer (fallbacks, reserve power, guardrails, streaming) is most of the real engineering.",
+      role: "Full product, solo: concept, architecture, design system, Next.js/React frontend, the 3D knowledge graph, the multi-provider streaming LLM backend, agent + tool design, the cinematic tour and voice pipeline, guardrails, observability, and motion choreography.",
     },
   },
 ];
+
+// ── DIRECTOR (PARKED) — per-project ranking dimensions + hero variants ──
+// Data for the parked persona/Director autonomy layer (lib/director.ts). Kept
+// in place so that system can be revived without reconstruction. Unused while
+// the persona features are parked. See docs/FEATURES.md §4.
+export type ProjectDimensions = {
+  businessImpact: number;
+  architectureDepth: number;
+  codeCraft: number;
+  novelty: number;
+};
+export const projectDimensions: Record<string, ProjectDimensions> = {
+  "001": { businessImpact: 0.7, architectureDepth: 1.0, codeCraft: 0.9, novelty: 0.9 },
+  "002": { businessImpact: 0.6, architectureDepth: 0.95, codeCraft: 0.85, novelty: 0.95 },
+  "003": { businessImpact: 0.55, architectureDepth: 0.8, codeCraft: 0.95, novelty: 0.7 },
+  "004": { businessImpact: 0.5, architectureDepth: 0.7, codeCraft: 0.8, novelty: 0.75 },
+  "005": { businessImpact: 0.75, architectureDepth: 0.75, codeCraft: 0.8, novelty: 0.6 },
+  "006": { businessImpact: 0.65, architectureDepth: 0.6, codeCraft: 0.7, novelty: 1.0 },
+};
+
+export type HeroVariantKey = "vision" | "outcome" | "architecture" | "builder";
+export const heroVariants: Record<HeroVariantKey, {
+  eyebrow: string; l1: string; em: string; l3: string; statement: string;
+}> = {
+  vision: {
+    eyebrow: "THE PROOF ENGINE / 2026",
+    l1: "AI THAT", em: "CAN PROVE", l3: "ITSELF.",
+    statement: "I build the layer between a model's output and a decision you can defend — verified, evaluated, and cheap to run.",
+  },
+  outcome: {
+    eyebrow: "SHIPPED, NOT SLIDEWARE / 2026",
+    l1: "AI THAT", em: "SHIPS", l3: "OUTCOMES.",
+    statement: "3 years shipping production software and six AI systems that actually run — measurable impact, and available to start now.",
+  },
+  architecture: {
+    eyebrow: "BUILT TO SURVIVE PRODUCTION / 2026",
+    l1: "SYSTEMS", em: "BUILT TO", l3: "SURVIVE.",
+    statement: "Multi-agent orchestration, six-provider fallback, and CI-gated groundedness evals — reliability engineered in, not bolted on.",
+  },
+  builder: {
+    eyebrow: "THE HARD PARTS / 2026",
+    l1: "I BUILD", em: "THE HARD", l3: "PARTS.",
+    statement: "Sandboxed executors, 130+ tests, LoRA + DPO pipelines — the unglamorous engineering that makes AI dependable.",
+  },
+};
 
 // ── PRODUCT CASE STUDIES ──────────────────────────────────
 // A deliberately separate track from `projects`. These demonstrate product

@@ -30,5 +30,27 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "Pre-loader"]
+  "exclude": [
+    "node_modules",
+    "Pre-loader",
+    // components/v3 is the "Stage" 3D build. It is currently unreferenced —
+    // app/page.tsx and Landing.tsx no longer wire up the experience flag — and
+    // it targets a newer config/portfolio (heroVariants, education.featuredCert)
+    // than this checkout has, so it cannot type-check here. Excluded rather
+    // than deleted so nothing is lost. Remove this entry to bring it back.
+    "components/v3",
+    // Same situation: both are untracked leftovers from the newer branch that
+    // import config/portfolio members (projectDimensions, heroVariants) this
+    // checkout does not have, and nothing currently renders either of them.
+    "lib/director.ts",
+    "components/v2/DirectorSignal.tsx",
+    "app/lab",
+    "components/lab",
+    "components/spiral",
+    "components/spiral/ProjectSpiral.tsx",
+    "lib/scrollDrive.ts",
+    "lib/scrollField.ts",
+    "config/spiral.ts",
+
+  ]
 }

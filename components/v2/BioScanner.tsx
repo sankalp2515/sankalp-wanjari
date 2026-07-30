@@ -27,8 +27,21 @@ export default function BioScanner({ bio, keywords }: { bio: string; keywords: s
   const [active, setActive] = useState(0); // where the reticle is headed
   const [arrived, setArrived] = useState(0); // -1 while travelling; == active once locked on
   const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  // While the cinematic tour dollies THROUGH this section, freeze the reticle
+  // loop: a continuously re-measuring/animating scanner fighting the rAF scroll
+  // is exactly what made the About drift glitch, which is why About used to hold
+  // static. Pausing (not disabling) lets the section drift smoothly — the reticle
+  // simply holds its last frame and resumes when the camera settles.
+  const [drifting, setDrifting] = useState(
+    () => typeof document !== "undefined" && document.documentElement.classList.contains("film-drifting"),
+  );
+  useEffect(() => {
+    const onDrift = (e: Event) => setDrifting(!!(e as CustomEvent<boolean>).detail);
+    window.addEventListener("film:drift", onDrift);
+    return () => window.removeEventListener("film:drift", onDrift);
+  }, []);
 
-  const running = inView && !reduced;
+  const running = inView && !reduced && !drifting;
 
   const paragraphs = bio.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
   const escaped = keywords.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));

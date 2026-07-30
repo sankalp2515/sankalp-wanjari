@@ -76,7 +76,7 @@ export default function Hero({ variant = "a" }: { variant?: "a" | "b" }) {
   const evidence = {
     "001": { label: "ORCHESTRATE", title: "10 agents, one deployed ML system.", detail: "A LangGraph orchestration pipeline with sandboxed execution, self-repair, and 132 automated tests." },
     "002": { label: "VERIFY", title: "Claims are checked before they ship.", detail: "Quote matching, NLI validation, and CI-gated groundedness make fabricated citations a build failure." },
-    "003": { label: "OPERATE", title: "The agent can act on the interface.", detail: "EMBER navigates, opens cases, and highlights skills—this portfolio is a working product, not a chat demo." },
+    "003": { label: "OPERATE", title: "The agent can act on the interface.", detail: "HELIOS navigates, opens cases, and highlights skills—this portfolio is a working product, not a chat demo." },
   }[evidenceId];
   const openEvidence = () => window.dispatchEvent(new CustomEvent("stage:case", { detail: evidenceId }));
 
@@ -112,7 +112,7 @@ export default function Hero({ variant = "a" }: { variant?: "a" | "b" }) {
             </motion.p>
             <motion.div {...enter(0.56)} className="proof-hero__actions">
               <button onClick={goToWork} className="proof-hero__open">Open the proof <ArrowUpRight size={17} aria-hidden /></button>
-              <button onClick={() => tour()} disabled={tourRunning} className="proof-hero__disturb"><Play size={15} aria-hidden /> {tourRunning ? "EMBER IS NARRATING" : "LET EMBER GUIDE YOU"}</button>
+              <button onClick={() => tour()} disabled={tourRunning} className="proof-hero__disturb"><Play size={15} aria-hidden /> {tourRunning ? "HELIOS IS NARRATING" : "LET HELIOS GUIDE YOU"}</button>
             </motion.div>
           </div>
 

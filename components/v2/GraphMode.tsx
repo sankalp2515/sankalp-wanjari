@@ -24,6 +24,7 @@ import { X, ArrowRight, Play, Square, Volume2, VolumeX, Info, ChevronDown, Chevr
 import { projects, research, experience, education, graphLinks } from "@/config/portfolio";
 import { helios } from "@/lib/voice";
 import { GRAPH_TOUR } from "@/lib/cinema/graphTourScript";
+import CanvasLifecycle from "./CanvasLifecycle";
 
 // Minimal structural type for the OrbitControls instance we drive
 interface ControlsLike { target: THREE.Vector3; update: () => void }
@@ -768,6 +769,7 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
       <Canvas camera={{ position: [0, 2.2, 8.2], fov: 50 }} dpr={[1, 1.5]}
         gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
         onPointerMissed={() => { if (!touring) setSelected(null); }}>
+        <CanvasLifecycle />
         <OrbitControls
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ref={controlsRef as any}

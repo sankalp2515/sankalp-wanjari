@@ -9,11 +9,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X, FileText, Mail, ArrowUpRight, Play } from "lucide-react";
-import { personal, social } from "@/config/portfolio";
+import { personal, social, projects } from "@/config/portfolio";
 import { useConcierge } from "@/contexts/ConciergeContext";
-import { summarize, track } from "@/lib/behavior";
+import { summarize, track, getLog } from "@/lib/behavior";
+import { spendProactive } from "@/lib/aiBudget";
 
-type NudgeId = "post-tour" | "case-explorer" | "long-dwell" | "idle-explorer";
+type NudgeId =
+  | "post-tour"
+  | "case-explorer"
+  | "long-dwell"
+  | "idle-explorer"
+  | "deep-reader"       // lingered on ONE case, hasn't asked anything
+  | "silent-explorer"   // explored a lot, never opened the chat
+  | "resume-no-contact"; // grabbed the resume but hasn't reached out
 
 interface Nudge {
   id: NudgeId;
@@ -48,6 +56,24 @@ function templateText(id: NudgeId, persona: string | null): string {
       cto: "Fastest way to evaluate: the guided tour opens the flagship project breakdown for you.",
       developer: "Not sure where to start? The tour drives you through the whole thing.",
       explorer: "Not sure where to start? Let the AI drive — 45 seconds, zero scrolling.",
+    },
+    "deep-reader": {
+      recruiter: "You're spending real time on this one — want the 2-line 'why it mattered to the business' version?",
+      cto: "You're deep in this breakdown — want me to compare its architecture against the others?",
+      developer: "Reading closely, I see — want the stack details or the repo for this one?",
+      explorer: "This one caught your eye — want the quick version of how it actually works?",
+    },
+    "silent-explorer": {
+      recruiter: "You've covered a lot without asking — want the 45-second version, or shortlist-ready bullets?",
+      cto: "Plenty explored, no questions yet — want to interrogate the architecture directly?",
+      developer: "You've been reading — ask me anything about the stack or the code, anytime.",
+      explorer: "Lots explored! Want the guided 45-second tour to tie it together?",
+    },
+    "resume-no-contact": {
+      recruiter: "You've got the resume — Sankalp can start soon. Want to reach out, or I can pass your details along?",
+      cto: "Resume's in hand — if the fit looks right, he's available now. Reach out anytime.",
+      developer: "Grabbed the resume — if you want to talk shop, he's easy to reach.",
+      explorer: "You have the resume — if anything resonated, Sankalp would love to hear from you.",
     },
   };
   return T[id][p] ?? T[id].explorer;
@@ -88,11 +114,15 @@ async function generateNudge(
         messages: [{
           role: "user",
           content:
-            `INTERNAL NUDGE REQUEST (not a visitor message): A ${persona ?? "general"} visitor ${signal}.\n` +
+            `INTERNAL NUDGE REQUEST (not a visitor message; variation seed ${Date.now()}): ` +
+            `A ${persona ?? "general"} visitor ${signal}.\n` +
             `WHAT THEY ACTUALLY DID THIS SESSION: ${summarize()}\n` +
             `AVAILABLE ACTIONS:\n${CTA_CATALOG.map((c) => `- ${c.id}: ${c.desc}`).join("\n")}\n` +
-            `Pick the 1-2 actions MOST relevant to their actual behavior (never suggest something they already did), ` +
-            `and write ONE friendly sentence (max 120 chars, third person about Sankalp) that refers to those exact actions — ` +
+            `The SIGNAL above describes the SPECIFIC thing this visitor just did — your sentence MUST reference that ` +
+            `specific thing (the exact project name, the exact action) so it reads as written for THEM in this moment, ` +
+            `not a generic tip. Offer a concrete micro-payoff (a 2-line version, a comparison, the failure story, a fit check). ` +
+            `Pick the 1-2 actions MOST relevant to their behavior (never suggest something they already did), ` +
+            `and write ONE friendly sentence (max 130 chars, third person about Sankalp) that refers to those exact actions — ` +
             `the sentence and the buttons must agree. Reply with STRICT JSON only: {"text":"...","ctas":["id","id"]}`,
         }],
         visitorType: persona,
@@ -124,6 +154,10 @@ export default function NudgeLayer() {
   const { persona, open: dockOpen, tour, setOpen } = useConcierge();
   const [nudge, setNudge] = useState<Nudge | null>(null);
   const caseOpensRef = useRef(0);
+  // Richer behavior state for the specific, "AI-watched-you" triggers.
+  const lastCaseNameRef = useRef<string>("");  // name of the most-recent case opened
+  const openedChatRef = useRef(false);          // has the visitor ever opened the dock?
+  useEffect(() => { if (dockOpen) openedChatRef.current = true; }, [dockOpen]);
   // Keep the latest persona available to event handlers without
   // re-subscribing them; updated in an effect, not during render.
   const personaRef = useRef(persona);
@@ -173,9 +207,11 @@ export default function NudgeLayer() {
     if (coreDownRef.current) return;
     if (fired(id)) return;
     markFired(id);
-    // Data-driven path: LLM reads the behavior log and picks message +
-    // matching actions together. Deterministic pair as the fallback.
-    const gen = await generateNudge(id, personaRef.current, signal);
+    // Data-driven path, gated by the proactive budget so a nudge can never
+    // starve the visitor's own chat; single-flighted, spacing-limited.
+    // Deterministic template is the fallback when budget says no OR the LLM is
+    // unavailable / answers garbage.
+    const gen = await spendProactive(() => generateNudge(id, personaRef.current, signal));
     const text = gen?.text ?? templateText(id, personaRef.current);
     const ctas = gen ? gen.ctaIds.map(resolveCta) : fallbackCtas;
     track("nudge-shown", id);
@@ -217,12 +253,25 @@ export default function NudgeLayer() {
     return () => window.removeEventListener("tour:done", onDone);
   }, [show, ctaResume, ctaLinkedIn]);
 
-  // Signal 2: opened 2+ case studies → fit-check nudge
+  // Signal 2: opened 2+ case studies → fit-check nudge.
+  // Signal 2b (deep-reader): lingered ~35s on the FIRST case without asking
+  // anything → a nudge that names that exact project.
   useEffect(() => {
-    const onCase = () => {
+    const onCase = (e: Event) => {
       caseOpensRef.current++;
+      const id = String((e as CustomEvent).detail ?? "");
+      const proj = projects.find((p) => p.id === id);
+      if (proj) lastCaseNameRef.current = proj.name;
+
       if (caseOpensRef.current >= 2) {
         show("case-explorer", "has opened multiple project case studies", [ctaFitCheck(), ctaResume()]);
+      } else if (caseOpensRef.current === 1) {
+        window.setTimeout(() => {
+          if (!openedChatRef.current && caseOpensRef.current < 2 && !fired("deep-reader")) {
+            const name = lastCaseNameRef.current || "that project";
+            show("deep-reader", `has spent over half a minute on the ${name} breakdown without asking anything`, [ctaFitCheck(), ctaResume()]);
+          }
+        }, 34_000);
       }
     };
     window.addEventListener("stage:case", onCase);
@@ -254,6 +303,40 @@ export default function NudgeLayer() {
       window.removeEventListener("keydown", mark);
     };
   }, [show, ctaTour]);
+
+  // Signal 5 (silent-explorer): scrolled deep but never opened the chat.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (!openedChatRef.current && window.scrollY > 800) {
+        show("silent-explorer", "has explored several sections but hasn't opened the chat yet", [ctaFitCheck(), ctaTour()]);
+      }
+    }, 100_000);
+    return () => clearTimeout(t);
+  }, [show, ctaFitCheck, ctaTour]);
+
+  // Signal 6 (resume-no-contact): grabbed the resume but 40s later still hasn't
+  // been to contact → the warmest moment to nudge a reply.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const onResume = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const log = getLog();
+        const reachedOut = log.some(
+          (x) => (x.e === "view" && x.d?.includes("contact")) || (x.e === "nav" && x.d?.includes("contact")),
+        );
+        if (!reachedOut && !fired("resume-no-contact")) {
+          show(
+            "resume-no-contact",
+            `opened the resume but hasn't reached out — Sankalp can start in ${personal.noticePeriod.toLowerCase()}`,
+            [ctaEmail(), ctaLinkedIn()],
+          );
+        }
+      }, 40_000);
+    };
+    window.addEventListener("resume:open", onResume);
+    return () => { window.removeEventListener("resume:open", onResume); clearTimeout(timer); };
+  }, [show, ctaEmail, ctaLinkedIn]);
 
   return (
     <AnimatePresence>

@@ -9,14 +9,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowUp, Bot, Mic, MicOff, Power, RotateCcw, Sparkles, TerminalSquare, User, Volume2, VolumeX, X } from "lucide-react";
 import { personal } from "@/config/portfolio";
 import { useConcierge, useConciergeChat, COMMANDS } from "@/contexts/ConciergeContext";
+import { getTopChips, logQuestion } from "@/lib/faq";
+import { behaviorSnapshot, summarize } from "@/lib/behavior";
+import { fallbackChips, generateChips, STATIC_CHIPS } from "@/lib/starterChips";
+import { spendProactive } from "@/lib/aiBudget";
 import { helios } from "@/lib/voice";
 
-const CHIPS = [
-  "What's his best work?",
-  "When can he start?",
-  "What makes him different?",
-  "Paste a JD for a fit check",
-];
+const CHIPS = STATIC_CHIPS;
 
 const PLACEHOLDERS = [
   "Ask about Sankalp's work…",
@@ -119,7 +118,7 @@ function fmtCountdown(sec: number): string {
 }
 
 export default function AgentDock() {
-  const { open, setOpen, ask, clear, tourRunning, tourStep, stopTour, degraded, retryInSec, reserveReason, retryNow } = useConcierge();
+  const { open, setOpen, ask, clear, persona, tourRunning, tourStep, stopTour, degraded, retryInSec, reserveReason, retryNow } = useConcierge();
   const { messages, status, statusLine } = useConciergeChat();
   // Power-transition animation state. Kept separate from `degraded` so the
   // CRT cut plays ONCE on the transition rather than looping for the whole
@@ -166,6 +165,42 @@ export default function AgentDock() {
   };
   const [value, setValue] = useState("");
   const [ph, setPh] = useState(0);
+  // Starter chips — the most-seen AI surface, so they must NOT look scripted.
+  // Begin with static defaults (also the SSR value), then regenerate whenever the
+  // dock opens or the persona changes:
+  //   • fresh arrival (no behavior yet) → self-learning popular questions (§1.2)
+  //   • engaged visitor → a behavior-aware, stochastic set instantly, then an
+  //     LLM upgrade (budget-gated) that references what they actually did.
+  const [chips, setChips] = useState<string[]>(CHIPS);
+  const chipSigRef = useRef<string>("");
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const snap = behaviorSnapshot();
+    const hasBehavior =
+      snap.minutes > 0 &&
+      (snap.sectionsViewed.length > 0 || snap.cases.length > 0 || snap.tourDone || snap.resumeOpened);
+
+    if (!hasBehavior) {
+      // Cold start: the most-asked real questions beat any hardcoded guess.
+      getTopChips().then((c) => { if (!cancelled && c) setChips(c); });
+      return () => { cancelled = true; };
+    }
+
+    // Behavior-aware base immediately — instant, varied, works offline.
+    setChips(fallbackChips(persona, snap));
+
+    // Only spend an LLM call when something material actually changed, so a
+    // visitor toggling the dock doesn't burn the proactive budget.
+    const sig = `${persona}|${snap.cases.join(",")}|${snap.topSection?.id ?? ""}|${snap.tourDone}|${snap.resumeOpened}`;
+    if (sig !== chipSigRef.current) {
+      chipSigRef.current = sig;
+      spendProactive(() => generateChips(persona, summarize(), Date.now())).then((llm) => {
+        if (!cancelled && llm) setChips(llm);
+      });
+    }
+    return () => { cancelled = true; };
+  }, [open, persona]);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const isMobile = useSyncExternalStore(emptySubscribe, isMobileViewport, () => false);
@@ -235,6 +270,9 @@ export default function AgentDock() {
       const v = (q ?? value).trim();
       if (!v || thinking) return;
       setValue("");
+      // Learn from genuinely-typed questions only — NOT chip clicks (q set),
+      // which would bias the counts toward whatever is already shown.
+      if (q === undefined) logQuestion(v);
       ask(v);
     },
     [value, thinking, ask]
@@ -354,7 +392,7 @@ export default function AgentDock() {
               </div>
             </div>
             <div className="flex items-center gap-1">
-              {/* EMBER voice toggle — the concierge narrates when lit */}
+              {/* Helios voice toggle — the concierge narrates when lit */}
               {helios.supported() && (
                 <button
                   onClick={toggleVoice}
@@ -362,12 +400,12 @@ export default function AgentDock() {
                   aria-label={
                     voiceSuspended
                       ? "Voice narration paused while on reserve power"
-                      : voiceOn ? "Mute EMBER's voice" : "Enable EMBER's voice narration"
+                      : voiceOn ? "Mute Helios's voice" : "Enable Helios's voice narration"
                   }
                   title={
                     voiceSuspended
                       ? "Voice narration paused — reserve power. It returns with the models."
-                      : voiceOn ? "EMBER: voice on" : "EMBER: voice off"
+                      : voiceOn ? "Helios: voice on" : "Helios: voice off"
                   }
                   className="relative grid place-items-center w-8 h-8 rounded-lg transition-colors hover:bg-[var(--os-bg-hover)] disabled:cursor-not-allowed disabled:opacity-60"
                   style={{ color: voiceSuspended ? "var(--os-accent-orange)" : voiceOn ? "var(--os-accent)" : "var(--os-text-muted)" }}
@@ -425,7 +463,7 @@ export default function AgentDock() {
                   job description for an honest fit check.
                 </p>
                 <div className="flex flex-wrap justify-center gap-2">
-                  {CHIPS.map((c) => (
+                  {chips.map((c) => (
                     <button
                       key={c}
                       onClick={() => (c.includes("JD") ? taRef.current?.focus() : submit(c))}

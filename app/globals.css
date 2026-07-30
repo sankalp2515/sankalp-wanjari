@@ -1633,3 +1633,82 @@ html.film-mode.film-spotlight [id^="section-"].film-active {
     height: min(88vw, 470px);
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   AMBIENT RANGE — atmosphere instead of wallpaper
+   ───────────────────────────────────────────────────────────────────────
+   MASTER SWITCH: config/ambientRange.ts (AMBIENT_RANGE). When true the
+   field carries `ambient-field--range` and every rule below matches; false
+   and none of them do, so the base .ambient-field__* rules apply exactly as
+   before. This block lives LAST on purpose: it has the same specificity as
+   the [data-theme="light"] ambient overrides above and must win over them.
+
+   The layers were uniformly active at every scroll position, which reads as
+   wallpaper. Now each one is driven by --scroll-va (absolute scroll
+   velocity, published per frame by lib/scrollField): near-black and still
+   while the visitor is reading, surging at chapter transitions.
+
+   NO opacity transition here. The value is already smoothed in JS — the
+   inherited 800ms ease fights it and turns every surge to mush. Transitions
+   stay on background/colour only, which is why aurora re-declares its
+   transition rather than inheriting the two-property one.
+   ═══════════════════════════════════════════════════════════════════════ */
+.ambient-field--range {
+  /* The veil the vignette closes with. Dark fades toward the page black;
+     light gets a soft warm shadow instead of cream-on-cream. */
+  --ambient-veil: var(--os-bg);
+  --ambient-veil-still: 88%;
+  --ambient-veil-travel: 18%;
+}
+.ambient-field--range .ambient-field__aurora {
+  opacity: calc(.26 + var(--scroll-va, 0) * .84);
+  transition: background 1200ms ease;
+}
+.ambient-field--range .ambient-field__horizon {
+  opacity: calc(.34 + var(--scroll-va, 0) * .5);
+}
+.ambient-field--range .ambient-field__coordinates {
+  opacity: calc(.1 + var(--scroll-va, 0) * .42);
+}
+/* Runs the other way from the rest: stillness CLOSES the vignette in, so the
+   page darkens around what is being read, then opens as travel resumes. */
+.ambient-field--range .ambient-field__vignette {
+  background: radial-gradient(
+    ellipse at 50% 44%,
+    transparent calc(18% + var(--scroll-va, 0) * 14%),
+    color-mix(
+      in srgb,
+      var(--ambient-veil)
+      calc(var(--ambient-veil-still) - var(--scroll-va, 0) * var(--ambient-veil-travel)),
+      transparent
+    ) 100%
+  );
+}
+/* Paper cannot take the dark build's veil — an 88% cream wash is just fog.
+   Same behaviour, warm shadow, a fraction of the depth. */
+[data-theme="light"] .ambient-field--range {
+  --ambient-veil: #5a4a26;
+  --ambient-veil-still: 17%;
+  --ambient-veil-travel: 9%;
+}
+[data-theme="light"] .ambient-field--range .ambient-field__aurora {
+  opacity: calc((.26 + var(--scroll-va, 0) * .84) * .62);
+  mix-blend-mode: multiply;
+}
+/* Reduced motion pins --scroll-va at 0 (see lib/scrollField), which would
+   leave the field permanently at its darkest, closed-in end. Hand those
+   visitors the original uniform values instead. */
+@media (prefers-reduced-motion: reduce) {
+  .ambient-field--range .ambient-field__aurora { opacity: var(--signal-energy); }
+  .ambient-field--range .ambient-field__horizon { opacity: .8; }
+  .ambient-field--range .ambient-field__coordinates { opacity: .32; }
+  .ambient-field--range .ambient-field__vignette {
+    background: radial-gradient(ellipse at 50% 44%, transparent 25%, color-mix(in srgb, var(--os-bg) 76%, transparent) 100%);
+  }
+  [data-theme="light"] .ambient-field--range .ambient-field__aurora {
+    opacity: calc(var(--signal-energy) * .62);
+  }
+  [data-theme="light"] .ambient-field--range .ambient-field__vignette {
+    background: radial-gradient(ellipse at 50% 42%, transparent 32%, color-mix(in srgb, #5a4a26 13%, transparent) 100%);
+  }
+}

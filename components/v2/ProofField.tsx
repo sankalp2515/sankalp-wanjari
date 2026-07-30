@@ -8,6 +8,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { useMotionValueEvent, type MotionValue } from "framer-motion";
 import * as THREE from "three";
 import { useCanvasVisible } from "@/hooks/useCanvasVisible";
+import CanvasLifecycle from "./CanvasLifecycle";
 
 export type EvidenceNodeId = "001" | "002" | "003";
 export type FieldTheme = "light" | "dark";
@@ -215,13 +216,20 @@ export default function ProofField({ progress, thinking = false, activeId, onSel
   // Live ref so the render loop reads the latest thinking state without re-mounting the canvas.
   const thinkingRef = useRef(thinking);
   thinkingRef.current = thinking;
-  const { ref, visible } = useCanvasVisible();
-  // key on theme so the point cloud (colors baked in useMemo) rebuilds on switch
+  const { ref, visible, mounted } = useCanvasVisible();
   return (
     <div ref={ref} className="w-full h-full">
-      <Canvas key={theme} camera={{ position: [0, 0, 5.9], fov: 41 }} dpr={[1, 1.5]} frameloop={visible ? "always" : "never"} gl={{ alpha: true, antialias: true }}>
-        <Field progress={value} thinking={thinkingRef} activeId={activeId} onSelect={onSelect} theme={theme} />
-      </Canvas>
+      {mounted && (
+        // NOTE: the theme key lives on <Field>, NOT on <Canvas>. Keying the
+        // Canvas recreated the entire WebGL context on every light/dark toggle
+        // (a context leak, since browsers don't reclaim the old one promptly);
+        // keying the inner Field rebuilds only the point-cloud geometry whose
+        // colors are baked in useMemo, while the context persists.
+        <Canvas camera={{ position: [0, 0, 5.9], fov: 41 }} dpr={[1, 1.5]} frameloop={visible ? "always" : "never"} gl={{ alpha: true, antialias: true, powerPreference: "low-power" }}>
+          <CanvasLifecycle />
+          <Field key={theme} progress={value} thinking={thinkingRef} activeId={activeId} onSelect={onSelect} theme={theme} />
+        </Canvas>
+      )}
     </div>
   );
 }

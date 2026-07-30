@@ -52,14 +52,14 @@ export const PROVIDERS: LLMProvider[] = [
   {
     id:            "gemini",
     name:          "Gemini",
-    endpoint:      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-    model:         "gemini-2.5-flash",
+    endpoint:      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
+    model:         "gemini-3.6-flash",
     apiKeyEnv:     "GEMINI_API_KEY",
     maxTokens:     1024,
     type:          "gemini",
     contextWindow: 1_000_000,
     role:          "balanced",
-    gatewayModel:  "google/gemini-2.5-flash",
+    gatewayModel:  "google/gemini-3.6-flash",
   },
   // 3. Mistral — standard OpenAI-compatible endpoint (NOT the beta conversations
   //    API / labs model, deliberately — dependency-free and stable).

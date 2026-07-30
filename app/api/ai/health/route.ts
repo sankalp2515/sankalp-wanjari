@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 import { PROVIDERS } from "@/lib/llm/providers";
 import { isProviderHealthy } from "@/lib/llm/rateLimit";
+import { getKeys } from "@/lib/llm/keys";
 
 export const runtime = "nodejs"; // shares the in-memory health Map with /api/ai
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export async function GET(): Promise<NextResponse> {
   // Every provider requires a key now — so "configured" is simply the providers
   // whose key is present. A deploy with all keys absent reports "unconfigured"
   // and never promises a recovery that can't arrive.
-  const configured = PROVIDERS.filter((p) => !!process.env[p.apiKeyEnv]);
+  const configured = PROVIDERS.filter((p) => getKeys(p.apiKeyEnv).length > 0);
   const up = configured.filter((p) => isProviderHealthy(p.id));
 
   // Only `ok` + a coarse `reason` are exposed — raw provider counts are

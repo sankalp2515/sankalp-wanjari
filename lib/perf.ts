@@ -54,6 +54,20 @@ export function computeDeviceTier(): DeviceTier {
   return "high";
 }
 
+// ── Live WebGL context census ────────────────────────────────
+// GPU/native memory (framebuffers, textures, geometry) is the real driver of
+// the tab's footprint on this page, and performance.memory CANNOT see it — it
+// reports the JS heap only. The count of simultaneously-live WebGL contexts is
+// the best proxy we have, so CanvasLifecycle reports create/dispose here and
+// the heap monitor treats "too many contexts" as its own downgrade trigger.
+let liveContexts = 0;
+// Above this many concurrent contexts we're carrying more GL memory than the
+// design intends (mount-gating should keep only the 1-2 near the viewport).
+const CONTEXT_BUDGET = 3;
+export function onContextCreate(): void { liveContexts++; }
+export function onContextDispose(): void { liveContexts = Math.max(0, liveContexts - 1); }
+export function liveContextCount(): number { return liveContexts; }
+
 let started = false;
 
 // The build tool (Lightning CSS) strips `backdrop-filter` overrides out of
@@ -118,8 +132,10 @@ export function startPerfGovernor(): void {
   const check = () => {
     const usedMB = mem.usedJSHeapSize / 1048576;
     const limitMB = mem.jsHeapSizeLimit / 1048576;
-    // Downgrade once we cross the fixed budget OR near the device's own ceiling.
-    if (!lite && (usedMB > HEAP_BUDGET_MB || usedMB > limitMB * 0.8)) {
+    // Downgrade once we cross the fixed heap budget, near the device's own
+    // ceiling, OR when more WebGL contexts are live than the design intends
+    // (the heap number is blind to GPU memory, so contexts are the real tell).
+    if (!lite && (usedMB > HEAP_BUDGET_MB || usedMB > limitMB * 0.8 || liveContexts > CONTEXT_BUDGET)) {
       lite = true;
       root.classList.add("perf-lite");
       logEvent("perf_downgrade", { usedMB: Math.round(usedMB), limitMB: Math.round(limitMB) }, "warn");

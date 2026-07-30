@@ -1,7 +1,6 @@
 // ── LLM Orchestrator ─────────────────────────────────────────
-// Two deterministic jobs. Deterministic on purpose: a real LLM "planner" call
-// would add a whole extra round-trip to every message and wreck latency on a
-// portfolio, so planning is a cheap heuristic, never a model call.
+// Jobs, cheapest-first. The first two are deterministic (no model call) so they
+// never add latency; the third is an OPTIONAL small-model router, off by default.
 //
 //  1. PLAN  — pick the ordered provider list for THIS request:
 //     • Small/normal chat → fast tier first (Groq): lowest latency, best for
@@ -15,10 +14,41 @@
 //     State is in-memory per instance and self-heals — same philosophy as the
 //     provider-health tracker in rateLimit.ts.
 //
+//  3. CLASSIFY (data optimization) — decide how much context a request needs.
+//     `classifyIntentHeuristic` is a zero-cost keyword check; the route can also
+//     consult a small model (ORCHESTRATOR_MODEL, off by default) via routeIntent
+//     in the route, falling back to this heuristic on timeout/error.
+//
+// ── What data actually gets sent to the model (the full picture) ──
+// For every /api/ai request the server assembles, and sends, exactly:
+//   • the SYSTEM PROMPT from lib/llm/systemPrompt.ts — Sankalp's verified facts,
+//     the strict rules, and the UI-tag list. Its size is now VARIABLE: greetings
+//     and small talk get a LEAN prompt (identity + rules + tags only); anything
+//     substantive gets the full prompt with projects/experience/research detail.
+//   • the last few conversation turns (route trims to the most recent 6) — role
+//     + content only. No cookies, IP, persona internals, or telemetry go to the
+//     provider; the visitorType only nudges tone via one appended line.
+// Nothing else leaves the server. Keys live server-side and never reach the client.
+//
 // When every provider is demoted/exhausted, the route's markChainExhausted →
 // reserve-power path takes over, unchanged.
 
 import { LLMProvider } from "./providers";
+
+// ── Intent classification (data optimization) ──────────────────
+// Cheap keyword heuristic: does answering this message need Sankalp's DETAILED
+// facts (projects/experience/research/skills), or is it small talk that a lean
+// prompt answers just as well? Trimming the prompt for greetings/thanks cuts
+// tokens and latency without ever risking a worse answer to a real question.
+export function classifyIntentHeuristic(text: string): { needsDetail: boolean } {
+  const t = text.toLowerCase().trim();
+  const wordCount = t ? t.split(/\s+/).length : 0;
+  // Short pure pleasantries → lean prompt.
+  const trivial =
+    wordCount <= 4 &&
+    /^(hi|hey|hello|yo|sup|thanks|thank you|thx|cool|nice|great|ok|okay|got it|cheers|bye)\b/.test(t);
+  return { needsDetail: !trivial };
+}
 
 // Rough token estimate — ~4 chars/token for English. Only needs to be good
 // enough to decide "small vs large"; exactness is unnecessary here.

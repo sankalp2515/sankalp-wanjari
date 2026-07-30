@@ -5,6 +5,8 @@
 // same wallpaper from first pixel to last.
 
 import { useEffect, useRef, useState } from "react";
+import { AMBIENT_RANGE } from "@/config/ambientRange";
+import { startScrollField } from "@/lib/scrollField";
 
 const CHAPTER_TONES: Record<string, string> = {
   "section-hero": "var(--os-accent)",
@@ -26,6 +28,14 @@ export default function AmbientBackground() {
     const on = (event: Event) => setActive((event as CustomEvent<boolean>).detail);
     window.addEventListener("agent-typing-change", on);
     return () => window.removeEventListener("agent-typing-change", on);
+  }, []);
+
+  // The velocity channel (--scroll-va) was only ever started by the v3 stage
+  // components, which do not render here. The ambient layers now read it, so
+  // this surface starts it itself. startScrollField is idempotent, and is
+  // deliberately never stopped — it is page-level and shared.
+  useEffect(() => {
+    if (AMBIENT_RANGE) startScrollField();
   }, []);
 
   useEffect(() => {
@@ -60,7 +70,9 @@ export default function AmbientBackground() {
   return (
     <div
       ref={ref}
-      className="ambient-field fixed inset-0 z-0 overflow-hidden pointer-events-none"
+      className={`ambient-field fixed inset-0 z-0 overflow-hidden pointer-events-none${
+        AMBIENT_RANGE ? " ambient-field--range" : ""
+      }`}
       aria-hidden
       style={{
         background: "var(--os-bg)",

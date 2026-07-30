@@ -9,6 +9,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Float, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
 import { useCanvasVisible } from "@/hooks/useCanvasVisible";
+import CanvasLifecycle from "./CanvasLifecycle";
 
 // Theme palettes. `dark` reproduces the original values EXACTLY, so the dark
 // experience is byte-identical. `light` swaps the near-black core + additive
@@ -129,20 +130,23 @@ function Field({ pulse, p }: { pulse: number; p: CorePalette }) {
 
 export default function ProofCore({ pulse, theme = "dark" }: { pulse: number; theme?: "light" | "dark" }) {
   const p = PALETTES[theme];
-  const { ref, visible } = useCanvasVisible();
+  const { ref, visible, mounted } = useCanvasVisible();
   return (
     <div ref={ref} className="w-full h-full">
-      <Canvas
-        camera={{ position: [0, 0, 6.5], fov: 42 }}
-        dpr={[1, 1.75]}
-        frameloop={visible ? "always" : "never"} // pause the loop off-screen
-        gl={{ alpha: true, antialias: true }}
-      >
-        <ambientLight intensity={p.ambient} />
-        <Field pulse={pulse} p={p} />
-        <Rings pulse={pulse} p={p} />
-        <Sparkles count={42} scale={5.5} size={1.3} speed={0.3} color={p.sparkle} />
-      </Canvas>
+      {mounted && (
+        <Canvas
+          camera={{ position: [0, 0, 6.5], fov: 42 }}
+          dpr={[1, 1.5]} // one dpr policy across all canvases (was 1.75)
+          frameloop={visible ? "always" : "never"} // pause the loop off-screen
+          gl={{ alpha: true, antialias: true, powerPreference: "low-power" }}
+        >
+          <CanvasLifecycle />
+          <ambientLight intensity={p.ambient} />
+          <Field pulse={pulse} p={p} />
+          <Rings pulse={pulse} p={p} />
+          <Sparkles count={42} scale={5.5} size={1.3} speed={0.3} color={p.sparkle} />
+        </Canvas>
+      )}
     </div>
   );
 }

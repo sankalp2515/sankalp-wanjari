@@ -12,9 +12,22 @@ import { MessageSquare } from "lucide-react";
 import { Persona } from "@/types";
 import { ConciergeProvider, useConcierge } from "@/contexts/ConciergeContext";
 import AmbientBackground from "./AmbientBackground";
-import PersonaLayer from "./PersonaLayer";
+// PersonaLayer is PARKED (see docs/FEATURES.md §4) — the upfront "What brings
+// you here?" chooser was friction and the persona reorder was invisible. It was
+// replaced by HighlightStrip (the one-line strip under the nav). Import kept for
+// an easy revival, but it is intentionally NOT rendered.
+// import PersonaLayer from "./PersonaLayer";
+import HighlightStrip from "./HighlightStrip";
+import HeliosIntro from "./HeliosIntro";
+import ExitRecap from "./ExitRecap";
 import { startPerfGovernor } from "@/lib/perf";
 import { MOBILE_TUNING } from "@/config/mobileTuning";
+
+// NOTE: the experimental "projects helix" (spiral) is deliberately kept OUT of
+// the build. Its stylesheet (app/spiral.css), config flag, rAF/Lenis scroll
+// driver and ProjectSpiral component are not imported here, so none of them can
+// ship or leak memory — the projects section is the plain ProjectsSection grid.
+// The spiral source is left unreferenced on disk in case it's revisited.
 
 // Only mounts when the visitor enters graph mode
 const GraphMode = dynamic(() => import("./GraphMode"), { ssr: false });
@@ -202,7 +215,12 @@ function LandingInner({ variant }: { variant: "a" | "b" }) {
       {variant === "a" && !graphOpen && <FeedbackWidget />}
       {variant === "a" && <SoundPrompt />}
       <AgentDock />
-      <PersonaLayer variant={variant} />
+      {/* The one-line highlight strip under the nav (replaces the parked
+          PersonaLayer). Variant A only. */}
+      {variant === "a" && <HighlightStrip />}
+      {/* First-touch "there's a live AI here" heads-up + exit recap — Variant A. */}
+      {variant === "a" && <HeliosIntro />}
+      {variant === "a" && <ExitRecap />}
       <ResumeModal />
       <FilmMode />
       <NudgeLayer />

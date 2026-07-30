@@ -15,6 +15,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { useTheme } from "@/contexts/ThemeContext";
+import CanvasLifecycle from "./CanvasLifecycle";
 
 // The field is a *skill constellation*, not decoration: these concepts
 // anchor real nodes, so visitors can read what the network is made of.
@@ -297,7 +298,9 @@ export default function NeuralField() {
   const thinkingRef = useRef(false);
   const [thinking, setThinking] = useState(false);
   const [visible, setVisible] = useState(true);
+  const [mounted, setMounted] = useState(true);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const unmountTimer = useRef<number | null>(null);
 
   // React to the concierge thinking (same event the aurora uses)
   useEffect(() => {
@@ -310,16 +313,43 @@ export default function NeuralField() {
     return () => window.removeEventListener("agent-typing-change", on);
   }, []);
 
-  // Pause the render loop when the hero is off-screen — zero GPU work while
-  // reading, WITHOUT tearing down the WebGL context. Unmount/remount on every
-  // scroll churns contexts (heavy GPU-memory cost); a single context that
-  // simply stops rendering is far cheaper and leak-free.
+  // Two-stage offscreen management (mirrors useCanvasVisible):
+  //   • visible → pause the render loop the moment the hero leaves the viewport
+  //     (zero GPU work while reading, context kept live for instant resume).
+  //   • mounted → after the hero has been FAR off-screen for a dwell, unmount
+  //     the Canvas so its full-viewport framebuffer + context are released.
+  //     A dwell timer means a quick scroll-past never rebuilds the context.
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const io = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { threshold: 0.05 });
-    io.observe(el);
-    return () => io.disconnect();
+    const pauseIO = new IntersectionObserver(
+      ([entry]) => setVisible(entry.isIntersecting),
+      { threshold: 0.05 },
+    );
+    const mountIO = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          if (unmountTimer.current !== null) {
+            clearTimeout(unmountTimer.current);
+            unmountTimer.current = null;
+          }
+          setMounted(true);
+        } else if (unmountTimer.current === null) {
+          unmountTimer.current = window.setTimeout(() => {
+            unmountTimer.current = null;
+            setMounted(false);
+          }, 1200);
+        }
+      },
+      { threshold: 0, rootMargin: "150%" },
+    );
+    pauseIO.observe(el);
+    mountIO.observe(el);
+    return () => {
+      pauseIO.disconnect();
+      mountIO.disconnect();
+      if (unmountTimer.current !== null) clearTimeout(unmountTimer.current);
+    };
   }, []);
 
   // Radial clearing: the field thins to near-zero behind the hero's
@@ -338,17 +368,20 @@ export default function NeuralField() {
       style={{ zIndex: 0, WebkitMaskImage: clearing, maskImage: clearing }}
       aria-hidden
     >
-      <Canvas
-        camera={{ position: [0, 0, 6.2], fov: 46 }}
-        dpr={[1, 1.25]} // lower cap → smaller framebuffer
-        frameloop={visible ? "always" : "never"} // pause, don't destroy
-        gl={{ antialias: false, alpha: true, powerPreference: "low-power" }}
-        // CRITICAL: the canvas must never intercept clicks meant for hero
-        // content — R3F handles pointer events itself, so disable at the wrapper.
-        style={{ opacity: canvasOpacity, pointerEvents: "none" }}
-      >
-        <Field thinkingRef={thinkingRef} thinking={thinking} theme={theme} />
-      </Canvas>
+      {mounted && (
+        <Canvas
+          camera={{ position: [0, 0, 6.2], fov: 46 }}
+          dpr={[1, 1.25]} // lower cap → smaller framebuffer
+          frameloop={visible ? "always" : "never"} // pause when off-screen
+          gl={{ antialias: false, alpha: true, powerPreference: "low-power" }}
+          // CRITICAL: the canvas must never intercept clicks meant for hero
+          // content — R3F handles pointer events itself, so disable at the wrapper.
+          style={{ opacity: canvasOpacity, pointerEvents: "none" }}
+        >
+          <CanvasLifecycle />
+          <Field thinkingRef={thinkingRef} thinking={thinking} theme={theme} />
+        </Canvas>
+      )}
     </div>
   );
 }

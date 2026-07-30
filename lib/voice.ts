@@ -42,6 +42,11 @@ function readEnabledPref(): boolean {
   } catch { return false; }
 }
 
+// Lightweight client-side voice logging — mirrors the server's per-step logs so
+// the whole path (fetch → provider → audio start → fallback) is traceable in the
+// browser console when debugging sync/latency.
+const vlog = (...a: unknown[]) => { try { console.info("[voice]", ...a); } catch { /* noop */ } };
+
 // Rising counter — every speak()/stop() bumps it, so any in-flight audio
 // fetch or queued web-speech chunk from an earlier call knows it is stale
 // and bows out instead of talking over the newest line.
@@ -60,6 +65,10 @@ let probePromise: Promise<boolean> | null = null;
 // is allowed on mobile.
 let sharedAudio: HTMLAudioElement | null = null;
 let blobUrlInUse: string | null = null; // revoked when the next line takes over
+// Narration playback speed. 1 = natural. The tour's speed control bumps this so
+// a visitor in a hurry can move the whole film faster — voice included, not just
+// the pauses. Applied to the shared <audio> element and the Web Speech fallback.
+let playbackRate = 1;
 // A 1-frame silent MP3 — playing it inside a gesture is enough to "warm" the
 // element so later programmatic plays are permitted.
 const SILENT_MP3 =
@@ -85,13 +94,31 @@ function settleEnd() {
   if (p) p();
 }
 
+// ── Start-of-utterance signalling ──────────────────────────────
+// The chat dock reveals words in sync with the voice, so it needs to know when
+// audio ACTUALLY begins playing (live TTS takes a couple of seconds to
+// synthesize — starting the text reveal before then is what made the caption
+// run 2–3s ahead of the voice). Fired at most once per line, on the first
+// `playing` event (audio) or utterance `start` (web speech). Also fired on any
+// terminal-immediate condition so an awaiter never hangs.
+let pendingStart: (() => void) | null = null;
+function fireStart() {
+  const p = pendingStart;
+  pendingStart = null;
+  if (p) p();
+}
+
 function probeRemote(): Promise<boolean> {
   if (remoteReady !== null) return Promise.resolve(remoteReady);
   if (probePromise) return probePromise;
   probePromise = fetch("/api/voice", { method: "GET", signal: AbortSignal.timeout(4000) })
     .then((r) => (r.ok ? r.json() : { configured: false }))
-    .then((d) => { remoteReady = !!d?.configured; return remoteReady; })
-    .catch(() => { remoteReady = false; return false; });
+    .then((d) => {
+      remoteReady = !!d?.configured;
+      vlog("probe →", remoteReady ? "configured" : "unconfigured", "providers:", JSON.stringify(d?.providers ?? {}), "keys:", JSON.stringify(d?.keyCounts ?? {}));
+      return remoteReady;
+    })
+    .catch(() => { remoteReady = false; vlog("probe failed → browser voice"); return false; });
   return probePromise;
 }
 
@@ -154,6 +181,7 @@ function toClauses(text: string): string[] {
 }
 
 function webSpeechSpeak(text: string, myToken: number) {
+  vlog("browser voice (web speech)");
   const synth = window.speechSynthesis;
   synth.cancel();
   const voice = pickVoice();
@@ -168,9 +196,12 @@ function webSpeechSpeak(text: string, myToken: number) {
     const clause = clauses[i++];
     const u = new SpeechSynthesisUtterance(clause);
     if (voice) u.voice = voice;
-    u.rate = 0.94;   // composed, unhurried
+    // 0.94 = composed, unhurried; scaled by the tour speed knob (capped at the
+    // Web Speech max of 10, though we never ask for near that).
+    u.rate = Math.min(10, 0.94 * playbackRate);
     u.pitch = 0.96;  // a touch lower — calm and grounded
     u.volume = 1;
+    u.onstart = () => { if (myToken === token) fireStart(); };
     u.onend = () => {
       if (myToken !== token) return;
       // A short breath between clauses — the pause that makes it feel human.
@@ -198,12 +229,18 @@ function playUrl(
   a.pause();
   a.onended = null;
   a.onerror = null;
+  a.onplaying = null;
   if (blobUrlInUse) { URL.revokeObjectURL(blobUrlInUse); blobUrlInUse = null; }
   if (opts.revoke) blobUrlInUse = url;
 
   a.src = url;
   a.muted = false;
   a.volume = 1;
+  a.playbackRate = playbackRate;
+
+  // Signal the caller the instant audio actually starts — this is the beat the
+  // chat reveal waits for so text and voice land together.
+  a.onplaying = () => { if (myToken === token) { vlog("audio playing"); fireStart(); } };
 
   const cleanup = () => {
     if (blobUrlInUse === url) { URL.revokeObjectURL(url); blobUrlInUse = null; }
@@ -213,6 +250,7 @@ function playUrl(
   a.onerror = () => {
     a.onended = null;
     a.onerror = null;
+    a.onplaying = null;
     if (blobUrlInUse === url) { URL.revokeObjectURL(url); blobUrlInUse = null; }
     if (myToken !== token) return;
     // The asset couldn't load/decode — let the caller decide the fallback.
@@ -232,18 +270,23 @@ function playUrl(
 }
 
 // ── Live TTS (un-pre-generated lines only) ─────────────────────
-// The server picks the provider from `voice` and handles the Google→ElevenLabs
+// The server picks the provider from `voice` and handles the Gemini→ElevenLabs
 // fallback; we just send the voice tag and play whatever audio comes back.
 // A 503 means every provider is rate-limited or unconfigured → browser voice.
 async function remoteSpeak(text: string, voice: VoiceName, myToken: number): Promise<boolean> {
   if (typeof Audio === "undefined") return false;
+  const t0 = Date.now();
+  vlog("remote fetch →", voice, `${text.length} chars`);
   try {
     const res = await fetch("/api/voice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, voice }),
-      signal: AbortSignal.timeout(16_000),
+      // Budget covers the worst realistic chain: the 8s-capped Gemini generative
+      // voice, else ElevenLabs (rotating keys) — all landing before this fires.
+      signal: AbortSignal.timeout(20_000),
     });
+    vlog("remote status", res.status, "provider:", res.headers.get("X-Voice-Provider") ?? "-", "cache:", res.headers.get("X-Voice-Cache") ?? "-", `${Date.now() - t0}ms`);
     if (res.status === 503) return false; // all providers down → browser voice
     if (!res.ok) return false;
     if (myToken !== token || document.hidden) return true; // superseded — swallow
@@ -265,12 +308,113 @@ function hardStop() {
     sharedAudio.pause();
     sharedAudio.onended = null;
     sharedAudio.onerror = null;
+    sharedAudio.onplaying = null;
   }
   if (blobUrlInUse) { URL.revokeObjectURL(blobUrlInUse); blobUrlInUse = null; }
   if (typeof window !== "undefined" && "speechSynthesis" in window) {
     window.speechSynthesis.cancel();
   }
 }
+
+// ── Sentence-chunk streaming (Strategy 1: low latency + tight sync) ──
+// Instead of synthesizing a whole paragraph before ANY audio plays (the old
+// path — slow on Gemini TTS, so the caption ran ahead), we split the reply into
+// sentence chunks and synthesize+play them in order, PREFETCHING the next chunk
+// while the current one plays. Time-to-first-audio collapses to "synth of the
+// first sentence", and the chat reveals each sentence exactly as its audio
+// starts (onChunkStart), so voice and text stay locked together.
+
+// Split display text into sentence-ish chunks; merge very short fragments so we
+// never synth a lone "Yes." followed by a huge remainder.
+function splitIntoChunks(text: string): string[] {
+  const parts = text.match(/[^.!?…]+[.!?…]+(?:["')\]]+)?|\S[^.!?…]*$/g) ?? [text];
+  const chunks: string[] = [];
+  for (const raw of parts) {
+    const s = raw.trim();
+    if (!s) continue;
+    const prev = chunks[chunks.length - 1];
+    if (prev && (prev.length < 40 || s.length < 25)) chunks[chunks.length - 1] = `${prev} ${s}`;
+    else chunks.push(s);
+  }
+  return chunks.length ? chunks : [text.trim()];
+}
+
+// Fetch ONE chunk's audio from /api/voice → object URL (or null to fall back to
+// web speech for that chunk). Cleans the display text just before synth.
+async function fetchTtsUrl(displayText: string, voice: VoiceName, myToken: number): Promise<string | null> {
+  const clean = cleanForSpeech(displayText);
+  if (!clean || typeof Audio === "undefined") return null;
+  const t0 = Date.now();
+  try {
+    const res = await fetch("/api/voice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: clean, voice }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    vlog("chunk", res.status, res.headers.get("X-Voice-Provider") ?? "-", res.headers.get("X-Voice-Cache") ?? "-", `${Date.now() - t0}ms`);
+    if (!res.ok || myToken !== token) return null;
+    const blob = await res.blob();
+    if (myToken !== token) return null;
+    return URL.createObjectURL(blob);
+  } catch {
+    return null; // network/timeout → web speech carries this chunk
+  }
+}
+
+// Play one object URL on the shared element; resolve on ended/error/supersede.
+function playUrlOnce(url: string, myToken: number, onStart?: () => void): Promise<void> {
+  return new Promise((resolve) => {
+    const a = getAudio();
+    a.pause(); a.onended = null; a.onerror = null; a.onplaying = null;
+    let settled = false;
+    const finish = () => {
+      if (settled) return; settled = true;
+      clearInterval(iv);
+      a.onended = null; a.onerror = null; a.onplaying = null;
+      try { URL.revokeObjectURL(url); } catch { /* noop */ }
+      resolve();
+    };
+    // If a newer line supersedes us, hardStop() pauses (no 'ended' fires) — this
+    // poll guarantees the sequence loop is never left awaiting forever.
+    const iv = setInterval(() => { if (myToken !== token) finish(); }, 200);
+    a.onplaying = () => { if (myToken === token) { vlog("chunk audio playing"); onStart?.(); } };
+    a.onended = finish;
+    a.onerror = finish;
+    a.src = url; a.muted = false; a.volume = 1;
+    const p = a.play();
+    if (p && typeof p.catch === "function") p.catch(() => finish());
+  });
+}
+
+// Speak one chunk via the browser voice; resolve on end/supersede.
+function webSpeechOnce(text: string, myToken: number, onStart?: () => void): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) { onStart?.(); resolve(); return; }
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    let settled = false;
+    const finish = () => { if (settled) return; settled = true; clearInterval(iv); resolve(); };
+    const iv = setInterval(() => { if (myToken !== token) finish(); }, 200);
+    const u = new SpeechSynthesisUtterance(text);
+    const v = pickVoice(); if (v) u.voice = v;
+    u.rate = 0.98; u.pitch = 0.98; u.volume = 1;
+    u.onstart = () => { if (myToken === token) onStart?.(); };
+    u.onend = finish;
+    u.onerror = finish;
+    synth.speak(u);
+  });
+}
+
+// ── Streaming voice queue (phase 2) ────────────────────────────
+// When the chat streams LLM tokens, we don't have the full reply up front. So
+// the caller feeds COMPLETED sentences as they arrive; each is synthesized
+// immediately (prefetch) and played strictly in order via this chain. The text
+// types out freely (server tokens) while the voice trails a sentence behind —
+// the standard voice-agent feel.
+let streamChain: Promise<void> = Promise.resolve();
+let streamVoice: VoiceName = DEFAULT_VOICE;
+let streamReadyP: Promise<boolean> = Promise.resolve(false);
 
 // ── Reserve-power suspension ───────────────────────────────────
 // Voice is a SEPARATE service from the LLMs, so an LLM outage doesn't break it.
@@ -303,7 +447,7 @@ export const helios = {
   setSuspended(v: boolean) {
     if (suspended === v) return;
     suspended = v;
-    if (v) { token++; hardStop(); settleEnd(); }
+    if (v) { token++; hardStop(); fireStart(); settleEnd(); }
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("helios-voice-change", { detail: !v }));
     }
@@ -311,6 +455,17 @@ export const helios = {
 
   isSuspended(): boolean {
     return suspended;
+  },
+
+  /** Set narration playback speed (1 = natural). Applies live to whatever is
+   *  currently speaking, and to every later line, until changed. */
+  setRate(rate: number) {
+    playbackRate = rate;
+    if (sharedAudio) { try { sharedAudio.playbackRate = rate; } catch { /* ignore */ } }
+  },
+
+  getRate(): number {
+    return playbackRate;
   },
 
   isEnabled(): boolean {
@@ -326,13 +481,17 @@ export const helios = {
     window.dispatchEvent(new CustomEvent("helios-voice-change", { detail: v }));
   },
 
-  speak(text: string, onEnd?: () => void, opts?: { voice?: VoiceName }) {
+  speak(text: string, onEnd?: () => void, opts?: { voice?: VoiceName; onStart?: () => void }) {
     // Resolve any previous pending line before we take over.
     settleEnd();
+    fireStart(); // release any prior start-awaiter before we replace it
     pendingEnd = onEnd ?? null;
-    if (!this.isEnabled() || suspended || document.hidden) { settleEnd(); return; }
+    pendingStart = opts?.onStart ?? null;
+    // Not speaking this line → let the caller proceed immediately (fire start so
+    // an awaiter never hangs, then settle end).
+    if (!this.isEnabled() || suspended || document.hidden) { fireStart(); settleEnd(); return; }
     const clean = cleanForSpeech(text);
-    if (!clean) { settleEnd(); return; }
+    if (!clean) { fireStart(); settleEnd(); return; }
     const voice = opts?.voice ?? DEFAULT_VOICE;
     const myToken = ++token;
     hardStop();
@@ -381,9 +540,90 @@ export const helios = {
     return new Promise<void>((resolve) => this.speak(text, resolve, { voice }));
   },
 
+  /** The sentence chunks a given text would be spoken as. The chat uses this to
+   *  reveal text in the SAME units speakSequence plays, so they stay aligned. */
+  chunk(text: string): string[] {
+    return splitIntoChunks(text);
+  },
+
+  /** Begin a streaming utterance (phase 2): call this once when an LLM answer
+   *  starts streaming, then feedSentence() as each sentence completes. Cancels
+   *  anything currently playing and pins a fresh token. */
+  startStream(voice?: VoiceName) {
+    settleEnd(); fireStart();
+    ++token;
+    hardStop();
+    streamVoice = voice ?? DEFAULT_VOICE;
+    streamChain = Promise.resolve();
+    streamReadyP = remoteReady !== null ? Promise.resolve(remoteReady) : probeRemote();
+    vlog("startStream", streamVoice);
+  },
+
+  /** Enqueue ONE completed sentence for playback. Synthesis starts immediately
+   *  (prefetch); playback is serialized so sentences never overlap or reorder. */
+  feedSentence(sentence: string) {
+    const my = token;
+    if (!this.isEnabled() || suspended) return;
+    const s = sentence.trim();
+    if (!s) return;
+    const fetchP = streamReadyP.then((ready) =>
+      ready && !document.hidden && my === token ? fetchTtsUrl(s, streamVoice, my) : null,
+    );
+    streamChain = streamChain
+      .then(async () => {
+        if (my !== token) return;
+        const url = await fetchP.catch(() => null);
+        if (my !== token) { if (url) { try { URL.revokeObjectURL(url); } catch { /* noop */ } } return; }
+        if (url) await playUrlOnce(url, my);
+        else await webSpeechOnce(cleanForSpeech(s) || s, my);
+      })
+      .catch(() => { /* one bad sentence never stalls the queue */ });
+  },
+
+  /** No more sentences are coming. The queue drains on its own; this is a no-op
+   *  hook kept for symmetry / future flushing. */
+  endStream() { /* queue drains via streamChain */ },
+
+  /** Low-latency chat narration (Strategy 1). Splits `text` into sentence chunks
+   *  and plays them in order, prefetching the next while the current plays.
+   *  `onChunkStart(i,total)` fires as each chunk's audio actually begins — the
+   *  chat reveals that sentence then, so voice and caption stay in sync. Resolves
+   *  when the whole sequence finishes, is superseded, or voice is off. Used by
+   *  the chat dock only; the scripted tour keeps using speak()/narrate(). */
+  speakSequence(
+    text: string,
+    opts?: { voice?: VoiceName; onChunkStart?: (i: number, total: number) => void },
+  ): Promise<void> {
+    const voice = opts?.voice ?? DEFAULT_VOICE;
+    return (async () => {
+      settleEnd(); fireStart();
+      if (!this.isEnabled() || suspended || document.hidden) return;
+      const chunks = splitIntoChunks(text);
+      if (!chunks.length) return;
+      const myToken = ++token;
+      hardStop();
+      vlog("speakSequence", chunks.length, "chunks");
+      // Know whether live TTS is available before we start fetching.
+      const ready = remoteReady !== null ? remoteReady : await probeRemote();
+      if (myToken !== token) return;
+      // Prefetch pipeline: fetch chunk 0 now, then fetch i+1 while i plays.
+      let nextUrl: Promise<string | null> = ready ? fetchTtsUrl(chunks[0], voice, myToken) : Promise.resolve(null);
+      for (let i = 0; i < chunks.length; i++) {
+        if (myToken !== token || document.hidden) break;
+        const url = await nextUrl;
+        nextUrl = ready && i + 1 < chunks.length ? fetchTtsUrl(chunks[i + 1], voice, myToken) : Promise.resolve(null);
+        if (myToken !== token) { if (url) { try { URL.revokeObjectURL(url); } catch { /* noop */ } } break; }
+        const fire = () => opts?.onChunkStart?.(i, chunks.length);
+        if (url) await playUrlOnce(url, myToken, fire);
+        else await webSpeechOnce(cleanForSpeech(chunks[i]) || chunks[i], myToken, fire);
+      }
+    })();
+  },
+
   stop() {
     token++; // invalidate anything in flight
     hardStop();
+    fireStart(); // release any start-awaiter too
     settleEnd(); // release any awaiter so the tour never hangs
   },
 };

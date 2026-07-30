@@ -14,8 +14,14 @@
 
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Volume2, VolumeX } from "lucide-react";
+import { Volume2, VolumeX, Gauge } from "lucide-react";
 import { helios } from "@/lib/voice";
+import { useConcierge } from "@/contexts/ConciergeContext";
+
+// The speeds the button cycles through. 1× is the composed, natural pace; 2× is
+// the "I get it, keep moving" pace. Kept short — a slider would be overkill for
+// a control the visitor touches once.
+const SPEEDS = [1, 1.5, 2] as const;
 
 interface Act { act: string; title: string }
 type CueState = { tests: boolean; recover: boolean; evalNode: boolean; agents: boolean; label: string | null };
@@ -23,6 +29,7 @@ type CueState = { tests: boolean; recover: boolean; evalNode: boolean; agents: b
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 export default function FilmMode() {
+  const { tourSpeed, setTourSpeed } = useConcierge();
   const [on, setOn] = useState(false);
   const [act, setAct] = useState<Act | null>(null);
   const [exiting, setExiting] = useState<string | null>(null); // farewell line
@@ -222,13 +229,13 @@ export default function FilmMode() {
         )}
       </AnimatePresence>
 
-      {/* Synced cue HUD — sits just above the bottom letterbox bar */}
+      {/* Synced cue HUD — sits just above the slim caption bar */}
       <AnimatePresence>
         {on && anyCue && !act && (
           <motion.div
             key="hud"
             className="fixed inset-x-0 z-[1420] flex justify-center pointer-events-none"
-            style={{ bottom: "21vh" }}
+            style={{ bottom: "26vh" }}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
@@ -263,49 +270,43 @@ export default function FilmMode() {
         )}
       </AnimatePresence>
 
-      {/* Cinema captions — the narration as an on-screen lower third. Rather
-          than a floating pill (which clashed with whatever canvas/content sat
-          behind it), the text lives inside a soft gradient veil rising from the
-          bottom letterbox: a guaranteed-dark backing that never overlaps the
-          section visually. The veil only appears while a line is showing, so it
-          doesn't hide the content the camera drifts down to reveal. */}
+      {/* Cinema captions — a SLIM lower-third bar. The old design was a tall
+          46vh veil with a blurred plate; it swallowed the bottom half of the
+          frame (hiding the section canvases the camera drifts down to reveal)
+          and its animated blur()/backdrop-filter was a per-beat repaint that
+          flickered during motion. This is a compact strip that keeps the upper
+          ~75% of the frame — where the canvases live — fully visible, with NO
+          blur filters (a plain opacity/translate crossfade the compositor can
+          run cheaply). The gradient is only tall/dark enough to guarantee the
+          text is legible over whatever sits behind it. */}
       {on && (
         <motion.div
           className="fixed inset-x-0 bottom-0 z-[1430] flex items-end justify-center px-4 pointer-events-none"
           style={{
-            // Taller + darker veil so even a two-line caption sits on solid
-            // shade rather than drifting up over a busy canvas (BioScanner,
-            // ProofCore) where it used to clash.
-            height: "46vh",
-            paddingBottom: "12vh",
+            height: "24vh",
+            paddingBottom: "11vh", // clear of the 10vh bottom letterbox bar
             background:
-              "linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.86) 28%, rgba(0,0,0,0.5) 58%, transparent 100%)",
+              "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.72) 45%, rgba(0,0,0,0.3) 78%, transparent 100%)",
           }}
           animate={{ opacity: caption && !act ? 1 : 0 }}
-          transition={{ duration: 0.5, ease: EASE }}
+          transition={{ duration: 0.4, ease: EASE }}
         >
           <AnimatePresence mode="wait">
             {caption && !act && (
               <motion.p
                 key={caption}
-                initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                exit={{ opacity: 0, y: -8, filter: "blur(4px)" }}
-                transition={{ duration: 0.4, ease: EASE }}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.35, ease: EASE }}
                 className="text-center font-display font-medium max-w-[42rem]"
                 style={{
-                  fontSize: "clamp(1.05rem, 2.4vw, 1.6rem)",
-                  lineHeight: 1.4,
+                  fontSize: "clamp(1.05rem, 2.4vw, 1.55rem)",
+                  lineHeight: 1.35,
                   color: "#fff",
-                  textShadow: "0 2px 18px rgba(0,0,0,0.95)",
-                  // A soft, blurred plate that hugs the text — guarantees the
-                  // caption stays legible over any canvas behind it, without the
-                  // hard-edged "pill" that clashed. Padding keeps it off the words.
-                  padding: "0.55em 1.1em",
-                  borderRadius: "14px",
-                  background: "rgba(0,0,0,0.42)",
-                  backdropFilter: "blur(6px)",
-                  WebkitBackdropFilter: "blur(6px)",
+                  // Text-shadow alone carries legibility now — no blurred plate,
+                  // so nothing repaints behind the words as the camera moves.
+                  textShadow: "0 1px 2px rgba(0,0,0,0.95), 0 2px 18px rgba(0,0,0,0.9)",
                 }}
                 aria-live="polite"
               >
@@ -320,7 +321,25 @@ export default function FilmMode() {
           called at all, so credits are never spent when the visitor wants it
           silent. Captions carry the narration either way. */}
       {on && (
-        <div className="fixed z-[1460] pointer-events-auto" style={{ top: "12vh", right: "1.25rem" }}>
+        <div className="fixed z-[1460] pointer-events-auto flex items-center gap-2" style={{ top: "12vh", right: "1.25rem" }}>
+          {/* Speed — cycles 1× → 1.5× → 2×. Speeds up the whole film (voice,
+              captions, camera) for a visitor who wants the short version. */}
+          <button
+            onClick={() => {
+              const next = SPEEDS[(SPEEDS.indexOf(tourSpeed as typeof SPEEDS[number]) + 1) % SPEEDS.length] ?? 1;
+              setTourSpeed(next);
+            }}
+            aria-label={`Playback speed ${tourSpeed}×, tap to change`}
+            className="flex items-center gap-1.5 h-10 pl-3 pr-3.5 rounded-full border backdrop-blur-md transition-colors hover:bg-white/10 active:scale-95"
+            style={{
+              background: "color-mix(in srgb, #000 55%, transparent)",
+              borderColor: "color-mix(in srgb, var(--os-accent-cyan) 30%, transparent)",
+              color: "#fff",
+            }}
+          >
+            <Gauge size={15} aria-hidden />
+            <span className="text-[13px] font-mono font-semibold tabular-nums">{tourSpeed}×</span>
+          </button>
           <button
             onClick={() => helios.setEnabled(!voiceOn)}
             aria-label={voiceOn ? "Mute narration" : "Unmute narration"}

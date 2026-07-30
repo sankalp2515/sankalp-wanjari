@@ -146,6 +146,27 @@ export function driftThroughSection(
   // dolly, not an accelerating scroll.
   const easeInOutSine = (t: number) => -(Math.cos(Math.PI * t) - 1) / 2;
 
+  // Tell the page a dolly is running so the r3f canvases (SkillConstellation,
+  // ProofField, ProofCore — all via useCanvasVisible) suspend their render loop
+  // for the duration. A scroll rAF and several WebGL draw loops fighting for the
+  // main thread is exactly what made the drift stutter/flicker; pausing them
+  // leaves the compositor free to move the section smoothly. Restored on settle.
+  const root = document.documentElement;
+  root.classList.add("film-drifting");
+  window.dispatchEvent(new CustomEvent("film:drift", { detail: true }));
+
+  // CRITICAL: the page sets `html { scroll-behavior: smooth }` globally (for
+  // anchor nav). This dolly writes a NEW scroll target every animation frame —
+  // and under smooth-behavior each of those 60 writes/sec kicks off its own
+  // browser smooth-scroll animation toward a slightly different Y while the
+  // previous one is still easing. The two interpolators fight and the scroll
+  // oscillates up and down — the "fluctuating / choppy" tour. So we force
+  // INSTANT scrolling for the drift's duration and restore the page default on
+  // settle. (glideToSection still uses an explicit `behavior:"smooth"` for the
+  // one-shot framing move, which is what we actually want there.)
+  const prevScrollBehavior = root.style.scrollBehavior;
+  root.style.scrollBehavior = "auto";
+
   return new Promise<void>((resolve) => {
     const begin = performance.now();
     let raf = 0;
@@ -155,6 +176,9 @@ export function driftThroughSection(
       done = true;
       clearTimeout(guard);
       opts.signal?.removeEventListener("abort", onAbort);
+      root.classList.remove("film-drifting");
+      root.style.scrollBehavior = prevScrollBehavior; // restore anchor-nav smoothing
+      window.dispatchEvent(new CustomEvent("film:drift", { detail: false }));
       resolve();
     };
     const onAbort = () => { cancelAnimationFrame(raf); settle(); };
@@ -162,7 +186,9 @@ export function driftThroughSection(
     opts.signal?.addEventListener("abort", onAbort, { once: true });
     const step = (now: number) => {
       const t = Math.min(1, (now - begin) / durationMs);
-      window.scrollTo(0, startY + (endY - startY) * easeInOutSine(t));
+      // Explicit instant scroll — never let the global smooth-behavior turn this
+      // per-frame write into a competing animation (see note above).
+      window.scrollTo({ top: startY + (endY - startY) * easeInOutSine(t), behavior: "auto" });
       if (t >= 1) return settle();
       raf = requestAnimationFrame(step);
     };

@@ -12,10 +12,11 @@ import { Persona, SectionId } from "@/types";
 import { personal } from "@/config/portfolio";
 import { staticAnswer, isGreeting, greeting } from "@/lib/staticBrain";
 import { track } from "@/lib/behavior";
+import { noteUserSpend } from "@/lib/aiBudget";
 import { safeLocal } from "@/lib/safeStorage";
 import { helios } from "@/lib/voice";
 import { glideToSection, driftThroughSection } from "@/lib/cinema/camera";
-import { TOUR, DIRECTOR_INTRO, DIRECTOR_OUTRO_HANDBACK, CLOSING_LINE } from "@/lib/cinema/tourScript";
+import { TOUR, DIRECTOR_INTRO, DIRECTOR_OUTRO_HANDBACK, CLOSING_LINE, type Beat } from "@/lib/cinema/tourScript";
 
 export interface ConciergeMessage {
   id: number;
@@ -39,7 +40,7 @@ interface ConciergeValue {
   open: boolean;
   persona: Persona;
   setPersona: (p: Persona) => void;
-  ask: (text: string) => Promise<void>;
+  ask: (text: string, opts?: { projectId?: string }) => Promise<void>;
   setOpen: (v: boolean) => void;
   clear: () => void;
   focusSection: (id: SectionId) => void;
@@ -50,6 +51,10 @@ interface ConciergeValue {
   tourRunning: boolean;
   /** Chapter progress while the tour runs (1-based) */
   tourStep: { index: number; total: number } | null;
+  /** Playback speed of the film (1 = natural). Scales pauses, captions AND voice. */
+  tourSpeed: number;
+  /** Set the film's playback speed live — takes effect immediately mid-tour. */
+  setTourSpeed: (speed: number) => void;
   /** True after all LLM providers failed — the dock switches to command deck */
   degraded: boolean;
   /** Seconds until the next automatic health probe (null when not degraded).
@@ -146,8 +151,15 @@ const EMAIL_RE = /[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>()]{2,}/;
 //   "no_email" → nothing to send; stay quiet (the AI just acknowledged them).
 type LeadResult = "sent" | "failed" | "no_email";
 async function captureLead(latest: string, history: ConciergeMessage[]): Promise<LeadResult> {
-  const corpus = [...history.map((m) => m.content), latest].join("\n");
-  const email = corpus.match(EMAIL_RE)?.[0];
+  // ONLY the visitor's own messages can carry a lead email. Scanning agent
+  // replies would match the email WE display (Sankalp's own), producing a bogus
+  // "lead to himself" that then fails to send — the false "delivery failed"
+  // shown on a plain "how do I connect?". We also explicitly drop Sankalp's own
+  // address, so it's never mistaken for a visitor's.
+  const corpus = [...history.filter((m) => m.role === "user").map((m) => m.content), latest].join("\n");
+  const own = personal.email.toLowerCase();
+  const email = (corpus.match(new RegExp(EMAIL_RE.source, "gi")) ?? [])
+    .find((e) => e.toLowerCase() !== own);
   if (!email) return "no_email";
   const nameMatch = corpus.match(/\b(?:my name is|i am|i'm|this is)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)/);
   const name = nameMatch?.[1] ?? "Portfolio visitor (via AI concierge)";
@@ -195,26 +207,61 @@ function streamWords(
 ) {
   const words = fullText.split(" ");
   let i = 0;
-  // EMBER speaks every streamed line — one-way narration, opt-in. The tour
-  // drives voice itself (so it can await audio end), so it opts out here.
-  if (opts?.speak !== false) helios.speak(fullText);
   // Start with empty streaming message
   setMessages((prev) => [...prev, { id, role: "agent", content: "", streaming: true }]);
 
   // Reveal 2 words per tick at ~55ms. Same perceived ~35 words/sec, but half
   // the React state updates — each update re-renders the streaming message.
   const STEP = 2;
-  const interval = setInterval(() => {
-    i = Math.min(i + STEP, words.length);
-    const partial = words.slice(0, i).join(" ");
-    setMessages((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, content: partial, streaming: i < words.length } : m))
-    );
-    if (i >= words.length) {
-      clearInterval(interval);
-      onDone();
-    }
-  }, 55);
+  let interval: ReturnType<typeof setInterval> | null = null;
+  const beginReveal = () => {
+    if (interval) return; // guard against the double-fire (onStart + safety cap)
+    interval = setInterval(() => {
+      i = Math.min(i + STEP, words.length);
+      const partial = words.slice(0, i).join(" ");
+      setMessages((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, content: partial, streaming: i < words.length } : m))
+      );
+      if (i >= words.length) {
+        if (interval) clearInterval(interval);
+        onDone();
+      }
+    }, 55);
+  };
+
+  // Helios speaks every streamed line — one-way narration, opt-in. The tour
+  // drives voice itself (so it can await audio end), so it opts out here.
+  //
+  // With voice ON we use Strategy 1: the reply is spoken sentence-by-sentence
+  // (helios.speakSequence), each chunk synthesized while the previous plays.
+  // The text is revealed one sentence at a time, EXACTLY as that sentence's
+  // audio begins (onChunkStart) — so caption and voice stay locked together and
+  // the first audio lands as soon as the first sentence is synthesized (not the
+  // whole paragraph). A safety timer reveals sentence 1 if audio is slow to
+  // start, and the sequence's completion guarantees onDone fires once. With
+  // voice OFF we keep the classic word-by-word reveal.
+  if (opts?.speak !== false && helios.isEnabled()) {
+    const chunks = helios.chunk(fullText);
+    let doneCalled = false;
+    let firstStarted = false;
+    const finishOnce = () => { if (!doneCalled) { doneCalled = true; onDone(); } };
+    const revealThrough = (idx: number) => {
+      const partial = chunks.slice(0, idx + 1).join(" ");
+      setMessages((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, content: partial, streaming: idx < chunks.length - 1 } : m))
+      );
+    };
+    helios
+      .speakSequence(fullText, {
+        onChunkStart: (idx) => { if (idx === 0) firstStarted = true; revealThrough(idx); },
+      })
+      .then(() => { revealThrough(chunks.length - 1); finishOnce(); });
+    // If the first sentence's audio is slow to start, show it anyway after a cap
+    // so the user is never staring at nothing (audio catches up from there).
+    setTimeout(() => { if (!firstStarted) revealThrough(0); }, 3000);
+  } else {
+    beginReveal();
+  }
 }
 
 // Backoff ladder for the reserve-power health probe: 30s → 60s → 2m → 5m,
@@ -247,6 +294,10 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
   const [persona, setPersona]   = useState<Persona>(null);
   const [tourRunning, setTourRunning] = useState(false);
   const [tourStep, setTourStep] = useState<{ index: number; total: number } | null>(null);
+  const [tourSpeed, setTourSpeedState] = useState(1);
+  // The runner reads speed off a ref so a mid-tour change takes effect on the
+  // very next pause/beat without restarting the tour or re-creating the closure.
+  const tourSpeedRef = useRef(1);
   const [degraded, setDegraded] = useState(false);
   const [retryInSec, setRetryInSec] = useState<number | null>(null);
   const [reserveReason, setReserveReason] = useState<"cooling" | "unconfigured" | null>(null);
@@ -260,6 +311,14 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
   const cameraAbortRef = useRef<AbortController | null>(null);
   const degradedRef = useRef(false);
   useEffect(() => { degradedRef.current = degraded; }, [degraded]);
+
+  // Live film speed. Updates the ref (read by the running tour), mirrors to state
+  // (for the button's label), and re-rates the voice so audio speeds up too.
+  const setTourSpeed = useCallback((speed: number) => {
+    tourSpeedRef.current = speed;
+    setTourSpeedState(speed);
+    helios.setRate(speed);
+  }, []);
   // Mirror messages into a ref so `ask` can read recent history WITHOUT
   // listing `messages` in its deps — that would give `ask` a new identity on
   // every streamed word and re-render every page-control consumer.
@@ -359,11 +418,14 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
     // active here — bless the shared audio element now so every scripted line
     // that follows can play on mobile (the "voice starts then breaks" fix).
     helios.unlock();
-    // The moving-camera dolly is a per-frame scroll loop that low-end phones
-    // can't composite smoothly — it's the source of the mobile lag. On mobile
-    // (or any coarse-pointer device) we frame each section with a single native
-    // smooth-scroll and hold still while the voice plays.
-    const staticFraming =
+    // Mobile/coarse-pointer devices now get the same continuous dolly as
+    // desktop (the old build held every section still, which is why "scrolling
+    // motion is not happening" on mobile). The smoothness comes from pausing the
+    // section canvases during the dolly (see driftThroughSection → film:drift →
+    // useCanvasVisible), not from disabling the motion. We only TUNE the drift
+    // on coarse pointers: a slightly slower, gentler travel that low-end phones
+    // composite comfortably.
+    const isCoarse =
       typeof window !== "undefined" &&
       window.matchMedia("(max-width: 768px), (pointer: coarse)").matches;
     tourAbortRef.current = false;
@@ -373,11 +435,15 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
     // The dock CLOSES during the film — narration plays as on-screen cinema
     // captions instead, so nothing covers the section (and it works on mobile).
     setOpen(false);
+    // Apply the current film speed to the voice up front (the visitor may have
+    // left the slider at 1.5×/2× from a prior run).
+    helios.setRate(tourSpeedRef.current);
 
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     // Every PAUSE goes through pause() so the single TOUR_PACE knob tightens the
-    // whole tour at once. Safety caps and speech timing deliberately do NOT.
-    const pause = (ms: number) => sleep(Math.round(ms * TOUR_PACE));
+    // whole tour at once, and the live speed knob divides it further — a change
+    // takes effect on the very next pause. Safety caps deliberately do NOT scale.
+    const pause = (ms: number) => sleep(Math.round((ms * TOUR_PACE) / tourSpeedRef.current));
 
     // A beat renders as an on-screen caption (film:caption → FilmMode) and is
     // done when the voice actually finishes speaking it — synced to the audio,
@@ -394,10 +460,61 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
           helios.narrate(text, voice).then(finish);
           setTimeout(finish, words * 800 + 5000);
         } else {
-          // ~230 wpm reading pace + a beat to land the line.
-          setTimeout(finish, words * 240 + 1000);
+          // ~230 wpm reading pace + a beat to land the line, divided by the
+          // live speed so captions-only tours speed up too.
+          setTimeout(finish, (words * 240 + 1000) / tourSpeedRef.current);
         }
       });
+
+    // ── Tab-visibility pause/resume ──────────────────────────────
+    // Browsers throttle/freeze background tabs: rAF (the camera dolly) stops,
+    // and helios refuses to speak while hidden. The old tour kept advancing its
+    // beats on the safety timeout, so on return the voice "started" mid-tour and
+    // the camera lurched — the reported "voice turns off, then blurts + flickers
+    // on return" bug. Now the tour genuinely PAUSES: beats wait while hidden, the
+    // in-flight beat replays from the top on return, and the dolly resumes from
+    // its frozen position.
+    let driftCtrl: AbortController | null = null;
+    let restartDrift: (() => void) | null = null;
+    const abortDrift = () => { if (driftCtrl) { driftCtrl.abort(); driftCtrl = null; } };
+    const waitWhileHidden = () =>
+      new Promise<void>((resolve) => {
+        if (!document.hidden || tourAbortRef.current) return resolve();
+        const on = () => {
+          if (!document.hidden || tourAbortRef.current) {
+            document.removeEventListener("visibilitychange", on);
+            resolve();
+          }
+        };
+        document.addEventListener("visibilitychange", on);
+      });
+    // Narrate one beat, but if the tab is hidden mid-line (cutting the audio),
+    // wait until it's visible again and replay the beat from the start so the
+    // visitor never returns to a half-heard sentence.
+    const narrateBeatResilient = async (text: string, voice?: "helios" | "sankalp") => {
+      for (;;) {
+        if (tourAbortRef.current) return;
+        await waitWhileHidden();
+        if (tourAbortRef.current) return;
+        let hidDuring = false;
+        const onVis = () => { if (document.hidden) hidDuring = true; };
+        document.addEventListener("visibilitychange", onVis);
+        await narrateBeat(text, voice);
+        document.removeEventListener("visibilitychange", onVis);
+        if (tourAbortRef.current) return;
+        if (hidDuring || document.hidden) { helios.stop(); continue; } // replay
+        return;
+      }
+    };
+    const onVisibility = () => {
+      if (tourAbortRef.current) return;
+      if (document.hidden) {
+        helios.stop();        // silence now; the current beat replays on return
+        driftCtrl?.abort();   // freeze the camera cleanly where it is
+      } else {
+        restartDrift?.();     // resume the dolly from the frozen position
+      }
+    };
 
     // "Take the wheel": any manual scroll outside the dock ends the film —
     // gracefully. The visitor always outranks the director.
@@ -412,6 +529,7 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
     window.addEventListener("wheel", onWheel, { passive: true });
     window.addEventListener("touchmove", onTouchMove, { passive: true });
     window.addEventListener("keydown", onKey);
+    document.addEventListener("visibilitychange", onVisibility);
 
     (async () => {
       // Lights down: letterbox slides in, the room darkens, nav lifts away.
@@ -422,7 +540,7 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
 
       // Helios opens the film as the director, third person — its own voice.
       if (!tourAbortRef.current) {
-        await narrateBeat(DIRECTOR_INTRO, "helios");
+        await narrateBeatResilient(DIRECTOR_INTRO, "helios");
         await pause(300);
       }
 
@@ -462,34 +580,67 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
         // 5 — start ONE slow, continuous dolly through the section that runs for
         // the whole chapter's narration — a single unbroken camera move, not a
         // series of scroll hops. Fired here (not awaited); the beats play over
-        // it. It aborts the instant the visitor takes the wheel.
-        // On mobile we DON'T dolly — the per-frame scroll is the lag. The
-        // section was already framed by glideToSection above; it simply holds.
-        // We also skip the dolly on sections that run heavy, continuous
-        // animation — the Experience timeline's scroll-linked spring and the
-        // About BioScanner canvas both fight the rAF scroll for the main thread,
-        // making the dolly stutter there. Those sections hold static instead
-        // (the compositor-driven initial glide already framed them cleanly).
-        const heavySection = ch.section === "section-arc" || ch.section === "section-about";
-        if (filmsSection && !staticFraming && !heavySection) {
-          const voiceOn = helios.isEnabled();
-          const driftMs = ch.beats.reduce((sum, b) => {
-            const w = b.text.split(/\s+/).length;
-            // Speech time is unscaled; only the pause between beats follows the pace.
-            return sum + (voiceOn ? w * 430 : w * 240 + 1000) + (b.holdMs ?? 120) * TOUR_PACE;
-          }, 0);
-          driftThroughSection(ch.section!, Math.min(16000, Math.max(3000, driftMs)), { signal: camera.signal });
-        }
+        // it. It aborts the instant the visitor takes the wheel or the tab hides,
+        // and resumes (from the current position) on return.
+        // Mobile/coarse pointers now dolly too (just gentler — see driftMsFrom);
+        // the smoothness comes from pausing the section canvases during the move.
+        // Every filmed section now dollies — including About and the Experience
+        // arc, which used to hold static and made the tour feel "stuck" there.
+        // What made those two glitch before was continuous per-frame work
+        // fighting the rAF scroll: the About BioScanner's reticle loop and the
+        // arc's scroll-linked spring. Both now yield during the dolly — BioScanner
+        // pauses on `film:drift`, and the WebGL canvases suspend via
+        // useCanvasVisible — so the camera has the main thread to itself and the
+        // travel stays smooth. (The arc's timeline spring is cheap enough to ride
+        // along, and it draws the line as the camera descends — a feature, not a
+        // fight.)
+        const canDrift = filmsSection;
+        const voiceOn = helios.isEnabled();
+        const speed = tourSpeedRef.current;
+        const beatMs = (b: Beat) => {
+          const w = b.text.split(/\s+/).length;
+          // Both speech and reading time shrink with the speed knob (voice plays
+          // at `speed`× too), so the dolly that rides the narration shrinks with
+          // it — the camera keeps pace with the words instead of lagging behind.
+          return (voiceOn ? w * 430 : w * 240 + 1000) / speed + (b.holdMs ?? 120) * TOUR_PACE / speed;
+        };
+        // Duration for a dolly covering the beats from `from` to the chapter end
+        // — used both for the initial move and for resuming after a tab switch.
+        const driftMsFrom = (from: number) => {
+          const sum = ch.beats.slice(from).reduce((s, b) => s + beatMs(b), 0);
+          return isCoarse
+            ? Math.min(20000, Math.max(5000, sum * 1.15)) // gentler on phones
+            : Math.min(16000, Math.max(3000, sum));
+        };
+        let beatIndex = 0;
+        const runDrift = (from: number) => {
+          if (!canDrift || tourAbortRef.current || document.hidden) return;
+          driftCtrl?.abort();
+          driftCtrl = new AbortController();
+          const ctrl = driftCtrl;
+          camera.signal.addEventListener("abort", () => ctrl.abort(), { once: true });
+          // driftThroughSection travels from the CURRENT scroll position to the
+          // section end, so resuming mid-chapter naturally covers only what's left.
+          driftThroughSection(ch.section!, driftMsFrom(from), { signal: ctrl.signal });
+        };
+        restartDrift = () => runDrift(beatIndex);
+        runDrift(0);
 
         // 6 — narration beat by beat; cues fire on their word. Every beat is
-        // Sankalp in the first person — his voice, not the director's.
-        for (const beat of ch.beats) {
+        // Sankalp in the first person — his voice, not the director's. Each beat
+        // waits out a hidden tab and replays if interrupted (narrateBeatResilient).
+        for (beatIndex = 0; beatIndex < ch.beats.length; beatIndex++) {
+          if (tourAbortRef.current) break;
+          const beat = ch.beats[beatIndex];
+          await waitWhileHidden();
           if (tourAbortRef.current) break;
           if (beat.cue) window.dispatchEvent(new CustomEvent("film:cue", { detail: beat.cue }));
-          await narrateBeat(beat.text, "sankalp");
+          await narrateBeatResilient(beat.text, "sankalp");
           if (tourAbortRef.current) break;
           await pause(beat.holdMs ?? 120);
         }
+        restartDrift = null;
+        abortDrift();
         if (tourAbortRef.current) break;
 
         // 7 — the pause between chapters. The breath.
@@ -499,6 +650,8 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("keydown", onKey);
+      document.removeEventListener("visibilitychange", onVisibility);
+      abortDrift();
 
       if (!tourAbortRef.current) {
         // Natural finish — Act V already delivered Sankalp's closing line, so
@@ -536,6 +689,10 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
       }
 
       cameraAbortRef.current = null;
+      // Reset the VOICE to natural pace so post-tour chat replies aren't sped up.
+      // The slider's value (tourSpeedRef/tourSpeed) is kept, so the next tour
+      // still honors it — it's re-applied at tour start.
+      helios.setRate(1);
       setStatus("idle");
       setTourRunning(false);
       setTourStep(null);
@@ -579,7 +736,7 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
     if (nav) window.dispatchEvent(new CustomEvent("stage:nav", { detail: nav }));
   }, []);
 
-  const ask = useCallback(async (raw: string) => {
+  const ask = useCallback(async (raw: string, opts?: { projectId?: string }) => {
     const text = raw.trim();
     if (!text) return;
     setOpen(true);
@@ -589,6 +746,7 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
 
     push({ role: "user", content: text });
     track("asked", text);
+    noteUserSpend(); // user-initiated — proactive nudges pace around this
 
     setStatus("thinking");
     window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: true }));
@@ -597,6 +755,49 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
     // status events, not invented theater.
     let answer: string | null = null;
     let exhausted = false;
+
+    // ── True token streaming (phase 2) ─────────────────────────
+    // The server now emits {e:"token",t} per generated token and {e:"done"} at
+    // the end. We append tokens to a LIVE message as they arrive (the real
+    // "typing" effect), strip UI tags from the display, and feed completed
+    // sentences to the voice queue so audio trails a sentence behind the text.
+    const voiceOn = helios.isEnabled();
+    let streamedMsgId: number | null = null; // the live message, once tokens flow
+    let rawStreamed = "";                    // raw tokens (may contain UI tags)
+    let fedChars = 0;                        // cleaned chars already sent to voice
+
+    const stripTags = (t: string): string =>
+      t.replace(/\[(SECTION|OPEN|NAV|REEL|HIGHLIGHT|CASE|UI_TOOL):[^\]]*\]?/g, "")
+       .replace(/\[(FEEDBACK(?::[^\]]*)?|LEAD|GRAPH)\]?/g, "");
+    // Hide a dangling, unclosed "[tag" at the very end so a partial tag never
+    // flashes mid-stream; it self-heals as the rest of the token arrives.
+    const forDisplay = (t: string): string => stripTags(t).replace(/\s*\[[^\]]*$/, "");
+
+    const startLiveMessage = () => {
+      streamedMsgId = ++idRef.current;
+      setStatus("streaming");
+      window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: false }));
+      setMessages((prev) => [...prev, { id: streamedMsgId!, role: "agent", content: "", streaming: true }]);
+      if (voiceOn) helios.startStream(); // helios voice; sentences fed as they complete
+    };
+
+    const onToken = (t: string) => {
+      if (streamedMsgId === null) startLiveMessage();
+      rawStreamed += t;
+      const shown = forDisplay(rawStreamed);
+      setMessages((prev) => prev.map((m) => (m.id === streamedMsgId ? { ...m, content: shown, streaming: true } : m)));
+      if (voiceOn) {
+        const clean = stripTags(rawStreamed);
+        const pending = clean.slice(fedChars);
+        const b = Math.max(pending.lastIndexOf(". "), pending.lastIndexOf("! "), pending.lastIndexOf("? "), pending.lastIndexOf("\n"));
+        if (b >= 0) {
+          const ready = pending.slice(0, b + 1);
+          for (const s of helios.chunk(ready)) helios.feedSentence(s);
+          fedChars += ready.length;
+        }
+      }
+    };
+
     try {
       const res = await fetch("/api/ai", {
         method: "POST",
@@ -610,14 +811,13 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
             { role: "user", content: text },
           ],
           visitorType: persona,
+          projectId: opts?.projectId ?? null,
           stream: true,
         }),
         signal: AbortSignal.timeout(45_000),
       });
       // ANY non-ok status is an outage: 429 (IP rate limit), 503 (no keys
-      // configured / every provider exhausted). The old code only recognised
-      // 429, so a 503 fell through with exhausted=false and the power-down
-      // sequence never played — the dock silently showed "static mode".
+      // configured / every provider exhausted).
       if (!res.ok) {
         exhausted = true;
       } else if (res.body) {
@@ -634,15 +834,19 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
             buf = buf.slice(nl + 1);
             if (!line) continue;
             try {
-              const ev = JSON.parse(line) as { e: string; n?: number; total?: number; content?: string };
+              const ev = JSON.parse(line) as { e: string; n?: number; total?: number; content?: string; t?: string };
               if (ev.e === "attempt" && (ev.n ?? 1) > 1) {
                 setStatusLine(
                   ev.n === 2
                     ? "PRIMARY CHANNEL SATURATED — REROUTING…"
                     : `ENGAGING FALLBACK LATTICE ${(ev.n ?? 2) - 1} / ${(ev.total ?? 2) - 1}…`
                 );
+              } else if (ev.e === "token") {
+                if (ev.t) onToken(ev.t);
+              } else if (ev.e === "done") {
+                answer = ev.content ?? rawStreamed; // authoritative full text
               } else if (ev.e === "content") {
-                answer = ev.content ?? null;
+                answer = ev.content ?? null; // legacy single-shot (safety)
               } else if (ev.e === "exhausted") {
                 exhausted = true;
               }
@@ -660,6 +864,12 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
       exhausted = true;
     }
     setStatusLine(null);
+    // Drain the voice queue with any trailing (unterminated) sentence.
+    if (voiceOn && streamedMsgId !== null) {
+      const rest = stripTags(rawStreamed).slice(fedChars).trim();
+      if (rest) helios.feedSentence(rest);
+      helios.endStream();
+    }
 
     // ── Degradation choreography ──────────────────────────────
     // Exhausted = every provider rate-limited. The core "powers down"
@@ -730,22 +940,37 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
         });
       }
       dispatchStageTags(answer);
-      answer = answer
-        .replace(/\[(SECTION|OPEN|NAV|REEL|HIGHLIGHT|CASE|UI_TOOL):[^\]]+\]/g, "")
-        .replace(/\[(FEEDBACK(?::[^\]]+)?|LEAD|GRAPH)\]/g, "")
+      // Strip tags, then TIDY: models sometimes emit a tag mid-prose (the
+      // anti-pattern), e.g. "…hallucinations. [NAV:skills] to explore more of
+      // his relevant skills." Removing the tag leaves an orphan directive clause
+      // and stray spaces. Collapse whitespace, fix space-before-punctuation, and
+      // drop a trailing lowercase directive fragment left behind by the tag.
+      answer = stripTags(answer)
+        .replace(/\s{2,}/g, " ")
+        .replace(/\s+([.,!?;:])/g, "$1")
+        .replace(/([.!?])\s+(?:to|click|tap|see|view|explore|check|visit|browse|head)\b[^.!?]*[.!?]?\s*$/i, "$1")
         .trim();
     } else {
       answer = localAnswer(text, persona);
     }
 
-    // Switch to streaming mode — reveal words one by one
-    setStatus("streaming");
-    window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: false }));
-
-    const msgId = ++idRef.current;
-    streamWords(answer, msgId, setMessages, () => {
+    if (streamedMsgId !== null) {
+      // We already streamed this answer live (typing effect + voice queue). Just
+      // finalize the message with the clean full text — no second reveal, and no
+      // second round of voice (feedSentence already handled it).
+      const finalId = streamedMsgId;
+      const finalText = answer;
+      setMessages((prev) => prev.map((m) => (m.id === finalId ? { ...m, content: finalText, streaming: false } : m)));
       setStatus("idle");
-    });
+    } else {
+      // No live stream (reserve power / local fallback) → classic word reveal.
+      setStatus("streaming");
+      window.dispatchEvent(new CustomEvent("agent-typing-change", { detail: false }));
+      const msgId = ++idRef.current;
+      streamWords(answer, msgId, setMessages, () => {
+        setStatus("idle");
+      });
+    }
 
     // Navigation is the AI's explicit decision, never automatic: we only move
     // the page when the model deliberately emits [SECTION:x] / [NAV:x] / [CASE:x].
@@ -843,8 +1068,8 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
   // (open/persona/tour/degraded), NOT while the AI streams words. This is
   // what keeps the hero WebGL, nav, and skills from re-rendering per word.
   const controlValue = useMemo<ConciergeValue>(
-    () => ({ open, persona, setPersona: setPersonaAndSave, ask, setOpen, clear, focusSection, tour, stopTour, tourRunning, tourStep, degraded, retryInSec, reserveReason, retryNow }),
-    [open, persona, setPersonaAndSave, ask, setOpen, clear, focusSection, tour, stopTour, tourRunning, tourStep, degraded, retryInSec, reserveReason, retryNow]
+    () => ({ open, persona, setPersona: setPersonaAndSave, ask, setOpen, clear, focusSection, tour, stopTour, tourRunning, tourStep, tourSpeed, setTourSpeed, degraded, retryInSec, reserveReason, retryNow }),
+    [open, persona, setPersonaAndSave, ask, setOpen, clear, focusSection, tour, stopTour, tourRunning, tourStep, tourSpeed, setTourSpeed, degraded, retryInSec, reserveReason, retryNow]
   );
   // Fast-changing chat value: consumed only by the chat panel (AgentDock).
   const chatValue = useMemo<ConciergeChatValue>(

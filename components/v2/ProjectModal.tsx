@@ -9,9 +9,10 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ArrowLeft, ArrowUpRight, CheckCircle2 } from "lucide-react";
+import { X, ArrowLeft, ArrowUpRight, CheckCircle2, Sparkles } from "lucide-react";
 import { GithubIcon } from "@/components/ui/Icons";
 import { projects, type Diagram } from "@/config/portfolio";
+import { useConcierge } from "@/contexts/ConciergeContext";
 import DiagramGallery from "./DiagramGallery";
 
 export default function ProjectModal({
@@ -36,6 +37,28 @@ export default function ProjectModal({
     onClose();
     restoreFocusRef.current?.focus();
   }, [onClose]);
+
+  // ── Interrogate this project ─────────────────────────────────
+  // Turns a passive card into questionable evidence. Each chip closes the modal
+  // and hands Helios a scoped question — the server grounds the answer in THIS
+  // project's breakdown (via projectId), so trade-off / "what he'd redo"
+  // answers come from the real notes, not a guess.
+  const { ask } = useConcierge();
+  const interrogate = useCallback((q: string) => {
+    if (!project) return;
+    const id = project.id;
+    close();
+    setTimeout(() => ask(q, { projectId: id }), 120);
+  }, [project, close, ask]);
+
+  const drills = project
+    ? [
+        { label: "Explain simply", q: `In plain language a non-technical recruiter would understand, what is the ${project.name} project and why does it matter? Keep it to 2-3 sentences, no jargon.` },
+        { label: "For a CTO", q: `Give a CTO-level view of ${project.name}: the core architecture decision, the hardest trade-off, and how quality and reliability are ensured.` },
+        { label: "Hardest trade-off", q: `What was the single hardest engineering trade-off in ${project.name}, and how was it resolved?` },
+        { label: "What he'd redo", q: `If Sankalp rebuilt ${project.name} today, what would he do differently, and why?` },
+      ]
+    : [];
 
   // Esc + body scroll lock + initial focus
   useEffect(() => {
@@ -133,6 +156,30 @@ export default function ProjectModal({
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-6">
+              {/* Interrogate this project — scoped questions grounded in the
+                  breakdown, answered by Helios. */}
+              <div className="mb-6 rounded-2xl border p-3.5" style={{ borderColor: "var(--os-border-subtle)", background: "color-mix(in srgb, var(--os-accent) 5%, transparent)" }}>
+                <div className="flex items-center gap-1.5 text-[10.5px] font-mono mono-small tracking-widest mb-2.5" style={{ color: "var(--os-accent)" }}>
+                  <Sparkles size={11} aria-hidden /> INTERROGATE THIS PROJECT
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {drills.map((d) => (
+                    <button
+                      key={d.label}
+                      onClick={() => interrogate(d.q)}
+                      className="text-[12px] font-mono px-3 py-1.5 rounded-lg border transition-all hover:-translate-y-0.5"
+                      style={{
+                        borderColor: "color-mix(in srgb, var(--os-accent) 35%, transparent)",
+                        color: "var(--os-accent)",
+                        background: "color-mix(in srgb, var(--os-accent) 8%, transparent)",
+                      }}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {!caseView ? (
                 <>
                   <p className="text-[14.5px] leading-relaxed mb-6" style={{ color: "var(--os-text-secondary)" }}>

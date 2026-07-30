@@ -11,6 +11,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
 import { useCanvasVisible } from "@/hooks/useCanvasVisible";
+import CanvasLifecycle from "./CanvasLifecycle";
 import { skills } from "@/config/portfolio";
 
 const CAT_COLOR: Record<string, string> = {
@@ -117,12 +118,15 @@ function Constellation({ onSelect, onHover }: { onSelect: (n: string) => void; o
 
 export default function SkillConstellation({ onSelect }: { onSelect: (name: string) => void }) {
   const [hovered, setHovered] = useState<string | null>(null);
-  const { ref, visible } = useCanvasVisible();
+  const { ref, visible, mounted } = useCanvasVisible();
   return (
     <div className="skill-constellation" aria-hidden ref={ref}>
-      <Canvas camera={{ position: [0, 0, 5.9], fov: 45 }} dpr={[1, 1.5]} frameloop={visible ? "always" : "never"} gl={{ alpha: true, antialias: true }}>
-        <Constellation onSelect={onSelect} onHover={setHovered} />
-      </Canvas>
+      {mounted && (
+        <Canvas camera={{ position: [0, 0, 5.9], fov: 45 }} dpr={[1, 1.5]} frameloop={visible ? "always" : "never"} gl={{ alpha: true, antialias: true, powerPreference: "low-power" }}>
+          <CanvasLifecycle />
+          <Constellation onSelect={onSelect} onHover={setHovered} />
+        </Canvas>
+      )}
       <div className="skill-constellation__label">
         {hovered ?? "A live map of the stack — hover a node, click to ask where it was used"}
       </div>
