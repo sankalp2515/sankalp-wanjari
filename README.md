@@ -13,7 +13,7 @@ React Three Fiber / Three.js · Framer Motion · GSAP. Deployed on Vercel.
 
 ## Highlights
 
-- **AI concierge ("Ember")** — a chat agent that answers questions about the work,
+- **AI concierge ("Helios")** — a chat agent that answers questions about the work,
   runs an honest fit-check against a pasted job description, and can drive the page
   (scroll, open the knowledge graph, start a tour). Opens with **Ctrl / ⌘ + K**.
 - **Systematic multi-provider LLM fallback** — an orchestrator plans and routes each
@@ -23,7 +23,7 @@ React Three Fiber / Three.js · Framer Motion · GSAP. Deployed on Vercel.
 - **Live 3D** — a WebGL hero field, a skill constellation, and a full
   knowledge-graph view of the portfolio, all mounted client-side so they never
   block first paint.
-- **Real voice** — Ember can speak via ElevenLabs TTS, with automatic fallback to
+- **Real voice** — Helios can speak via ElevenLabs TTS, with automatic fallback to
   the browser's Web Speech voice.
 - **Working forms** — contact and feedback post to a server route (Resend); if the
   key is absent or the send fails, the user gets an honest error and a pre-filled
@@ -113,7 +113,7 @@ fallback.
 | `NVIDIA_API_KEY` | Large-context tasks (1M window) | Large prompts fall back to Gemini |
 | `AI_GATEWAY_API_KEY` | Route LLM calls via Vercel AI Gateway (observability) | Calls go direct — no change in behaviour |
 | `LLM_RATE_LIMIT` | Requests / IP / hour (default 30) | Uses default |
-| `ELEVENLABS_API_KEY` | Ember's lifelike voice | Falls back to the browser voice |
+| `ELEVENLABS_API_KEY` | Helio's lifelike voice | Falls back to the browser voice |
 | `ELEVENLABS_VOICE_ID` | Which premade voice | Uses the built-in default voice |
 | `RESEND_API_KEY` | Contact form, feedback, chat leads | Forms return an honest error + `mailto:` fallback |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Cross-instance rate limiting | Per-instance in-memory limiter |
