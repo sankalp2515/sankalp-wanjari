@@ -2,15 +2,15 @@
 
 // Should this client mount heavy WebGL / expensive effects right now?
 // False on low-tier devices and after a live memory downgrade (perf:lite).
-// Starts pessimistic during SSR/first paint so we never hydrate a canvas the
-// device can't afford, then upgrades once the governor confirms capacity.
+// Null while capability is unknown prevents constructing a temporary fallback
+// renderer immediately before the real scene mounts.
 
 import { useEffect, useState } from "react";
 import { computeDeviceTier } from "./perf";
 import { logEvent } from "./log";
 
-export function useHeavyOk(): boolean {
-  const [ok, setOk] = useState(false);
+export function useHeavyOk(): boolean | null {
+  const [ok, setOk] = useState<boolean | null>(null);
   useEffect(() => {
     // The WebGL hero now mounts on touch devices too, so the 3D object is
     // consistent with desktop — a phone shows the same object, not a swapped-in

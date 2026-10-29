@@ -2,7 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { ArrowDownRight, Play } from "lucide-react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useConcierge } from "@/contexts/ConciergeContext";
 
 const ProofCore = dynamic(() => import("./ProofCore"), { ssr: false });

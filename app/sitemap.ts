@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { social } from "@/config/portfolio";
+import { social, projects } from "@/config/portfolio";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
@@ -9,5 +9,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly",
       priority: 1,
     },
+    ...["/reliability", "/reliability/intent-bound-controls", ...projects.map(project => `/work/${project.shortName}`)].map(path => ({
+      url: `${social.website.replace(/\/$/, "")}${path}`,
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
   ];
 }

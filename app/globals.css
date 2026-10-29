@@ -1150,6 +1150,7 @@ body {
 /* ═══ THE SIGNAL FIELD ═════════════════════════════════════════ */
 /* A legible atmospheric world. It moves from chapter to chapter rather than
    sitting behind the page as a nearly invisible decorative gradient. */
+.project-grid__media .project-grid__media-image--editorial { object-fit: contain; background: #f3f0ee; }
 .ambient-field { --chapter-tone: var(--os-accent); --cx: .5; --cy: .5; }
 .ambient-field__aurora,
 .ambient-field__horizon,
@@ -1160,9 +1161,15 @@ body {
   opacity: var(--signal-energy);
   transition: opacity 800ms ease, background 1200ms ease;
   background:
-    radial-gradient(ellipse 55% 45% at calc(50% + (var(--cx) - .5) * 22%) calc(34% + (var(--cy) - .5) * 15%), color-mix(in srgb, var(--chapter-tone) 30%, transparent), transparent 72%),
     radial-gradient(ellipse 42% 38% at 82% 72%, color-mix(in srgb, var(--os-accent-cyan) 21%, transparent), transparent 74%),
     radial-gradient(ellipse 48% 42% at 14% 82%, color-mix(in srgb, var(--os-accent) 17%, transparent), transparent 76%);
+}
+.ambient-field__pointer {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 55% 45% at 50% 34%, color-mix(in srgb, var(--chapter-tone) 30%, transparent), transparent 72%);
+  will-change: transform;
+  pointer-events: none;
 }
 .ambient-field__horizon {
   top: auto;
@@ -1660,6 +1667,13 @@ html.film-mode.film-spotlight [id^="section-"].film-active {
   --ambient-veil-still: 88%;
   --ambient-veil-travel: 18%;
 }
+
+/* Off-screen/covered loops retain their exact appearance and phase on resume. */
+[data-motion-paused="true"] .marquee-track,
+[data-motion-paused="true"] .text-shimmer,
+.page-effects-paused .signal-pulse {
+  animation-play-state: paused !important;
+}
 .ambient-field--range .ambient-field__aurora {
   opacity: calc(.26 + var(--scroll-va, 0) * .84);
   transition: background 1200ms ease;
@@ -1675,14 +1689,20 @@ html.film-mode.film-spotlight [id^="section-"].film-active {
 .ambient-field--range .ambient-field__vignette {
   background: radial-gradient(
     ellipse at 50% 44%,
-    transparent calc(18% + var(--scroll-va, 0) * 14%),
-    color-mix(
-      in srgb,
-      var(--ambient-veil)
-      calc(var(--ambient-veil-still) - var(--scroll-va, 0) * var(--ambient-veil-travel)),
-      transparent
-    ) 100%
+    transparent 18%,
+    color-mix(in srgb, var(--ambient-veil) var(--ambient-veil-still), transparent) 100%
   );
+  opacity: calc(1 - var(--scroll-va, 0));
+}
+/* Rasterize the two veil endpoints once; scroll crossfades compositor layers
+   instead of regenerating a full-screen gradient on every velocity sample. */
+.ambient-field--range::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 44%, transparent 32%, color-mix(in srgb, var(--ambient-veil) calc(var(--ambient-veil-still) - var(--ambient-veil-travel)), transparent) 100%);
+  opacity: var(--scroll-va, 0);
 }
 /* Paper cannot take the dark build's veil — an 88% cream wash is just fog.
    Same behaviour, warm shadow, a fraction of the depth. */
@@ -1699,6 +1719,7 @@ html.film-mode.film-spotlight [id^="section-"].film-active {
    leave the field permanently at its darkest, closed-in end. Hand those
    visitors the original uniform values instead. */
 @media (prefers-reduced-motion: reduce) {
+  .ambient-field--range::after { display: none; }
   .ambient-field--range .ambient-field__aurora { opacity: var(--signal-energy); }
   .ambient-field--range .ambient-field__horizon { opacity: .8; }
   .ambient-field--range .ambient-field__coordinates { opacity: .32; }

@@ -15,7 +15,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Sparkles, FileText, Mail, ArrowRight, MessageSquare } from "lucide-react";
-import { personal } from "@/config/portfolio";
+import { achievements, personal, projects } from "@/config/portfolio";
 import { useConcierge } from "@/contexts/ConciergeContext";
 
 const DISMISS_KEY = "highlight-strip-dismissed";
@@ -23,22 +23,24 @@ const DISMISS_KEY = "highlight-strip-dismissed";
 // Each line is a verified fact from config, paired with the ONE action that
 // makes sense for it. The strip isn't persona-personalized (so it can't feel
 // fake), but it's no longer a dead end — every line has somewhere to go.
-type CtaKind = "resume" | "contact" | "work" | "ask";
+type CtaKind = "resume" | "contact" | "work" | "achievements" | "ask";
 interface Highlight { text: string; cta: { label: string; kind: CtaKind } }
 
 const HIGHLIGHTS: Highlight[] = [
+  ...achievements.map((achievement): Highlight => ({ text: `${achievement.project} — ${achievement.title}, ${achievement.event} (${achievement.date})`, cta: { label: "See the result", kind: "achievements" } })),
   { text: `${personal.availability} · notice ${personal.noticePeriod.toLowerCase()}`, cta: { label: "Reach out", kind: "contact" } },
   ...personal.stats.map((s): Highlight => ({ text: `${s.value} ${s.label}`, cta: { label: "See the work", kind: "work" } })),
   { text: "Zero fabricated citations — enforced as a CI gate, not a heuristic", cta: { label: "See the work", kind: "work" } },
   { text: "Schema compliance driven from 25% to 99% (StructAgent, LoRA + DPO)", cta: { label: "See the work", kind: "work" } },
   { text: "6-provider LLM fallback — the whole site runs at zero paid API cost", cta: { label: "Ask Helios", kind: "ask" } },
-  { text: `${personal.stats.length ? "3 production AI systems" : ""} · resume updated ${personal.resumeUpdated}`, cta: { label: "View resume", kind: "resume" } },
+  { text: `${projects.length} engineering projects · resume updated ${personal.resumeUpdated}`, cta: { label: "View resume", kind: "resume" } },
 ];
 
 const CTA_ICON: Record<CtaKind, React.ReactNode> = {
   resume: <FileText size={11} aria-hidden />,
   contact: <Mail size={11} aria-hidden />,
   work: <ArrowRight size={11} aria-hidden />,
+  achievements: <ArrowRight size={11} aria-hidden />,
   ask: <MessageSquare size={11} aria-hidden />,
 };
 
@@ -66,6 +68,7 @@ export default function HighlightStrip() {
       case "resume":  window.dispatchEvent(new CustomEvent("resume:open")); break;
       case "contact": window.location.href = `mailto:${personal.email}`; break;
       case "work":    window.dispatchEvent(new CustomEvent("stage:nav", { detail: "work" })); break;
+      case "achievements": window.dispatchEvent(new CustomEvent("stage:nav", { detail: "achievements" })); break;
       case "ask":
         setOpen(true);
         setTimeout(() => window.dispatchEvent(new CustomEvent("concierge-focus-input")), 80);

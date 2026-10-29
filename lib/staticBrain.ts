@@ -68,6 +68,11 @@ const topSkills = () => skills.filter((s) => s.core).map((s) => s.name).join(", 
 
 const FACTS: Fact[] = [
   {
+    id: "reliability",
+    keywords: ["safety", "security", "reliability", "adversarial", "limitations", "authority", "threat", "benchmark"],
+    text: "Sankalp's reliability work covers intent-bound agent actions (IntentSeal and Abide), inspectable research evidence (Veriscope), and revision-bound human review (CaseProof). Results are repository-reported, not general safety guarantees. Abide builds on IntentSeal rather than independently replicating it. Read methods, source reports and limitations at /reliability; the next-experiment protocol is proposed, not a completed study.",
+  },
+  {
     id: "availability",
     keywords: ["available", "availab", "hire", "hiring", "start", "join", "notice", "period", "open", "looking", "opportunity", "onboard", "immediately"],
     text: agentFAQ.availability,
@@ -123,6 +128,11 @@ const FACTS: Fact[] = [
       `${projects.length} engineering projects. Flagship: ${projects[0].name} — ${projects[0].description} Ask about any of them by name, or run /work to see them all.`,
   },
   {
+    id: "achievements",
+    keywords: ["achievement", "award", "competition", "hackerrank", "orchestrate", "buy", "wait", "rank", "7th", "3062"],
+    text: agentFAQ.achievements,
+  },
+  {
     id: "agentic",
     keywords: ["agent", "agentic", "langgraph", "multi", "orchestration", "autonomous", "pipeline", "workflow", "rag", "retrieval", "vector", "embedding", "qdrant", "llm", "eval", "evaluation", "prompt", "finetune", "fine-tuning", "lora", "dpo"],
     text: () =>
@@ -136,12 +146,11 @@ const FACTS: Fact[] = [
   },
   {
     id: "cloud",
-    // The honest-gap fact. Named explicitly so a cloud question routes HERE
-    // and never to the flagship-project blurb.
+    // Cloud work is now evidenced by Abide and CaseProof; do not infer AWS
+    // or Azure experience from those Google Cloud deployments.
     keywords: ["cloud", "aws", "gcp", "azure", "kubernetes", "k8s", "devops", "infra", "infrastructure", "hosting", "server", "serverless", "terraform", "sre", "deployment", "deploy", "docker", "container", "cicd", "ci"],
     text: () =>
-      `${personal.shortName}'s deployment work is container-first rather than tied to one cloud: Docker, CI/CD, MLflow-based model deployment, and multi-service setups across his projects — plus a deliberately local-first platform (OllamaLens) built to run with zero cloud dependency. ` +
-      `On reserve power I only speak from verified facts, and specific AWS/GCP/Azure production experience isn't among them — his resume is the source of truth there (/resume), and it's a fair thing to ask him directly.`,
+      `${personal.shortName}'s Google Cloud work includes Abide (Cloud Run, Vertex AI/Gemini, Google ADK, Cloud SQL and BigQuery) and CaseProof (Cloud Run, Document AI, Firestore, Cloud Storage and Cloud Tasks). CaseProof is a synthetic staging prototype, not a production bank integration. His other work includes Docker, CI/CD and local-first OllamaLens; these projects do not establish AWS or Azure experience.`,
   },
 ];
 

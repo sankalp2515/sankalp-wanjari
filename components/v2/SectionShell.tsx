@@ -1,12 +1,14 @@
 "use client";
 
 import { ReactNode, useRef } from "react";
-import { motion, useReducedMotion, useScroll, useTransform, useInView } from "framer-motion";
+import { motion, useScroll, useTransform, useInView } from "framer-motion";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import Reveal from "./Reveal";
 
 const CHAPTER_INDEX: Record<string, string> = {
   "section-about": "01",
   "section-work": "02",
+  "section-achievements": "2A",
   // Companion chapter to the work: product thinking, not engineering.
   // Only rendered once config/portfolio.ts `caseStudies` has entries.
   "section-cases": "2B",

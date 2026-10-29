@@ -10,10 +10,12 @@ import { personal, education, skills } from "@/config/portfolio";
 import SectionShell from "./SectionShell";
 import Reveal from "./Reveal";
 import BioScanner from "./BioScanner";
+import { useMotionRegion } from "@/hooks/useMotionRegion";
 
 const CORE_STACK = skills.filter((s) => s.core).map((s) => s.name).slice(0, 6);
 
 export default function AboutSection() {
+  const { ref, active } = useMotionRegion<HTMLDivElement>();
   return (
     <SectionShell
       id="section-about"
@@ -21,7 +23,7 @@ export default function AboutSection() {
       title="The person behind the systems"
       subtitle={personal.tagline}
     >
-      <div className="grid gap-5 md:grid-cols-[340px_1fr]">
+      <div ref={ref} className="grid gap-5 md:grid-cols-[340px_1fr]">
         {/* Photo card */}
         <Reveal>
           <div className="glass-card rounded-3xl overflow-hidden h-full flex flex-col">
@@ -29,8 +31,8 @@ export default function AboutSection() {
               {/* Slow Ken Burns drift — a still photo that breathes */}
               <motion.div
                 className="absolute inset-0"
-                animate={{ scale: [1, 1.06, 1] }}
-                transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
+                animate={{ scale: active ? [1, 1.06, 1] : 1 }}
+                transition={{ duration: active ? 22 : 0, repeat: active ? Infinity : 0, ease: "easeInOut" }}
               >
                 <Image
                   src={personal.profilePhoto}
@@ -73,8 +75,8 @@ export default function AboutSection() {
                     <motion.span
                       className="absolute inset-0 rounded-full"
                       style={{ background: "var(--os-accent-green)" }}
-                      animate={{ scale: [1, 2.4], opacity: [0.6, 0] }}
-                      transition={{ duration: 1.8, repeat: Infinity, ease: "easeOut" }}
+                      animate={{ scale: active ? [1, 2.4] : 1, opacity: active ? [0.6, 0] : 0 }}
+                      transition={{ duration: active ? 1.8 : 0, repeat: active ? Infinity : 0, ease: "easeOut" }}
                     />
                     <span className="relative w-2 h-2 rounded-full" style={{ background: "var(--os-accent-green)" }} />
                   </span>

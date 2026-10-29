@@ -11,7 +11,9 @@
 // card is actually on screen — see `inView` below.
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { motion, useReducedMotion, useInView } from "framer-motion";
+import { motion, useInView } from "framer-motion";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { usePageRenderingActive } from "@/lib/renderActivity";
 
 const DWELL_MS = 1600; // total time spent per keyword
 const TRAVEL_MS = 420; // reticle travel time before the word is allowed to grow
@@ -21,6 +23,7 @@ const SCALE = 1.07;
 
 export default function BioScanner({ bio, keywords }: { bio: string; keywords: string[] }) {
   const reduced = useReducedMotion();
+  const pageActive = usePageRenderingActive();
   const containerRef = useRef<HTMLDivElement>(null);
   const spanRefs = useRef<Array<HTMLSpanElement | null>>([]);
   const inView = useInView(containerRef, { margin: "-10% 0px" });
@@ -41,7 +44,7 @@ export default function BioScanner({ bio, keywords }: { bio: string; keywords: s
     return () => window.removeEventListener("film:drift", onDrift);
   }, []);
 
-  const running = inView && !reduced && !drifting;
+  const running = inView && !reduced && !drifting && pageActive;
 
   const paragraphs = bio.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
   const escaped = keywords.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
@@ -138,9 +141,11 @@ export default function BioScanner({ bio, keywords }: { bio: string; keywords: s
           aria-hidden
           className="pointer-events-none absolute rounded-md"
           initial={false}
-          animate={{ left: box.x - 7, top: box.y - 5, width: box.w + 14, height: box.h + 10 }}
+          animate={{ x: box.x - 7, y: box.y - 5, width: box.w + 14, height: box.h + 10 }}
           transition={{ type: "spring", stiffness: 130, damping: 22, mass: 0.9 }}
           style={{
+            left: 0,
+            top: 0,
             border: "1px solid color-mix(in srgb, var(--os-accent-cyan) 45%, transparent)",
             background: "color-mix(in srgb, var(--os-accent-cyan) 7%, transparent)",
             boxShadow: "0 0 18px color-mix(in srgb, var(--os-accent-cyan) 28%, transparent)",

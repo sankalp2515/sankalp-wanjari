@@ -41,6 +41,7 @@ const PALETTES: Record<"dark" | "light", CorePalette> = {
 
 function Rings({ pulse, p }: { pulse: number; p: CorePalette }) {
   const root = useRef<THREE.Group>(null);
+  const scaleTarget = useRef(new THREE.Vector3());
   const ringA = useRef<THREE.Mesh>(null);
   const ringB = useRef<THREE.Mesh>(null);
   const ringC = useRef<THREE.Mesh>(null);
@@ -51,7 +52,7 @@ function Rings({ pulse, p }: { pulse: number; p: CorePalette }) {
       root.current.rotation.y += delta * (0.16 + pulse * 0.55);
       root.current.rotation.x = THREE.MathUtils.lerp(root.current.rotation.x, state.pointer.y * 0.18, 0.04);
       root.current.rotation.z = THREE.MathUtils.lerp(root.current.rotation.z, -state.pointer.x * 0.12, 0.04);
-      root.current.scale.lerp(new THREE.Vector3(energy, energy, energy), 0.08);
+      root.current.scale.lerp(scaleTarget.current.set(energy, energy, energy), 0.08);
     }
     if (ringA.current) ringA.current.rotation.z += delta * (0.56 + pulse * 1.4);
     if (ringB.current) ringB.current.rotation.z -= delta * (0.34 + pulse);

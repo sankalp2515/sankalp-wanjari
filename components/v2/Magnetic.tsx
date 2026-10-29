@@ -16,17 +16,19 @@ export default function Magnetic({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const bounds = useRef<DOMRect | null>(null);
 
   const onMove = (e: React.PointerEvent) => {
     const el = ref.current;
     if (!el || e.pointerType !== "mouse") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const r = el.getBoundingClientRect();
+    const r = bounds.current ?? (bounds.current = el.getBoundingClientRect());
     const dx = e.clientX - (r.left + r.width / 2);
     const dy = e.clientY - (r.top + r.height / 2);
     el.style.transform = `translate(${dx * strength}px, ${dy * strength}px)`;
   };
   const onLeave = () => {
+    bounds.current = null;
     if (ref.current) ref.current.style.transform = "";
   };
 
@@ -36,6 +38,7 @@ export default function Magnetic({
       className={`inline-block ${className ?? ""}`}
       style={{ transition: "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)" }}
       onPointerMove={onMove}
+      onPointerEnter={() => { bounds.current = ref.current?.getBoundingClientRect() ?? null; }}
       onPointerLeave={onLeave}
     >
       {children}

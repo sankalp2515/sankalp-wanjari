@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AMBIENT_RANGE } from "@/config/ambientRange";
 import { startScrollField } from "@/lib/scrollField";
+import { usePageRenderingActive } from "@/lib/renderActivity";
 
 const CHAPTER_TONES: Record<string, string> = {
   "section-hero": "var(--os-accent)",
@@ -20,6 +21,7 @@ const CHAPTER_TONES: Record<string, string> = {
 };
 
 export default function AmbientBackground() {
+  const pageActive = usePageRenderingActive();
   const [active, setActive] = useState(false);
   const [tone, setTone] = useState(CHAPTER_TONES["section-hero"]);
   const ref = useRef<HTMLDivElement>(null);
@@ -33,25 +35,25 @@ export default function AmbientBackground() {
   // The velocity channel (--scroll-va) was only ever started by the v3 stage
   // components, which do not render here. The ambient layers now read it, so
   // this surface starts it itself. startScrollField is idempotent, and is
-  // deliberately never stopped — it is page-level and shared.
+  // released when this page leaves; the shared service is reference-counted.
   useEffect(() => {
-    if (AMBIENT_RANGE) startScrollField();
+    if (AMBIENT_RANGE) return startScrollField();
   }, []);
 
   useEffect(() => {
     const field = ref.current;
-    if (!field) return;
+    if (!field || !pageActive || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const glow = field.querySelector<HTMLElement>(".ambient-field__pointer");
     let frame = 0;
     const updatePointer = (event: MouseEvent) => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        field.style.setProperty("--cx", String(event.clientX / window.innerWidth));
-        field.style.setProperty("--cy", String(event.clientY / window.innerHeight));
+        if (glow) glow.style.transform = `translate3d(${(event.clientX / window.innerWidth - .5) * 22}%, ${(event.clientY / window.innerHeight - .5) * 15}%, 0)`;
       });
     };
     window.addEventListener("mousemove", updatePointer, { passive: true });
     return () => { window.removeEventListener("mousemove", updatePointer); cancelAnimationFrame(frame); };
-  }, []);
+  }, [pageActive]);
 
   useEffect(() => {
     const observers = Object.keys(CHAPTER_TONES).flatMap((id) => {
@@ -82,7 +84,7 @@ export default function AmbientBackground() {
         "--signal-energy": active ? "1" : "0.72",
       } as React.CSSProperties}
     >
-      <div className="ambient-field__aurora" />
+      <div className="ambient-field__aurora"><div className="ambient-field__pointer" /></div>
       <div className="ambient-field__horizon" />
       <div className="ambient-field__coordinates" />
       <div className="ambient-field__grain" />

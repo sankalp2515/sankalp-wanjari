@@ -6,7 +6,7 @@
 // node is clickable: the same "ask the concierge for proof" gesture as the
 // chips below, but in three dimensions. Variant A only.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
@@ -80,22 +80,34 @@ function Node({ node, onSelect, onHover }: {
 }
 
 function Edges({ nodes }: { nodes: Placed[] }) {
-  const geoms = useMemo(
-    () => nodes.map((n) => new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0, 0), new THREE.Vector3(...n.pos),
-    ])),
-    [nodes],
-  );
-  return <>{nodes.map((n, i) => (
-    <lineSegments key={n.name} geometry={geoms[i]}>
-      <lineBasicMaterial color={n.color} transparent opacity={n.core ? 0.14 : 0.06} />
-    </lineSegments>
-  ))}</>;
+  const geometry = useMemo(() => {
+    const ordered = [...nodes.filter((node) => node.core), ...nodes.filter((node) => !node.core)];
+    const positions = new Float32Array(ordered.length * 6);
+    const colors = new Float32Array(ordered.length * 6);
+    ordered.forEach((node, i) => {
+      positions.set(node.pos, i * 6 + 3);
+      const color = new THREE.Color(node.color);
+      colors.set([color.r, color.g, color.b, color.r, color.g, color.b], i * 6);
+    });
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geom.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    const coreVertices = nodes.filter((node) => node.core).length * 2;
+    geom.addGroup(0, coreVertices, 0);
+    geom.addGroup(coreVertices, nodes.length * 2 - coreVertices, 1);
+    return geom;
+  }, [nodes]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  // Two opacity groups retain the original appearance in two draws, not 39.
+  return <lineSegments geometry={geometry}>
+    <lineBasicMaterial attach="material-0" vertexColors transparent opacity={0.14} />
+    <lineBasicMaterial attach="material-1" vertexColors transparent opacity={0.06} />
+  </lineSegments>;
 }
 
 function Constellation({ onSelect, onHover }: { onSelect: (n: string) => void; onHover: (n: string | null) => void }) {
   const root = useRef<THREE.Group>(null);
-  const nodes = useMemo(place, []);
+  const nodes = useMemo(() => place(), []);
   useFrame((state, delta) => {
     if (!root.current) return;
     root.current.rotation.y += delta * 0.12;

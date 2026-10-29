@@ -1,4 +1,4 @@
-import { personal, social, skills, projects, experience, research, education } from "@/config/portfolio";
+import { personal, social, skills, projects, achievements, experience, research, education } from "@/config/portfolio";
 
 type VisitorType = "recruiter" | "cto" | "developer" | "explorer" | null;
 
@@ -74,6 +74,9 @@ Bio: ${personal.bio}
 ${detail ? `## PROJECTS
 ${projectList}
 
+## ACHIEVEMENTS (competition work, not a production deployment)
+${achievements.map((achievement) => `- ${achievement.project}: ${achievement.title} at ${achievement.event}, ${achievement.date}. ${achievement.description} ${achievement.approach} ${achievement.limitation} Repository: ${achievement.github}`).join("\n")}
+
 ## EXPERIENCE TIMELINE
 ${expList}
 
@@ -91,6 +94,7 @@ LinkedIn: ${social.linkedin}
 Website: ${social.website}
 
 ## THIS PORTFOLIO ITSELF (you know this site — never guess about its features)
+- Reliability & Safety: /reliability is a directly accessible evidence ledger; /reliability/intent-bound-controls is an engineering synthesis and proposed protocol, NOT a newly completed study or peer-reviewed paper. Never claim the proposed experiments were run. Abide builds on IntentSeal; do not call them independent replications. Separate detection, execution containment, acceptance checks and real-world outcomes. IntentSeal's 11 Oct report did not meet its joint acceptance target. Project pages are shareable at /work/<shortName>.
 This portfolio is itself one of Sankalp's AI products; you are the AI running inside it. When a visitor asks about a FEATURE OF THIS SITE, answer from this list — do NOT confuse a site feature with a project (e.g. the "Graph" button is NOT the LangGraph project).
 - AI Concierge (you), named Helios: answers questions about Sankalp, runs JD fit checks, and can operate the page. Opened with the "Ask Helios" button or Ctrl+K.
 - Guided tour: a cinematic, first-person "tell me about yourself" documentary — letterbox film mode, five acts, narrated in Sankalp's own voice. Started via the "/tour" command or the hero's "Let Helios guide you" button.
@@ -105,6 +109,7 @@ You can operate the portfolio UI by embedding these tags in your response text. 
 
 - [GRAPH]         → opens the interactive knowledge-graph view of the portfolio
 - [NAV:work]      → scrolls to the Projects section
+- [NAV:achievements] → scrolls to competition achievements, including Buy or Wait?
 - [NAV:research]  → scrolls to the Research (published papers) section
 - [NAV:arc]       → scrolls to the Career section
 - [NAV:education] → scrolls to the Education & Certifications section

@@ -32,16 +32,22 @@ export default function SignalRail({ variant = "a" }: { variant?: "a" | "b" }) {
     CHAPTERS.forEach(({ id }) => document.getElementById(id) && observer.observe(document.getElementById(id)!));
 
     let frame = 0;
+    let maxScroll = 1;
+    const measure = () => { maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight); };
+    measure();
+    const sizeObserver = new ResizeObserver(measure);
+    sizeObserver.observe(document.body);
+    window.addEventListener("resize", measure, { passive: true });
     const update = () => {
-      cancelAnimationFrame(frame);
+      if (frame) return;
       frame = requestAnimationFrame(() => {
-        const max = document.documentElement.scrollHeight - window.innerHeight;
-        fill.current?.style.setProperty("transform", `scaleY(${max > 0 ? window.scrollY / max : 0})`);
+        frame = 0;
+        fill.current?.style.setProperty("transform", `scaleY(${Math.min(1, window.scrollY / maxScroll)})`);
       });
     };
     update();
     window.addEventListener("scroll", update, { passive: true });
-    return () => { observer.disconnect(); window.removeEventListener("scroll", update); cancelAnimationFrame(frame); };
+    return () => { observer.disconnect(); sizeObserver.disconnect(); window.removeEventListener("resize", measure); window.removeEventListener("scroll", update); cancelAnimationFrame(frame); };
   }, []);
 
   useEffect(() => {

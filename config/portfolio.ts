@@ -35,7 +35,7 @@ My teammates know me as a problem solver who enjoys simplifying complexity and a
     "business value",
   ],
 
-  githubUsername: "sankalpwanjari",
+  githubUsername: "sankalp2515",
 
   // ── Single source of truth: hiring facts ──────────────────
   availability: "Available for hire",
@@ -47,8 +47,8 @@ My teammates know me as a problem solver who enjoys simplifying complexity and a
 
   email: "sankalpwanjari1625@gmail.com",
   phone: "+91 90118 12149",
-  resumeUrl: "/Sankalp-Wanjari-Resume.pdf",
-  resumeUpdated: "July 2026",
+  resumeUrl: "/sankalp-wanjari-resume.pdf",
+  resumeUpdated: "October 2026",
   profilePhoto: "/profile_pic_2.png",
 
   stats: [
@@ -212,6 +212,133 @@ export type Diagram = {
 // each one opens a "Technical Breakdown" (see `breakdown` below).
 // Product-thinking case studies live in `caseStudies` further down.
 export const projects = [
+  {
+    id: "007",
+    name: "IntentSeal",
+    shortName: "intentseal",
+    description:
+      "A prompt-injection firewall that inspects what AI agents read and checks every tool call against the user's intent — with replayable evidence of what ran and why.",
+    longDescription:
+      "Built a provider-independent security layer for AI agents: extract hidden document content, normalise encoded payloads, detect attacks in tiers, and enforce deterministic action policies. A versioned intent contract limits tools, recipients, domains and paths even when content detection misses. The React Security Console exposes session replay, attack-to-action provenance, human approvals and an Investigator agent. Available through a Python SDK, REST API and OpenAI/Anthropic-compatible proxy.",
+    stack: ["Python", "FastAPI", "React", "ONNX Runtime", "PostgreSQL", "Docker"],
+    category: "Agent Security",
+    status: "RELEASED",
+    impact: "CRITICAL",
+    highlights: [
+      "Inspects hidden PDF, Word, HTML, email and OCR content before the model sees it",
+      "Deterministic tool-call guard enforces the user's versioned intent contract",
+      "99.2% recall on 359 third-party-content attacks in the published evaluation",
+      "68.1% direct-turn recall; 5.1% false positives on 39 hard-benign cases",
+      "Replayable execution receipts, Investigator agent and reviewer-gated repair loop",
+      "Python package, SDK, REST API and compatible LLM proxy integrations",
+    ],
+    github: "https://github.com/sankalp2515/intentseal",
+    liveUrl: "https://intentseal-agentic-cybersecurity.navattic.com/16s00ye",
+    preview: "",
+    poster: "/projects/intentseal/poster-distinct.webp",
+    diagrams: [],
+    year: "2026",
+    breakdown: {
+      problem:
+        "Agents consume untrusted files, pages and messages, then act with real tool permissions. Detecting suspicious text alone cannot stop an agent from sending data or performing an action the user never authorised.",
+      approach:
+        "Separate detection from authority. Extract and normalise the content the model actually reads; combine structural rules, a local DeBERTa classifier and an optional AI judge. A deterministic guard independently checks tools and arguments against trusted session context, allow-lists, outbound secret scans and a hash-chained intent contract. Record the application's execution receipts and source provenance so reviewers can reconstruct the attack path.",
+      results: [
+        "Published 11 October evaluation: 99.2% third-party-content recall (359 attacks), versus 68.1% direct-turn recall (442 cases)",
+        "5.1% false-positive rate on a 39-case held-out hard-benign set; isolated fast-path p95 latency 113.6 ms",
+        "The 11 October report records 0/9 attack categories meeting the joint recall/FPR acceptance target; high aggregate recall alone is insufficient",
+        "Detectors-off assurance run: 0 of 28 reference-agent attacks succeeded (95% CI 0–12%)",
+        "Interactive Console tour and installable Python package; results are repository-reported evaluations, not a guarantee that prompt injection is solved",
+      ],
+      lessons:
+        "Detection quality and action safety are different claims. Strong third-party-content recall does not erase weaker direct-turn detection or false alarms. Intent-bound action controls and actual execution receipts make that distinction inspectable.",
+      role: "Agent-security product and engineering: detection pipeline, deterministic action guard, SDK/proxy integration, Security Console and evaluation evidence.",
+    },
+  },
+  {
+    id: "008",
+    name: "Abide",
+    shortName: "abide",
+    description:
+      "A security checkpoint for delegated AI work: confirm a grounded work order once, check every agent action against it, and trace blocked instructions back to their source.",
+    longDescription:
+      "Built a delegation workflow where Gemini drafts a permission card from the employee's words and a grounding validator removes unsupported clauses. A deterministic gate checks each tool call, while agent credentials cannot confirm, widen or approve their own permissions. The Google Cloud deployment combines live Google ADK agents, revision-bound approvals, hash-chained receipts and BigQuery audit insights. Abide builds on IntentSeal's security foundations with a distinct employee-facing delegation experience.",
+    stack: ["Python", "FastAPI", "React", "Google ADK", "Vertex AI", "Cloud Run", "PostgreSQL", "BigQuery"],
+    category: "Agent Security",
+    status: "DEPLOYED",
+    impact: "HIGH",
+    highlights: [
+      "Grounded work orders: every permission must quote the employee's request",
+      "0/28 unauthorised actions and 26/26 legitimate task completions in its own evaluation suite",
+      "Agent keys cannot confirm or approve; approvals bind to one exact action",
+      "190/190 handoff provenance labels preserved; 256/256 tampering probes caught",
+      "Live Gemini/ADK agent demo with Cloud SQL persistence and BigQuery receipts",
+    ],
+    github: "https://github.com/sankalp2515/Abide",
+    liveUrl: "https://abide-1041805455955.us-central1.run.app/#/tasks?task=new&preset=attack",
+    preview: "",
+    poster: "/projects/abide/poster-distinct.webp",
+    diagrams: [],
+    year: "2026",
+    breakdown: {
+      problem:
+        "Content filtering can miss ordinary-looking malicious instructions, while asking a person to approve every agent step creates friction and approval fatigue. Teams need to delegate useful work without silently granting unlimited authority.",
+      approach:
+        "Compile the employee's task into a grounded, human-confirmed work order. Check tools, recipients, records and amounts with a pure deterministic gate at execution time. Keep agent credentials separate from human approval authority, carry sealed provenance through handoffs and bind exceptions to exact actions. Use Gemini on Vertex AI for drafting and explanations, Google ADK for the live agent team, and Cloud Run, Cloud SQL and BigQuery for service state and audit.",
+      results: [
+        "Own 64-scenario suite: 0/28 attacks caused unauthorised actions; 26/26 normal tasks completed",
+        "0/126 false blocks on authorised calls; 26/28 attacked tasks safely recovered",
+        "Median runtime overhead +166 ms per workflow in the model-free benchmark",
+        "Live hijacked-Gemini evaluation reports 0/6 successful attacks with Abide; small internal suites are not proof of general safety",
+        "Builds on IntentSeal rather than independently replicating it; approval-baseline behaviour is simulated, not a human usability study",
+      ],
+      lessons:
+        "A detector asks whether content looks dangerous; a delegation gate asks whether a person authorised the action. Keep that authority deterministic, preserve source labels across agents and show users why only an exception needs their attention.",
+      role: "Delegation product and engineering: work-order grounding, action gate, human approvals, live agent integration, Console and Google Cloud deployment.",
+    },
+  },
+  {
+    id: "009",
+    name: "CaseProof",
+    shortName: "caseproof",
+    description:
+      "A payment-scam investigation workspace that turns customer evidence and bank records into a cited brief, an inspectable money trail and a reviewer-approved handoff.",
+    longDescription:
+      "Built an end-to-end first-response workflow for bank fraud analysts: customer reporting, evidence processing, bank-ledger matching, a source-linked Money Trail, focused clarification requests, independent review and durable report delivery. Document AI and Vertex AI Gemini assist with evidence interpretation; backend rules own financial calculations, urgency, readiness and revision checks. The deployed application is explicitly a synthetic staging prototype, not a production bank integration.",
+    stack: ["Python", "FastAPI", "React", "Vertex AI", "Document AI", "Firestore", "BigQuery", "Cloud Run", "Cloud Tasks"],
+    category: "Financial AI",
+    status: "STAGING PROTOTYPE",
+    impact: "HIGH",
+    highlights: [
+      "Customer → analyst → independent reviewer → acknowledged handoff workflow",
+      "Source-linked investigation briefs and interactive, evidence-backed Money Trail",
+      "Approval bound to the current case revision and digest; new evidence requires fresh review",
+      "Durable background jobs, idempotent report delivery and named follow-up ownership",
+      "Repository records 51 public-cloud browser checks passed on 27 October 2026",
+      "Synthetic practice data only; delivery does not imply a freeze, refund or regulatory filing",
+    ],
+    github: "https://github.com/sankalp2515/CaseProof-justified-first-response-for-analyst",
+    liveUrl: "https://8-233-217-230.sslip.io/app/?tour=start#/victim/start",
+    preview: "",
+    poster: "/projects/caseproof/poster-distinct.webp",
+    diagrams: [],
+    year: "2026",
+    breakdown: {
+      problem:
+        "In the first hour after a payment scam, analysts must reconcile receipts, chat logs, customer statements and bank records, trace onward movements and prepare a defensible referral. An unexplained AI summary cannot establish which payment is disputed or what a reviewer has actually authorised.",
+      approach:
+        "Preserve distinct provenance for customer statements, extracted evidence and bank observations. Use Document AI/Gemini to assist interpretation, with deterministic financial allocation, urgency and readiness checks. Let analysts request only missing information via scoped reply links. Bind independent approval to the current revision and digest, then persist outbound intents and both synthetic receivers' acknowledgements with an owner and next action.",
+      results: [
+        "Public-cloud verification record reports 51 browser checks passed on 27 October 2026, including live Document AI/Gemini processing and persisted follow-up",
+        "Separate customer, analyst and reviewer journeys with source inspection and revision-bound approvals",
+        "Cloud Run runtime with Firestore case state, Cloud Storage evidence, BigQuery records and Cloud Tasks/Scheduler background work",
+        "Synthetic staging prototype only: no real bank integrations, funds recovery, regulatory submission or production-readiness claim",
+      ],
+      lessons:
+        "Sending a report is not resolving a case. Preserve evidence lineage, invalidate approval when material changes, and keep delivery acknowledgements and follow-up ownership visible. Financial decisions and authorisation must stay outside free-form model output.",
+      role: "Product and full-stack engineering: fraud-response workflow, evidence and money-trail experience, deterministic controls, reviewer handoff and cloud runtime.",
+    },
+  },
   {
     id: "001",
     name: "AutoML Orchestrator",
@@ -575,6 +702,30 @@ export const projects = [
   },
 ];
 
+// Competition work stays separate from the engineering-project catalogue.
+export const achievements = [
+  {
+    id: "hackerrank-orchestrate-2026",
+    project: "Buy or Wait?",
+    title: "7th of 3,062",
+    event: "HackerRank Orchestrate",
+    date: "September 2026",
+    description:
+      "Built an AI financial decision agent in 24 hours: can you safely afford a purchase now, and if not, when?",
+    approach:
+      "The model reads financial messages and resolves ambiguous evidence; deterministic Python owns the 90-day ledger, affordability calculations and payment-plan ranking.",
+    highlights: [
+      "77.3/100 final competition score",
+      "250 purchase decisions; 51 offline validation checks",
+      "Python standard library + Gemini; no third-party packages",
+      "$0.2392 reported cold-cache model cost for the submitted run",
+    ],
+    limitation:
+      "Competition submission, not financial advice. The repository documents forecast error and a pending-credit validation limitation.",
+    github: "https://github.com/sankalp2515/buy-or-wait",
+  },
+];
+
 // ── DIRECTOR (PARKED) — per-project ranking dimensions + hero variants ──
 // Data for the parked persona/Director autonomy layer (lib/director.ts). Kept
 // in place so that system can be revived without reconstruction. Unused while
@@ -586,6 +737,9 @@ export type ProjectDimensions = {
   novelty: number;
 };
 export const projectDimensions: Record<string, ProjectDimensions> = {
+  "007": { businessImpact: 0.85, architectureDepth: 1.0, codeCraft: 0.95, novelty: 0.95 },
+  "008": { businessImpact: 0.9, architectureDepth: 0.95, codeCraft: 0.9, novelty: 0.95 },
+  "009": { businessImpact: 0.9, architectureDepth: 0.95, codeCraft: 0.9, novelty: 0.9 },
   "001": { businessImpact: 0.7, architectureDepth: 1.0, codeCraft: 0.9, novelty: 0.9 },
   "002": { businessImpact: 0.6, architectureDepth: 0.95, codeCraft: 0.85, novelty: 0.95 },
   "003": { businessImpact: 0.55, architectureDepth: 0.8, codeCraft: 0.95, novelty: 0.7 },
@@ -606,7 +760,7 @@ export const heroVariants: Record<HeroVariantKey, {
   outcome: {
     eyebrow: "SHIPPED, NOT SLIDEWARE / 2026",
     l1: "AI THAT", em: "SHIPS", l3: "OUTCOMES.",
-    statement: "3 years shipping production software and six AI systems that actually run — measurable impact, and available to start now.",
+    statement: `3 years shipping production software and ${projects.length} AI systems spanning agent security, financial workflows and ML infrastructure — available to start now.`,
   },
   architecture: {
     eyebrow: "BUILT TO SURVIVE PRODUCTION / 2026",
@@ -1027,7 +1181,9 @@ export const agentFAQ: Record<string, string> = {
   research:
     "Two published papers in TIJER International Research Journal (2023): 'Music Generation Using LSTM Model' and 'Automated HTML Code Generation on Sketch Images' (YOLOv5 + OCR). Both PDFs are linked in the Research section.",
   projects:
-    `${projects.length} engineering projects — AutoML Orchestrator (10-agent LangGraph pipeline), Autonomous AI Research System (verification-gated RAG), StructAgent (LoRA + DPO structured outputs), OllamaLens (local LLM benchmarking platform), SQLens (AI SQL optimization), and this Portfolio OS itself. These are production systems, not product case studies — each card opens a technical breakdown.`,
+    `${projects.length} engineering projects — ${projects.map((project) => project.name).join(", ")}. Recent work: IntentSeal (prompt-injection firewall), Abide (permission-bound delegation) and CaseProof (synthetic payment-scam investigation prototype). Each card opens a technical breakdown. Competition work is listed separately under Achievements.`,
+  achievements:
+    achievements.map((achievement) => `${achievement.project}: ${achievement.title} at ${achievement.event}, ${achievement.date}. ${achievement.description} ${achievement.approach} Source: ${achievement.github}`).join("\n"),
   contact: `Reach Sankalp at ${personal.email} or connect on LinkedIn.`,
   salary: "Open to discussion based on role and scope — best discussed directly with Sankalp.",
   remote: personal.workPreference + ".",

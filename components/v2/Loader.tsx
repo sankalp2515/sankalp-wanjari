@@ -34,10 +34,12 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { personal } from "@/config/portfolio";
 import { PROVIDERS } from "@/lib/llm/providers";
 import { safeSession } from "@/lib/safeStorage";
+import { suspendPageRendering } from "@/lib/renderActivity";
 import type { DeviceTier } from "./PreloaderScene";
 
 const PreloaderScene = dynamic(() => import("./PreloaderScene"), { ssr: false });
@@ -270,6 +272,9 @@ export default function Loader({
 
   const visible = booting && phase !== "done";
   const isExiting = phase === "reveal" || phase === "done";
+  useEffect(() => {
+    if (visible && !isExiting) return suspendPageRendering();
+  }, [visible, isExiting]);
   const isFlashing = phase === "flash";
   const step = BOOT_SEQUENCE[stepIndex];
 

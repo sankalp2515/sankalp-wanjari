@@ -20,6 +20,7 @@ import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Html } from "@react-three/drei";
 import * as THREE from "three";
+import { suspendPageRendering } from "@/lib/renderActivity";
 import { X, ArrowRight, Play, Square, Volume2, VolumeX, Info, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { projects, research, experience, education, graphLinks } from "@/config/portfolio";
 import { helios } from "@/lib/voice";
@@ -289,7 +290,7 @@ function buildGraph(): { nodes: GNode[]; edges: GraphEdge[]; adjacency: Map<stri
   };
 
   // 1. Spine — the root to each hub.
-  link("me", "hub-work", "demonstrates", 3, "The work is the argument: six systems that actually run.");
+  link("me", "hub-work", "demonstrates", 3, `The work is the argument: ${projects.length} engineering systems with inspectable technical breakdowns.`);
   link("me", "hub-research", "research", 3, "Two published papers put peer review behind the engineering.");
   link("me", "hub-career", "career", 3, "Three years of enterprise delivery is where the reliability instinct came from.");
   link("me", "hub-education", "education", 3, "AI/ML honours engineering plus an executive AI product programme.");
@@ -314,6 +315,12 @@ function buildGraph(): { nodes: GNode[]; edges: GraphEdge[]; adjacency: Map<stri
 
   // 4. The point of the whole view — capabilities wired to the systems that
   //    prove them. Every note is a claim you can go and check in the work.
+  link("p-007", "cap-agentic", "demonstrates", 3, "IntentSeal checks agent inputs and tool calls against the user's intent.");
+  link("p-007", "cap-eval", "validated_by", 3, "Published detection and detectors-off assurance results expose both coverage and limitations.");
+  link("p-008", "cap-infra", "built_with", 3, "Abide runs on Cloud Run with Cloud SQL state and BigQuery audit receipts.");
+  link("p-008", "cap-agentic", "demonstrates", 3, "Grounded work orders constrain live Google ADK agents at the tool boundary.");
+  link("p-009", "cap-product", "demonstrates", 3, "CaseProof follows a payment-scam complaint through analyst work, independent review and owned follow-up.");
+  link("p-009", "cap-backend", "backend", 3, "Deterministic financial controls, revision-bound approvals and durable delivery in a synthetic staging prototype.");
   link("p-001", "cap-agentic", "built_with", 3, "Ten LangGraph agents, one per pipeline stage, with the LLM driving every decision.");
   link("p-001", "cap-infra", "built_with", 2, "Six-provider LLM fallback, circuit breaker with cooldown, and a network-isolated sandbox.");
   link("p-001", "cap-eval", "validated_by", 3, "132 automated tests including a full end-to-end LangGraph harness.");
@@ -579,6 +586,7 @@ const OVERVIEW = { pos: new THREE.Vector3(0.5, 4.2, 10.4), look: new THREE.Vecto
 // ── Overlay ─────────────────────────────────────────────────────
 
 export default function GraphMode({ onClose }: { onClose: () => void }) {
+  useEffect(() => suspendPageRendering(), []);
   const { nodes, edges, adjacency } = useMemo(() => buildGraph(), []);
   const nodeById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 

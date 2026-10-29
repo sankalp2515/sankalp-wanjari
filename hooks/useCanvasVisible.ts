@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePageRenderingActive } from "@/lib/renderActivity";
 
 // ── Offscreen render-loop pause + FAR-offscreen teardown for R3F canvases ──
 // A <Canvas> with the default frameloop="always" keeps running rAF + a full
@@ -36,8 +37,9 @@ export function useCanvasVisible(opts?: {
 }) {
   const { pauseMargin = "300px", unmountMargin = "150%", dwellMs = 1200 } = opts ?? {};
   const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(true);
-  const [mounted, setMounted] = useState(true);
+  const [visible, setVisible] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const pageActive = usePageRenderingActive();
   // True while the cinematic tour is running a camera dolly. During a drift the
   // scroll rAF and the WebGL draw loops compete for the main thread, which is
   // what made the tour stutter/flicker. We suspend the render loop for the drift
@@ -50,7 +52,11 @@ export function useCanvasVisible(opts?: {
 
   useEffect(() => {
     const el = ref.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      const frame = requestAnimationFrame(() => { setVisible(true); setMounted(true); });
+      return () => cancelAnimationFrame(frame);
+    }
 
     // Stage 1 — pause/resume the render loop around the viewport.
     const pauseIO = new IntersectionObserver(
@@ -94,5 +100,5 @@ export function useCanvasVisible(opts?: {
     return () => window.removeEventListener("film:drift", onDrift);
   }, []);
 
-  return { ref, visible: visible && !drifting, mounted };
+  return { ref, visible: visible && !drifting && pageActive, mounted };
 }

@@ -5,7 +5,7 @@
 // static text for reduced-motion.
 
 import { useEffect, useRef, useState } from "react";
-import { useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 export default function CountUp({ value, duration = 1200 }: { value: string; duration?: number }) {
   const reduced = useReducedMotion();

@@ -3,7 +3,7 @@
 // A scroll-driven point field for the proof hero. The form moves from a
 // concentrated claim, through a visible evidence loop, into a stable verdict.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useMotionValueEvent, type MotionValue } from "framer-motion";
 import * as THREE from "three";
@@ -121,10 +121,13 @@ function Field({ progress, thinking, activeId, onSelect, theme }: { progress: Re
   const cloud = useRef<THREE.Points>(null);
   const target = useRef(new THREE.Vector3());
   const think = useRef(0); // eased 0→1 "thinking" intensity
+  const lastMorph = useRef<[number, number]>([NaN, NaN]);
   const points = useMemo(() => {
     const count = 2800;
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
+    const ring = new Float32Array(count * 3);
+    const verdict = new Float32Array(count * 3);
     // Additive blending against black lets bright points glow; on paper it
     // washes to nothing, so light uses normal blending with deepened colors.
     const light = theme === "light";
@@ -135,6 +138,13 @@ function Field({ progress, thinking, activeId, onSelect, theme }: { progress: Re
       positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = r * Math.cos(phi);
       positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+      const seed = makeSeed(i + 1000);
+      const angle = seed * Math.PI * 2;
+      const cos = Math.cos(angle), sin = Math.sin(angle);
+      const ringRadius = 1.55 + (seed - .5) * .42;
+      const verdictRadius = 1.86 + (seed - .5) * .52;
+      ring.set([cos * ringRadius, (makeSeed(i + 3000) - .5) * .18, sin * ringRadius], i * 3);
+      verdict.set([cos * verdictRadius, (makeSeed(i + 4000) - .5) * .065, sin * verdictRadius], i * 3);
       const cyan = makeSeed(i + 77) > .48;
       if (light) {
         colors[i * 3]     = cyan ? .043 : .698; // #0B8477 / #B26A05
@@ -146,7 +156,7 @@ function Field({ progress, thinking, activeId, onSelect, theme }: { progress: Re
         colors[i * 3 + 2] = cyan ? .69 : .12;
       }
     }
-    return { positions, colors };
+    return { positions: positions.slice(), sphere: positions, ring, verdict, colors };
   }, [theme]);
 
   useFrame((state, delta) => {
@@ -173,26 +183,18 @@ function Field({ progress, thinking, activeId, onSelect, theme }: { progress: Re
     const material = cloud.current.material as THREE.PointsMaterial;
     material.opacity = .91 + t * .09;
     material.size = .028 + t * .012;
+    const evidenceMix = THREE.MathUtils.smoothstep((p - .28) / .42, 0, 1);
+    const verdictMix = THREE.MathUtils.smoothstep((p - .67) / .24, 0, 1);
+    // The cloud still rotates/breathes every frame. Only its scroll-driven
+    // shape is cached; immutable targets also make reverse scrolling exact.
+    if (lastMorph.current[0] === evidenceMix && lastMorph.current[1] === verdictMix) return;
+    lastMorph.current = [evidenceMix, verdictMix];
     const attribute = cloud.current.geometry.getAttribute("position") as THREE.BufferAttribute;
-    for (let i = 0; i < attribute.count; i++) {
-      const seed = makeSeed(i + 1000);
-      const theta = seed * Math.PI * 2;
-      const sphereX = points.positions[i * 3];
-      const sphereY = points.positions[i * 3 + 1];
-      const sphereZ = points.positions[i * 3 + 2];
-      const ringRadius = 1.55 + (seed - .5) * .42;
-      const ringX = Math.cos(theta) * ringRadius;
-      const ringY = (makeSeed(i + 3000) - .5) * .18;
-      const ringZ = Math.sin(theta) * ringRadius;
-      const verdictX = Math.cos(theta) * (1.86 + (seed - .5) * .52);
-      const verdictY = (makeSeed(i + 4000) - .5) * .065;
-      const verdictZ = Math.sin(theta) * (1.86 + (seed - .5) * .52);
-      const evidenceMix = THREE.MathUtils.smoothstep((p - .28) / .42, 0, 1);
-      const verdictMix = THREE.MathUtils.smoothstep((p - .67) / .24, 0, 1);
-      attribute.setXYZ(i,
-        THREE.MathUtils.lerp(THREE.MathUtils.lerp(sphereX, ringX, evidenceMix), verdictX, verdictMix),
-        THREE.MathUtils.lerp(THREE.MathUtils.lerp(sphereY, ringY, evidenceMix), verdictY, verdictMix),
-        THREE.MathUtils.lerp(THREE.MathUtils.lerp(sphereZ, ringZ, evidenceMix), verdictZ, verdictMix)
+    const output = attribute.array as Float32Array;
+    for (let i = 0; i < output.length; i++) {
+      output[i] = THREE.MathUtils.lerp(
+        THREE.MathUtils.lerp(points.sphere[i], points.ring[i], evidenceMix),
+        points.verdict[i], verdictMix,
       );
     }
     attribute.needsUpdate = true;
@@ -215,7 +217,7 @@ export default function ProofField({ progress, thinking = false, activeId, onSel
   useMotionValueEvent(progress, "change", (next) => { value.current = next; });
   // Live ref so the render loop reads the latest thinking state without re-mounting the canvas.
   const thinkingRef = useRef(thinking);
-  thinkingRef.current = thinking;
+  useEffect(() => { thinkingRef.current = thinking; }, [thinking]);
   const { ref, visible, mounted } = useCanvasVisible();
   return (
     <div ref={ref} className="w-full h-full">

@@ -6,12 +6,13 @@
 // section (CaseStudiesSection). All content is in the SSR markup; the modal
 // is progressive detail.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowUpRight, Zap } from "lucide-react";
 import { projects } from "@/config/portfolio";
 import SectionShell from "./SectionShell";
-import ProjectModal from "./ProjectModal";
+const ProjectModal = dynamic(() => import("./ProjectModal"), { ssr: false });
 import ProjectMedia from "./ProjectMedia";
 import TiltCard from "./TiltCard";
 import { GithubIcon } from "@/components/ui/Icons";
@@ -27,6 +28,19 @@ export default function ProjectsSection({ variant = "a" }: { variant?: "a" | "b"
   const [openId, setOpenId] = useState<string | null>(null);
   const [caseView, setCaseView] = useState(false);
   const [filter, setFilter] = useState("All");
+  const [detailReady, setDetailReady] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
+  // Warm details before the grid is reached, including on touch where there
+  // is no hover. The hero still avoids paying for the detail bundle at boot.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { setDetailReady(true); observer.disconnect(); }
+    }, { rootMargin: "600px" });
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, []);
   const shown = filter === "All" ? projects : projects.filter((p) => p.category === filter);
 
   // Agent tool: [CASE:001] opens a project breakdown directly
@@ -34,6 +48,7 @@ export default function ProjectsSection({ variant = "a" }: { variant?: "a" | "b"
     const onCase = (e: Event) => {
       const id = (e as CustomEvent<string>).detail;
       if (projects.some((p) => p.id === id)) {
+        setDetailReady(true);
         setOpenId(id);
         setCaseView(true);
         document.getElementById("section-work")?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -53,7 +68,7 @@ export default function ProjectsSection({ variant = "a" }: { variant?: "a" | "b"
       id="section-work"
       kicker="ENGINEERING PROJECTS"
       title="Systems built to survive production"
-      subtitle={`${projects.length} production-grade systems — each one end-to-end, with reliability, evaluation, and observability built in, not bolted on. Open any card for the architecture and the trade-offs behind it.`}
+      subtitle={`${projects.length} engineering builds — from agent security and financial workflows to ML infrastructure. Open a card for its architecture, measured evidence and limitations; deployment status is shown in the overview.`}
     >
       {/* Category filters — mono chips, active gets the accent underline */}
       <div className="flex flex-wrap items-center gap-2 mb-8">
@@ -90,14 +105,14 @@ export default function ProjectsSection({ variant = "a" }: { variant?: "a" | "b"
         ))}
       </div>
 
-      <motion.div layout className={`project-grid ${variant === "b" ? "project-grid--film" : ""}`}>
+      <motion.div ref={gridRef} layout onPointerEnter={() => setDetailReady(true)} onFocusCapture={() => setDetailReady(true)} className={`project-grid ${variant === "b" ? "project-grid--film" : ""}`}>
         <AnimatePresence mode="popLayout">
         {shown.map((p, i) => (
           <motion.div
             key={p.id}
             layout
             initial={{ opacity: 0, scale: 0.96, filter: "blur(6px)" }}
-            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+            animate={{ opacity: 1, scale: 1, filter: "blur(0px)", transitionEnd: { filter: "none" } }}
             exit={{ opacity: 0, scale: 0.94, filter: "blur(6px)" }}
             transition={{ duration: 0.45, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] }}
             className={`project-grid__item ${i === 0 ? "project-grid__item--featured" : ""}`}
@@ -105,7 +120,7 @@ export default function ProjectsSection({ variant = "a" }: { variant?: "a" | "b"
             {/* Variant A: cards catch a pointer-driven 3D tilt + sheen. Variant B stays flat. */}
             {(() => {
             const cardBtn = (
-            <button className="project-grid__card" onClick={() => { setOpenId(p.id); setCaseView(false); }} aria-label={`Open the ${p.name} technical breakdown`}>
+            <button className="project-grid__card" onClick={() => { setDetailReady(true); setOpenId(p.id); setCaseView(false); }} aria-label={`Open the ${p.name} technical breakdown`}>
               <div className="project-grid__media"><ProjectMedia id={p.id} name={p.name} preview={p.preview} poster={p.poster} /><span className="project-grid__number">{String(i + 1).padStart(2, "0")}</span><span className="project-grid__year">PROJECT_{String(i + 1).padStart(3, "0")} / {p.year}</span></div>
               <div className="project-grid__content">
               <div className="flex items-center justify-between gap-3 mb-4">
@@ -179,12 +194,12 @@ export default function ProjectsSection({ variant = "a" }: { variant?: "a" | "b"
         </AnimatePresence>
       </motion.div>
 
-      <ProjectModal
+      {detailReady && <ProjectModal
         projectId={openId}
         caseView={caseView}
         setCaseView={setCaseView}
         onClose={() => setOpenId(null)}
-      />
+      />}
     </SectionShell>
   );
 }

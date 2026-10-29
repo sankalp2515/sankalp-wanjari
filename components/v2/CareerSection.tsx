@@ -4,7 +4,8 @@
 // a left rail; no fixed widths, nothing clipped.
 
 import { useRef } from "react";
-import { motion, useReducedMotion, useScroll, useSpring } from "framer-motion";
+import { motion, useScroll, useSpring } from "framer-motion";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { Briefcase } from "lucide-react";
 import { experience } from "@/config/portfolio";
 import SectionShell from "./SectionShell";

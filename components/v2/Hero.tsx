@@ -5,7 +5,8 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, useMotionValueEvent, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { AnimatePresence, motion, useMotionValueEvent, useScroll, useTransform } from "framer-motion";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { ArrowDown, ArrowUpRight, MessageSquare, Play } from "lucide-react";
 import { personal } from "@/config/portfolio";
 import { useConcierge } from "@/contexts/ConciergeContext";
@@ -103,12 +104,12 @@ export default function Hero({ variant = "a" }: { variant?: "a" | "b" }) {
 
         <div className="proof-hero__stage">
           <div className="proof-hero__copy">
-            <motion.p {...enter(0.18)} className="proof-hero__eyebrow">THE PROOF ENGINE / 2026</motion.p>
+            <motion.p {...enter(0.18)} className="proof-hero__eyebrow">AI ENGINEER / PRODUCT-MINDED BUILDER</motion.p>
             <motion.h1 {...enter(0.28, 34)}>
               AI THAT<br /><em>CAN PROVE</em><br />ITSELF.
             </motion.h1>
             <motion.p {...enter(0.46)} className="proof-hero__statement">
-              I build the layer between a model&apos;s output and a decision you can defend — verified, evaluated, and cheap to run.
+              I build agentic systems, and the evaluations, permissions and evidence that make them dependable. From ML pipelines to real product workflows.
             </motion.p>
             <motion.div {...enter(0.56)} className="proof-hero__actions">
               <button onClick={goToWork} className="proof-hero__open">Open the proof <ArrowUpRight size={17} aria-hidden /></button>
@@ -117,7 +118,7 @@ export default function Hero({ variant = "a" }: { variant?: "a" | "b" }) {
           </div>
 
           <motion.div className="proof-hero__object" style={objectStyle}>
-            <div className="proof-hero__core">{variant === "a" && heavyOk ? <ProofField progress={scrollYProgress} activeId={evidenceId} onSelect={setEvidenceId} thinking={thinking} theme={theme} /> : <ProofCore pulse={proofStep === 0 ? 0 : proofStep * 0.52} theme={theme} />}</div>
+            <div className="proof-hero__core">{heavyOk === null ? null : variant === "a" && heavyOk ? <ProofField progress={scrollYProgress} activeId={evidenceId} onSelect={setEvidenceId} thinking={thinking} theme={theme} /> : <ProofCore pulse={proofStep === 0 ? 0 : proofStep * 0.52} theme={theme} />}</div>
             {/* {variant === "a" && <>
               <span className="proof-hero__annotation proof-hero__annotation--a">CLAIM</span>
               <span className="proof-hero__annotation proof-hero__annotation--b">EVIDENCE</span>

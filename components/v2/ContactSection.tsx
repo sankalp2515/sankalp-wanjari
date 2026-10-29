@@ -9,6 +9,7 @@ import { Mail, Check, MapPin, Clock, Timer, ArrowUpRight, Send, Loader2 } from "
 import { personal, social } from "@/config/portfolio";
 import { GithubIcon, LinkedinIcon } from "@/components/ui/Icons";
 import Reveal from "./Reveal";
+import { useMotionRegion } from "@/hooks/useMotionRegion";
 
 const PROJECT_TYPES = [
   "Full-time role — AI Engineer",
@@ -36,6 +37,7 @@ function InfoCard({ icon, label, value }: { icon: React.ReactNode; label: string
 }
 
 export default function ContactSection() {
+  const { ref, active } = useMotionRegion<HTMLElement>();
   const [copied, setCopied] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", type: PROJECT_TYPES[0], message: "" });
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "failed">("idle");
@@ -90,7 +92,7 @@ export default function ContactSection() {
   } as const;
 
   return (
-    <section id="section-contact" className="story-section contact-closing relative max-w-none px-5 py-24 sm:py-32">
+    <section ref={ref} data-motion-paused={!active || undefined} id="section-contact" className="story-section contact-closing relative max-w-none px-5 py-24 sm:py-32">
       <div className="story-section__index" aria-hidden><span>07</span><i /></div>
       {/* Oversized closing headline */}
       <Reveal>

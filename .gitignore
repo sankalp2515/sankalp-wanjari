@@ -50,3 +50,5 @@ Pre-loader/*
 .claude/settings.json
 components/spiral/
 config/spiral.ts
+/.playwright-cli/
+output/

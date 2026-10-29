@@ -15,7 +15,7 @@ const LINKS = [
   // Product case studies are a separate destination from engineering work —
   // the link only exists once there is a case study to open.
   ...(caseStudies.length ? [{ id: "cases", label: "Case Studies" }] : []),
-  { id: "research",  label: "Research" },
+  { id: "research",  label: "Reliability", href: "/reliability" },
   { id: "arc",       label: "Career" },
   { id: "education", label: "Credentials" },
   { id: "skills",    label: "Skills" },
@@ -32,17 +32,25 @@ export default function Nav({ variant = "a" }: { variant?: "a" | "b" }) {
   // Scroll progress bar (bottom edge of the pill)
   useEffect(() => {
     let raf = 0;
+    let maxScroll = 1;
+    const measure = () => { maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight); };
+    measure();
+    const sizeObserver = new ResizeObserver(measure);
+    sizeObserver.observe(document.body);
+    window.addEventListener("resize", measure, { passive: true });
     const onScroll = () => {
-      cancelAnimationFrame(raf);
+      if (raf) return;
       raf = requestAnimationFrame(() => {
-        const max = document.documentElement.scrollHeight - window.innerHeight;
-        const p = max > 0 ? window.scrollY / max : 0;
+        raf = 0;
+        const p = Math.min(1, window.scrollY / maxScroll);
         progressRef.current?.style.setProperty("transform", `scaleX(${p})`);
       });
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
+      sizeObserver.disconnect();
+      window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", onScroll);
       cancelAnimationFrame(raf);
     };
@@ -107,6 +115,7 @@ export default function Nav({ variant = "a" }: { variant?: "a" | "b" }) {
           {/* Section links — desktop */}
           <nav className="hidden md:flex items-center gap-0.5" aria-label="Sections">
             {LINKS.map((l) => (
+              "href" in l ? <a key={l.id} href={l.href} className="text-[12.5px] px-2.5 py-1.5 rounded-full hover:underline" style={{ color: "var(--os-accent-cyan)" }}>{l.label}</a> :
               <button
                 key={l.id}
                 onClick={() => goTo(l.id)}
@@ -203,6 +212,7 @@ export default function Nav({ variant = "a" }: { variant?: "a" | "b" }) {
             aria-label="Sections"
             style={{ borderColor: "color-mix(in srgb, var(--os-text) 8%, transparent)" }}>
             {LINKS.map((l) => (
+              "href" in l ? <a key={l.id} href={l.href} className="text-left text-[14px] px-3 py-2.5 rounded-lg hover:underline" style={{ color: "var(--os-accent-cyan)" }}>{l.label} &amp; Safety</a> :
               <button
                 key={l.id}
                 onClick={() => goTo(l.id)}

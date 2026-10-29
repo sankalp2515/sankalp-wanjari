@@ -35,19 +35,26 @@ export default function BehaviorTracker() {
 
     // Deepest scroll reached — a cheap intent signal ("read most of the page"
     // vs "bounced at the hero"). Throttled to a passive rAF; records the max.
-    let ticking = false;
+    let frame = 0;
+    let maxScroll = 1;
+    const measure = () => { maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight); };
+    measure();
+    const sizeObserver = new ResizeObserver(measure);
+    sizeObserver.observe(document.body);
+    window.addEventListener("resize", measure, { passive: true });
     const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
-        const max = document.documentElement.scrollHeight - window.innerHeight;
-        if (max > 0) noteScroll((window.scrollY / max) * 100);
-        ticking = false;
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        noteScroll((window.scrollY / maxScroll) * 100);
+        frame = 0;
       });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
 
     return () => {
+      cancelAnimationFrame(frame);
+      sizeObserver.disconnect();
+      window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("stage:case", onCase);
       window.removeEventListener("stage:highlight", onHighlight);

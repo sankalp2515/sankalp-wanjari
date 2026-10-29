@@ -92,7 +92,7 @@ function injectLiteSheet() {
 }
 
 /** Idempotent. Stamps <html> with the tier and starts the heap monitor. */
-export function startPerfGovernor(): void {
+export function startPerfGovernor(): (() => void) | undefined {
   if (started || typeof document === "undefined") return;
   started = true;
 
@@ -126,12 +126,11 @@ export function startPerfGovernor(): void {
   const mem = (performance as Performance & {
     memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number };
   }).memory;
-  if (!mem) return; // non-Chromium: tier alone governs, no live monitor
 
   let lite = tier === "low";
   const check = () => {
-    const usedMB = mem.usedJSHeapSize / 1048576;
-    const limitMB = mem.jsHeapSizeLimit / 1048576;
+    const usedMB = mem ? mem.usedJSHeapSize / 1048576 : 0;
+    const limitMB = mem ? mem.jsHeapSizeLimit / 1048576 : Infinity;
     // Downgrade once we cross the fixed heap budget, near the device's own
     // ceiling, OR when more WebGL contexts are live than the design intends
     // (the heap number is blind to GPU memory, so contexts are the real tell).
@@ -145,6 +144,16 @@ export function startPerfGovernor(): void {
     }
   };
   check();
-  const iv = window.setInterval(check, 4000);
-  window.addEventListener("pagehide", () => clearInterval(iv), { once: true });
+  let iv: number | undefined;
+  const pause = () => { window.clearInterval(iv); iv = undefined; };
+  const resume = () => { pause(); check(); iv = window.setInterval(check, 4000); };
+  window.addEventListener("pagehide", pause);
+  window.addEventListener("pageshow", resume);
+  resume();
+  return () => {
+    pause();
+    window.removeEventListener("pagehide", pause);
+    window.removeEventListener("pageshow", resume);
+    started = false;
+  };
 }

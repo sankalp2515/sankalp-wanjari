@@ -1,11 +1,12 @@
 "use client";
+import { useMotionRegion } from "@/hooks/useMotionRegion";
 
 // MarqueeStrip — an infinite horizontal skill ticker directly below the
 // hero. Pure CSS transform animation (GPU-cheap, no JS loop), edge fade
 // masks, pause-on-hover, and a static wrap for reduced-motion.
 
 import { skills } from "@/config/portfolio";
-import { useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 // Two rows scrolling opposite ways reads richer than one.
 const ROW_A = skills.filter((_, i) => i % 2 === 0).map((s) => s.name);
@@ -40,6 +41,7 @@ function Row({ items, reverse, duration }: { items: string[]; reverse?: boolean;
 
 export default function MarqueeStrip() {
   const reduced = useReducedMotion();
+  const { ref, active } = useMotionRegion<HTMLDivElement>();
 
   if (reduced) {
     // Static, wrapped — no motion
@@ -58,6 +60,8 @@ export default function MarqueeStrip() {
 
   return (
     <div
+      ref={ref}
+      data-motion-paused={!active || undefined}
       className="relative py-6 border-y overflow-hidden marquee-mask"
       style={{ borderColor: "var(--os-border-subtle)", background: "color-mix(in srgb, var(--os-bg-elevated) 40%, transparent)" }}
     >

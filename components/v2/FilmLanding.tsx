@@ -6,6 +6,7 @@ import FilmHero from "./FilmHero";
 import FilmBreak from "./FilmBreak";
 import AboutSection from "./AboutSection";
 import ProjectsSection from "./ProjectsSection";
+import AchievementsSection from "./AchievementsSection";
 import ResearchSection from "./ResearchSection";
 import CareerSection from "./CareerSection";
 import EducationSection from "./EducationSection";
@@ -23,6 +24,7 @@ export default function FilmLanding() {
         <AboutSection />
         <FilmBreak index="03" lines={["THE WORK IS", "THE RECEIPT."]} note="Each project opens the system, the constraints, and the decisions behind the interface." />
         <ProjectsSection variant="b" />
+        <AchievementsSection />
         <ResearchSection />
         <FilmBreak index="04" lines={["SYSTEMS MUST", "HOLD."]} note="Production is where the promise meets people, operators, evaluation, and consequence." />
         <CareerSection variant="b" />

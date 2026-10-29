@@ -118,8 +118,8 @@ function fmtCountdown(sec: number): string {
 }
 
 export default function AgentDock() {
-  const { open, setOpen, ask, clear, persona, tourRunning, tourStep, stopTour, degraded, retryInSec, reserveReason, retryNow } = useConcierge();
-  const { messages, status, statusLine } = useConciergeChat();
+  const { open, setOpen, ask, clear, persona, tourRunning, tourStep, stopTour, degraded, reserveReason, retryNow } = useConcierge();
+  const { messages, status, statusLine, retryInSec } = useConciergeChat();
   // Power-transition animation state. Kept separate from `degraded` so the
   // CRT cut plays ONCE on the transition rather than looping for the whole
   // outage — the old build left .core-flicker on permanently, which read as
@@ -222,9 +222,10 @@ export default function AgentDock() {
 
   // Rotate placeholder
   useEffect(() => {
+    if (!open) return;
     const id = setInterval(() => setPh((p) => (p + 1) % PLACEHOLDERS.length), 3600);
     return () => clearInterval(id);
-  }, []);
+  }, [open]);
 
   // Global focus event (Nav / Hero / Ctrl+K)
   useEffect(() => {

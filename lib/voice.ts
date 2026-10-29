@@ -303,7 +303,10 @@ async function remoteSpeak(text: string, voice: VoiceName, myToken: number): Pro
   }
 }
 
+let sequenceAbort: AbortController | null = null;
 function hardStop() {
+  sequenceAbort?.abort();
+  sequenceAbort = null;
   if (sharedAudio) {
     sharedAudio.pause();
     sharedAudio.onended = null;
@@ -341,24 +344,32 @@ function splitIntoChunks(text: string): string[] {
 
 // Fetch ONE chunk's audio from /api/voice → object URL (or null to fall back to
 // web speech for that chunk). Cleans the display text just before synth.
-async function fetchTtsUrl(displayText: string, voice: VoiceName, myToken: number): Promise<string | null> {
+async function fetchTtsUrl(displayText: string, voice: VoiceName, myToken: number, signal?: AbortSignal): Promise<string | null> {
   const clean = cleanForSpeech(displayText);
   if (!clean || typeof Audio === "undefined") return null;
   const t0 = Date.now();
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  const timeout = setTimeout(cancel, 20_000);
+  signal?.addEventListener("abort", cancel, { once: true });
+  if (signal?.aborted) cancel();
   try {
     const res = await fetch("/api/voice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: clean, voice }),
-      signal: AbortSignal.timeout(20_000),
+      signal: controller.signal,
     });
     vlog("chunk", res.status, res.headers.get("X-Voice-Provider") ?? "-", res.headers.get("X-Voice-Cache") ?? "-", `${Date.now() - t0}ms`);
     if (!res.ok || myToken !== token) return null;
     const blob = await res.blob();
-    if (myToken !== token) return null;
+    if (myToken !== token || controller.signal.aborted) return null;
     return URL.createObjectURL(blob);
   } catch {
     return null; // network/timeout → web speech carries this chunk
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", cancel);
   }
 }
 
@@ -607,15 +618,28 @@ export const helios = {
       const ready = remoteReady !== null ? remoteReady : await probeRemote();
       if (myToken !== token) return;
       // Prefetch pipeline: fetch chunk 0 now, then fetch i+1 while i plays.
-      let nextUrl: Promise<string | null> = ready ? fetchTtsUrl(chunks[0], voice, myToken) : Promise.resolve(null);
-      for (let i = 0; i < chunks.length; i++) {
-        if (myToken !== token || document.hidden) break;
-        const url = await nextUrl;
-        nextUrl = ready && i + 1 < chunks.length ? fetchTtsUrl(chunks[i + 1], voice, myToken) : Promise.resolve(null);
-        if (myToken !== token) { if (url) { try { URL.revokeObjectURL(url); } catch { /* noop */ } } break; }
-        const fire = () => opts?.onChunkStart?.(i, chunks.length);
-        if (url) await playUrlOnce(url, myToken, fire);
-        else await webSpeechOnce(cleanForSpeech(chunks[i]) || chunks[i], myToken, fire);
+      const controller = new AbortController();
+      sequenceAbort = controller;
+      let nextUrl: Promise<string | null> = ready ? fetchTtsUrl(chunks[0], voice, myToken, controller.signal) : Promise.resolve(null);
+      try {
+        for (let i = 0; i < chunks.length; i++) {
+          if (myToken !== token || document.hidden) break;
+          const url = await nextUrl;
+          nextUrl = Promise.resolve(null);
+          if (myToken !== token || document.hidden) {
+            if (url) URL.revokeObjectURL(url);
+            break;
+          }
+          nextUrl = ready && i + 1 < chunks.length ? fetchTtsUrl(chunks[i + 1], voice, myToken, controller.signal) : Promise.resolve(null);
+          const fire = () => opts?.onChunkStart?.(i, chunks.length);
+          if (url) await playUrlOnce(url, myToken, fire);
+          else await webSpeechOnce(cleanForSpeech(chunks[i]) || chunks[i], myToken, fire);
+        }
+      } finally {
+        controller.abort();
+        const unused = await nextUrl;
+        if (unused) URL.revokeObjectURL(unused);
+        if (sequenceAbort === controller) sequenceAbort = null;
       }
     })();
   },

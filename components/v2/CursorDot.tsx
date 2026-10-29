@@ -34,13 +34,15 @@ export default function CursorDot() {
     let raf = 0;
 
     const loop = () => {
+      raf = 0;
+      if (!visible || document.hidden) return;
       rx += (x - rx) * 0.16;
       ry += (y - ry) * 0.16;
       dot.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
       ring.style.transform = `translate3d(${rx}px, ${ry}px, 0) translate(-50%, -50%) scale(${hoverScale})`;
-      raf = requestAnimationFrame(loop);
+      if (Math.abs(x - rx) > 0.01 || Math.abs(y - ry) > 0.01) raf = requestAnimationFrame(loop);
     };
-    raf = requestAnimationFrame(loop);
+    const wake = () => { if (!raf && visible && !document.hidden) raf = requestAnimationFrame(loop); };
 
     const onMove = (e: PointerEvent) => {
       x = e.clientX;
@@ -50,23 +52,30 @@ export default function CursorDot() {
         dot.style.opacity = "1";
         ring.style.opacity = "1";
       }
+      wake();
     };
     const onOver = (e: PointerEvent) => {
       hoverScale = (e.target as Element | null)?.closest?.(INTERACTIVE) ? 1.9 : 1;
+      wake();
     };
     const onLeave = () => {
       visible = false;
       dot.style.opacity = "0";
       ring.style.opacity = "0";
+      cancelAnimationFrame(raf);
+      raf = 0;
     };
+    const onVisibility = () => { if (document.hidden) onLeave(); };
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("pointerover", onOver, { passive: true });
     document.documentElement.addEventListener("pointerleave", onLeave);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerover", onOver);
       document.documentElement.removeEventListener("pointerleave", onLeave);
+      document.removeEventListener("visibilitychange", onVisibility);
       document.documentElement.classList.remove("custom-cursor");
     };
   }, [active]);

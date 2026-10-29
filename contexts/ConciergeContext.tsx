@@ -30,6 +30,7 @@ export interface ConciergeMessage {
 // (which fire ~many times per reply) only re-render the chat panel, not the
 // whole page (hero WebGL, nav, skills, etc.).
 interface ConciergeChatValue {
+  retryInSec: number | null;
   messages: ConciergeMessage[];
   status: "idle" | "thinking" | "streaming";
   /** Live system telemetry while a request reroutes providers (mono ticker) */
@@ -59,7 +60,6 @@ interface ConciergeValue {
   degraded: boolean;
   /** Seconds until the next automatic health probe (null when not degraded).
    *  A countdown is what turns "we'll be back" into a checkable promise. */
-  retryInSec: number | null;
   /** Why we're on reserve power. "unconfigured" = no keys deployed at all,
    *  so we must NOT promise a return. "cooling" = rate-limited, will recover. */
   reserveReason: "cooling" | "unconfigured" | null;
@@ -112,7 +112,7 @@ const SECTION_TO_NAV: Partial<Record<string, string>> = {
 // prompt-injected model can emit any tag it likes; this allowlist guarantees
 // the client acts on nothing outside the portfolio's own known sections.
 const ALLOWED_NAV = new Set([
-  "work", "research", "arc", "education", "skills", "contact", "agent",
+  "work", "achievements", "research", "arc", "education", "skills", "contact", "agent",
 ]);
 
 function dispatchStageTags(text: string) {
@@ -1068,13 +1068,13 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
   // (open/persona/tour/degraded), NOT while the AI streams words. This is
   // what keeps the hero WebGL, nav, and skills from re-rendering per word.
   const controlValue = useMemo<ConciergeValue>(
-    () => ({ open, persona, setPersona: setPersonaAndSave, ask, setOpen, clear, focusSection, tour, stopTour, tourRunning, tourStep, tourSpeed, setTourSpeed, degraded, retryInSec, reserveReason, retryNow }),
-    [open, persona, setPersonaAndSave, ask, setOpen, clear, focusSection, tour, stopTour, tourRunning, tourStep, tourSpeed, setTourSpeed, degraded, retryInSec, reserveReason, retryNow]
+    () => ({ open, persona, setPersona: setPersonaAndSave, ask, setOpen, clear, focusSection, tour, stopTour, tourRunning, tourStep, tourSpeed, setTourSpeed, degraded, reserveReason, retryNow }),
+    [open, persona, setPersonaAndSave, ask, setOpen, clear, focusSection, tour, stopTour, tourRunning, tourStep, tourSpeed, setTourSpeed, degraded, reserveReason, retryNow]
   );
   // Fast-changing chat value: consumed only by the chat panel (AgentDock).
   const chatValue = useMemo<ConciergeChatValue>(
-    () => ({ messages, status, statusLine }),
-    [messages, status, statusLine]
+    () => ({ messages, status, statusLine, retryInSec }),
+    [messages, status, statusLine, retryInSec]
   );
 
   return (

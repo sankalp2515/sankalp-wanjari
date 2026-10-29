@@ -4,7 +4,8 @@
 // scrolling portfolio into a paced film: assertion → evidence → consequence.
 
 import { useRef } from "react";
-import { motion, useReducedMotion, useScroll, useTransform, useInView } from "framer-motion";
+import { motion, useScroll, useTransform, useInView } from "framer-motion";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { MOBILE_TUNING } from "@/config/mobileTuning";
 

@@ -1,0 +1,62 @@
+// Reported results, not fresh measurements. Never merge detection and action
+// containment denominators or represent related implementations as replications.
+export const reliabilityStudies = [
+  {
+    slug: "intentseal", projectId: "007", name: "IntentSeal",
+    question: "What happens when an agent reads an instruction nobody authorised?",
+    contribution: "Input inspection, deterministic action policies and replayable decision evidence.",
+    threat: "An attacker controls content the agent reads and tries to redirect tool use. The boundary assumes a trusted gateway and policy configuration.",
+    method: "Evaluate detection separately from execution containment. Report channels, excluded payloads, benign false alarms and isolated latency alongside recall.",
+    result: "99.2% detection recall on 359 generated third-party-content attacks; 68.1% on 442 direct-turn cases. Held-out hard-benign false-positive rate: 5.1% on 39 cases.",
+    limitation: "The 11 October report records zero of nine attack categories meeting its joint recall/false-positive acceptance target. Strong aggregate recall does not establish general robustness. The benign sample is small; undelivered payload exclusions matter.",
+    provenance: "11 Oct 2026 report · commit 9ca8fb5 · engine 9aca55e22cd6 · corpus 8b80c0eca694. These identifiers describe the historical report, not necessarily the latest repository head.",
+    next: "Test adaptive attacks against the action gate, ambiguous authorised requests and unseen tools; compare detection-only, gate-only and combined conditions.",
+    sources: [
+      { label: "Evaluation and acceptance criteria", url: "https://github.com/sankalp2515/intentseal/blob/main/docs/EVALUATION.md" },
+      { label: "Action assurance", url: "https://github.com/sankalp2515/intentseal/blob/main/docs/ASSURANCE.md" },
+      { label: "Evaluation harness and reports", url: "https://github.com/sankalp2515/intentseal/tree/main/eval" },
+    ],
+  },
+  {
+    slug: "abide", projectId: "008", name: "Abide",
+    question: "Can a person delegate a task without granting an agent unlimited authority?",
+    contribution: "Grounded permission cards, human confirmation, execution-time checks and source-preserving agent handoffs.",
+    threat: "A document redirects an agent toward records, recipients or amounts outside an employee-confirmed work order. Agent credentials cannot approve their own permissions.",
+    method: "Compare no protection, approval at every step and delegation controls on the same internally authored scenarios. Measure executed actions and legitimate work, not just suspicious-text labels.",
+    result: "0/28 attacked scenarios executed an unauthorised action; 26/26 normal tasks completed. The report gives a 95% interval of 0–12% for the attack outcome. Gate-only also recorded 0/28.",
+    limitation: "The suite is internally authored and small. The approval baseline includes simulated employee behaviour, so it is not a human usability study. Abide builds on IntentSeal; these results are not an independent replication.",
+    provenance: "Repository-reported evaluation: 28 attack, 26 normal and 10 ambiguous scenarios. Consult the linked report and raw artifacts for conditions; no new evaluation was run for this portfolio.",
+    next: "Use independently authored and adaptive attacks; test permission-drafting errors, approval burden with real participants, and safe recovery under attack.",
+    sources: [
+      { label: "Evaluation, baselines and limits", url: "https://github.com/sankalp2515/Abide/blob/main/docs/EVAL.md" },
+      { label: "Implementation and reproduction", url: "https://github.com/sankalp2515/Abide" },
+    ],
+  },
+  {
+    slug: "veriscope", projectId: "002", name: "Veriscope",
+    question: "Can a reader inspect why a research answer deserves confidence?",
+    contribution: "Source-linked research, quote checks, NLI verification and CI-gated groundedness.",
+    threat: "A fluent synthesis may cite irrelevant sources, invent support or conceal gaps in retrieved evidence.",
+    method: "Treat retrieval relevance, citation support and synthesis quality as separate questions. Trace a claim to the retrieved passage and inspect verification failures.",
+    result: "The implemented workflow provides source inspection and verification gates. This page does not turn its retrieval-relevance claim into a general truthfulness or safety score.",
+    limitation: "An entailed claim can still rely on an unreliable source. Source coverage, contradictory evidence and verifier errors remain separate concerns.",
+    provenance: "Engineering evidence from the portfolio project breakdown; no independently reproduced research result is claimed here.",
+    next: "Evaluate unsupported claims, conflicting sources and abstention quality on a held-out, manually labelled set.",
+    sources: [],
+  },
+  {
+    slug: "caseproof", projectId: "009", name: "CaseProof",
+    question: "Can AI assist an investigation while a human retains decision ownership?",
+    contribution: "Source-linked findings, inspectable money trails and independent approval bound to the current case revision.",
+    threat: "New evidence changes a case after approval, or an AI summary blurs customer statements with bank-confirmed observations.",
+    method: "Separate customer, analyst and reviewer journeys; check provenance, approval invalidation and acknowledged delivery using synthetic practice cases.",
+    result: "The repository records 51 public-cloud browser checks on 27 Oct 2026. These are workflow acceptance checks, not a measurement of fraud reduction or analyst accuracy.",
+    limitation: "Synthetic staging prototype, not a production bank integration. Delivery does not establish recovery, a freeze, a refund or a regulatory filing.",
+    provenance: "27 Oct 2026 submission verification and cloud acceptance records. This portfolio has not independently rerun the cloud checks.",
+    next: "Inject stale approvals, contradictory records and duplicate deliveries; assess how analysts detect unsupported findings before review.",
+    sources: [
+      { label: "Verification record", url: "https://github.com/sankalp2515/CaseProof-justified-first-response-for-analyst/blob/main/docs/SUBMISSION_VERIFICATION.md" },
+      { label: "Cloud acceptance evidence", url: "https://github.com/sankalp2515/CaseProof-justified-first-response-for-analyst/blob/main/docs/SUBMISSION_CLOUD_ACCEPTANCE.json" },
+    ],
+  },
+] as const;

@@ -5,7 +5,7 @@
 // The agent operates the page via CustomEvents: stage:nav,
 // stage:case, stage:highlight (dispatched by ConciergeContext).
 
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { AnimatePresence } from "framer-motion";
 import { MessageSquare } from "lucide-react";
@@ -38,11 +38,13 @@ import CursorDot from "./CursorDot";
 import Magnetic from "./Magnetic";
 import SignalRail from "./SignalRail";
 import Interlude from "./Interlude";
-import FilmLanding from "./FilmLanding";
+const FilmLanding = dynamic(() => import("./FilmLanding"));
 import Hero from "./Hero";
 import MarqueeStrip from "./MarqueeStrip";
 import AboutSection from "./AboutSection";
 import ProjectsSection from "./ProjectsSection";
+import ReliabilityPreview from "./ReliabilityPreview";
+import AchievementsSection from "./AchievementsSection";
 import CaseStudiesSection from "./CaseStudiesSection";
 import ResearchSection from "./ResearchSection";
 import CareerSection from "./CareerSection";
@@ -60,10 +62,32 @@ import { helios } from "@/lib/voice";
 
 const VALID_PERSONAS = ["recruiter", "cto", "developer", "explorer"];
 
+// Parent overlay updates must not reconcile the complete portfolio story.
+const Story = memo(function Story({ variant }: { variant: "a" | "b" }) {
+  return <div className="relative z-[1]">
+    <Hero variant={variant} />
+    <MarqueeStrip />
+    <AboutSection />
+    <Interlude index="01" kicker="THE PREMISE" lines={["MAKE IT", "MATTER."]} caption="Models are easy to demo. The difficult part is making them dependable enough to earn a place in someone’s real workflow." />
+    <ProjectsSection />
+    <ReliabilityPreview />
+    <AchievementsSection />
+    <CaseStudiesSection />
+    <Interlude index="02" kicker="THE STANDARD" lines={["VERIFY", "EVERYTHING."]} caption="A confident answer is not evidence. Systems should show their work before people are asked to trust them." tone="cool" />
+    <ResearchSection />
+    <CareerSection />
+    <Interlude index="03" kicker="THE THROUGHLINE" lines={["SHIP THE", "HARD PART."]} caption="Good AI work does not stop at the model. It reaches the edge cases, the operators, the evaluation loop, and the outcome." tone="green" />
+    <EducationSection />
+    <SkillsSection />
+    <ContactSection />
+  </div>;
+});
+
 // Agent nav targets → DOM section ids
 const NAV_TARGET: Record<string, string> = {
   about: "section-about",
   work: "section-work",
+  achievements: "section-achievements",
   research: "section-research",
   arc: "section-arc",
   education: "section-education",
@@ -78,7 +102,7 @@ function LandingInner({ variant }: { variant: "a" | "b" }) {
   // inside the hero the nav button and the hero CTA already cover it.
   const [pastHero, setPastHero] = useState(false);
   // Scale the experience to the device (WebGL, blur, animation budget).
-  useEffect(() => { startPerfGovernor(); }, []);
+  useEffect(() => startPerfGovernor(), []);
   // Master switch for the mobile tuning pass. One class gates every scoped
   // CSS rule; flip MOBILE_TUNING to false to remove it and revert instantly.
   useEffect(() => {
@@ -147,39 +171,7 @@ function LandingInner({ variant }: { variant: "a" | "b" }) {
       <SignalRail variant="a" />
       <Nav variant="a" />
 
-      <div className="relative z-[1]">
-        <Hero variant={variant} />
-        <MarqueeStrip />
-        <AboutSection />
-        <Interlude
-          index="01"
-          kicker="THE PREMISE"
-          lines={["MAKE IT", "MATTER."]}
-          caption="Models are easy to demo. The difficult part is making them dependable enough to earn a place in someone’s real workflow."
-        />
-        <ProjectsSection />
-        {/* Renders only when config/portfolio.ts caseStudies has real entries. */}
-        <CaseStudiesSection />
-        <Interlude
-          index="02"
-          kicker="THE STANDARD"
-          lines={["VERIFY", "EVERYTHING."]}
-          caption="A confident answer is not evidence. Systems should show their work before people are asked to trust them."
-          tone="cool"
-        />
-        <ResearchSection />
-        <CareerSection />
-        <Interlude
-          index="03"
-          kicker="THE THROUGHLINE"
-          lines={["SHIP THE", "HARD PART."]}
-          caption="Good AI work does not stop at the model. It reaches the edge cases, the operators, the evaluation loop, and the outcome."
-          tone="green"
-        />
-        <EducationSection />
-        <SkillsSection />
-        <ContactSection />
-      </div>
+      <Story variant={variant} />
       </>}
 
       {/* Floating Ask-AI pill — discoverable after scrolling, hidden while dock open */}

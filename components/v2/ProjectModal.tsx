@@ -14,6 +14,8 @@ import { GithubIcon } from "@/components/ui/Icons";
 import { projects, type Diagram } from "@/config/portfolio";
 import { useConcierge } from "@/contexts/ConciergeContext";
 import DiagramGallery from "./DiagramGallery";
+import Link from "next/link";
+import { reliabilityStudies } from "@/config/reliability";
 
 export default function ProjectModal({
   projectId,
@@ -185,6 +187,10 @@ export default function ProjectModal({
                   <p className="text-[14.5px] leading-relaxed mb-6" style={{ color: "var(--os-text-secondary)" }}>
                     {project.longDescription}
                   </p>
+                  <div className="flex flex-wrap gap-4 mb-6 text-sm" style={{ color: "var(--os-accent-cyan)" }}>
+                    <Link href={`/work/${project.shortName}`} className="underline underline-offset-4">Open shareable project page</Link>
+                    {reliabilityStudies.some(study => study.projectId === project.id) && <Link href={`/reliability#${reliabilityStudies.find(study => study.projectId === project.id)!.slug}`} className="underline underline-offset-4">Inspect evidence &amp; limitations</Link>}
+                  </div>
 
                   <div className="text-[11px] font-mono mono-small tracking-widest mb-3" style={{ color: "var(--os-accent)" }}>
                     KEY HIGHLIGHTS

@@ -3,7 +3,7 @@
 // Pointer-driven 3D tilt. Pure CSS-variable transforms — no library,
 // no rAF loop while idle. Disabled on touch and reduced-motion via CSS.
 
-import { ReactNode, useRef } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 
 const MAX_TILT = 7; // degrees
 
@@ -17,28 +17,48 @@ export default function TiltCard({
   onClick?: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const wrapper = useRef<HTMLDivElement>(null);
+  const rect = useRef<DOMRect | null>(null);
+  const frame = useRef(0);
+  useEffect(() => {
+    const invalidate = () => { rect.current = null; };
+    window.addEventListener("scroll", invalidate, { passive: true });
+    window.addEventListener("resize", invalidate, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame.current);
+      window.removeEventListener("scroll", invalidate);
+      window.removeEventListener("resize", invalidate);
+    };
+  }, []);
 
   const onMove = (e: React.PointerEvent) => {
     const el = ref.current;
-    if (!el || e.pointerType !== "mouse") return;
-    const r = el.getBoundingClientRect();
+    if (!el || e.pointerType !== "mouse" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const r = rect.current ?? wrapper.current?.getBoundingClientRect();
+    if (!r) return;
+    rect.current = r;
     const px = (e.clientX - r.left) / r.width;   // 0..1
     const py = (e.clientY - r.top) / r.height;   // 0..1
-    el.style.setProperty("--tilt-y", `${(px - 0.5) * 2 * MAX_TILT}deg`);
-    el.style.setProperty("--tilt-x", `${(0.5 - py) * 2 * MAX_TILT}deg`);
-    el.style.setProperty("--sheen-x", `${px * 100}%`);
-    el.style.setProperty("--sheen-y", `${py * 100}%`);
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      el.style.setProperty("--tilt-y", `${(px - 0.5) * 2 * MAX_TILT}deg`);
+      el.style.setProperty("--tilt-x", `${(0.5 - py) * 2 * MAX_TILT}deg`);
+      el.style.setProperty("--sheen-x", `${px * 100}%`);
+      el.style.setProperty("--sheen-y", `${py * 100}%`);
+    });
   };
 
   const onLeave = () => {
     const el = ref.current;
+    cancelAnimationFrame(frame.current);
+    rect.current = null;
     if (!el) return;
     el.style.setProperty("--tilt-x", "0deg");
     el.style.setProperty("--tilt-y", "0deg");
   };
 
   return (
-    <div className="tilt-wrap h-full">
+    <div ref={wrapper} className="tilt-wrap h-full">
       <div
         ref={ref}
         onPointerMove={onMove}

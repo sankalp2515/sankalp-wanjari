@@ -50,21 +50,31 @@ let raf = 0;
 let reduced = false;
 let isMoving = false;
 const listeners = new Set<Listener>();
+let maxScroll = 1;
+let users = 0;
+let teardown: (() => void) | undefined;
+const published = new Map<string, string>();
+
+function wake() {
+  if (started && !raf && !document.hidden) raf = requestAnimationFrame(loop);
+}
 
 function measure() {
   state.vh = window.innerHeight;
+  maxScroll = Math.max(1, document.documentElement.scrollHeight - state.vh);
+  wake();
 }
 
 function loop() {
+  raf = 0;
   const y = window.scrollY || 0;
-  const max = Math.max(1, document.documentElement.scrollHeight - state.vh);
 
   // Instantaneous delta, then a low-pass filter. The filter matters: raw
   // per-frame deltas are spiky enough that type driven straight off them
   // judders instead of flowing.
   const delta = y - state.y;
   state.y = y;
-  state.p = Math.min(1, Math.max(0, y / max));
+  state.p = Math.min(1, Math.max(0, y / maxScroll));
 
   // Heavy follower — this is what gives the dolly its sense of mass.
   state.smooth += (y - state.smooth) * 0.11;
@@ -78,15 +88,17 @@ function loop() {
   state.va = Math.abs(state.v);
 
   const root = document.documentElement;
-  root.style.setProperty("--scroll-v", state.v.toFixed(4));
-  root.style.setProperty("--scroll-va", state.va.toFixed(4));
-  root.style.setProperty("--scroll-p", state.p.toFixed(4));
+  const publish = (name: string, value: number) => {
+    const next = value.toFixed(4);
+    if (published.get(name) === next) return;
+    published.set(name, next);
+    root.style.setProperty(name, next);
+  };
+  publish("--scroll-v", state.v);
+  publish("--scroll-va", state.va);
+  publish("--scroll-p", state.p);
 
-  // MEMORY: a `filter: blur()` that is merely *present* — even at 0px — forces
-  // the browser to keep an offscreen backing store for every element carrying
-  // it, permanently. Gating the blur behind a class means at rest (which is
-  // most of the time) those buffers do not exist at all. This one toggle was
-  // worth hundreds of MB across the kinetic headlines.
+  // Only expose moving-state effects while there is visible velocity.
   const moving = state.va > 0.02;
   if (moving !== isMoving) {
     isMoving = moving;
@@ -94,41 +106,67 @@ function loop() {
   }
 
   listeners.forEach((fn) => fn(state));
-  raf = requestAnimationFrame(loop);
+  if (state.va > 0 || Math.abs(y - state.smooth) > 0.01) wake();
 }
 
 /** Idempotent. Safe to call from every component that needs the field. */
-export function startScrollField(): void {
-  if (started || typeof window === "undefined") return;
-  started = true;
-
-  reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-  mq.addEventListener?.("change", (e) => { reduced = e.matches; });
-
-  measure();
-  window.addEventListener("resize", measure, { passive: true });
-  window.addEventListener("orientationchange", measure, { passive: true });
-
-  // A backgrounded tab should not accumulate a bogus velocity spike when it
-  // returns; zero the channel on the way out.
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) { state.v = 0; state.va = 0; }
-  });
-
-  state.y = window.scrollY || 0;
-  state.smooth = state.y;
-  raf = requestAnimationFrame(loop);
+export function startScrollField(): () => void {
+  if (typeof window === "undefined") return () => {};
+  users++;
+  if (!started) {
+    started = true;
+    published.clear();
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    reduced = mq.matches;
+    const onMotion = () => { reduced = mq.matches; wake(); };
+    const onVisibility = () => {
+      cancelAnimationFrame(raf);
+      raf = 0;
+      state.v = 0; state.va = 0;
+      state.y = window.scrollY || 0;
+      state.smooth = state.y;
+      wake();
+    };
+    mq.addEventListener("change", onMotion);
+    window.addEventListener("scroll", wake, { passive: true });
+    window.addEventListener("resize", measure, { passive: true });
+    window.addEventListener("orientationchange", measure, { passive: true });
+    document.addEventListener("visibilitychange", onVisibility);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(document.body);
+    teardown = () => {
+      mq.removeEventListener("change", onMotion);
+      window.removeEventListener("scroll", wake);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+      document.removeEventListener("visibilitychange", onVisibility);
+      observer?.disconnect();
+    };
+    state.y = window.scrollY || 0;
+    state.smooth = state.y;
+    measure();
+  }
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    users = Math.max(0, users - 1);
+    if (!users) stopScrollField();
+  };
 }
 
 export function stopScrollField(): void {
   cancelAnimationFrame(raf);
+  raf = 0;
+  teardown?.();
+  teardown = undefined;
   started = false;
 }
 
 /** Subscribe to per-frame updates. Returns an unsubscribe. */
 export function onScrollField(fn: Listener): () => void {
   listeners.add(fn);
+  wake();
   return () => { listeners.delete(fn); };
 }
 

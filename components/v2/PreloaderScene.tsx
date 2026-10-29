@@ -32,6 +32,7 @@
 import { useEffect, useRef } from "react";
 
 import * as THREE from "three";
+import { onContextCreate, onContextDispose } from "@/lib/perf";
 
 export type DeviceTier = "low" | "medium" | "high";
 
@@ -185,6 +186,7 @@ export default function PreloaderScene({ ignition, tier }: Props) {
       return;
     }
 
+    onContextCreate();
     // 1. Fresnel noise core
     const coreGeo = new THREE.IcosahedronGeometry(1.15, budget.coreDetail);
     const coreMat = new THREE.ShaderMaterial({
@@ -368,6 +370,7 @@ export default function PreloaderScene({ ignition, tier }: Props) {
     start();
 
     return () => {
+      onContextDispose();
       document.removeEventListener("visibilitychange", onVisibility);
       ro.disconnect();
       stop();
