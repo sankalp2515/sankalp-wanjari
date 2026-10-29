@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run check:resume && next build",
+    "check:resume": "tsx scripts/check-resume.ts --check",
+    "test:resume": "tsx --test scripts/check-resume.test.ts",
     "start": "next start",
     "lint": "eslint",
     "voice:gen": "tsx scripts/gen-voice.ts",

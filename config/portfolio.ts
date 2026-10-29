@@ -47,6 +47,7 @@ My teammates know me as a problem solver who enjoys simplifying complexity and a
 
   email: "sankalpwanjari1625@gmail.com",
   phone: "+91 90118 12149",
+  // Exact Git filename case matters on Linux; npm run build verifies it.
   resumeUrl: "/sankalp-wanjari-resume.pdf",
   resumeUpdated: "October 2026",
   profilePhoto: "/profile_pic_2.png",

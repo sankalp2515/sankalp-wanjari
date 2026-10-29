@@ -150,6 +150,24 @@ Vercel (zero-config for Next.js). Full step-by-step, env setup, and a post-deplo
 smoke test are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Set the Node version to
 **20.x or 22.x** to match local.
 
+### Resume filename safety
+
+The resume URL in `config/portfolio.ts` must match the filename under `public/`
+exactly, including case. Windows can hide a mismatch that returns 404 on Linux.
+`npm run build` runs `npm run check:resume` first: it checks exact directory-entry
+case, the PDF header, and (when Git metadata is available) the tracked filename.
+Run `npm run test:resume` to exercise the regression checks.
+
+For a case-only rename, record both steps with Git rather than Explorer:
+
+```powershell
+git mv public/Sankalp-Wanjari-Resume.pdf public/resume-rename.tmp.pdf
+git mv public/resume-rename.tmp.pdf public/sankalp-wanjari-resume.pdf
+```
+
+Keep the deployment build command as `npm run build`, not a direct `next build`,
+so the validation runs before deployment.
+
 ## Accessibility & performance
 
 - Skip-to-content link, keyboard-operable concierge, focus states, ARIA live
