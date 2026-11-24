@@ -11,12 +11,14 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: "dark",
+  theme: "light",
   toggle: () => {},
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark");
+  // Light is the default (design-system/MASTER.md). The pre-paint script in
+  // app/layout.tsx has already applied a saved preference to <html>.
+  const [theme, setTheme] = useState<Theme>("light");
 
   // Restore saved theme. Read synchronously (before the persist effect
   // below can overwrite it); apply after paint so hydration compares

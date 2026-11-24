@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+  <head><meta charset="utf-8" /><title>Tasleem decision film</title><script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script></head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="10" data-fps="30" data-width="1280" data-height="720">
+      <div id="problem" data-composition-id="problem" data-composition-src="compositions/problem.html" data-start="0" data-duration="2.5" data-track-index="1" data-track-kind="graphics" data-width="1280" data-height="720"></div>
+      <div id="decision" data-composition-id="decision" data-composition-src="compositions/decision.html" data-start="2.5" data-duration="2.5" data-track-index="1" data-track-kind="graphics" data-width="1280" data-height="720"></div>
+      <div id="tradeoff" data-composition-id="tradeoff" data-composition-src="compositions/tradeoff.html" data-start="5" data-duration="2.5" data-track-index="1" data-track-kind="graphics" data-width="1280" data-height="720"></div>
+      <div id="outcome" data-composition-id="outcome" data-composition-src="compositions/outcome.html" data-start="7.5" data-duration="2.5" data-track-index="1" data-track-kind="graphics" data-width="1280" data-height="720"></div>
+    </div>
+    <script>
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+    </script>
+  </body>
+</html>

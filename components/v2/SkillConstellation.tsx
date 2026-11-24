@@ -16,8 +16,8 @@ import { skills } from "@/config/portfolio";
 
 const CAT_COLOR: Record<string, string> = {
   "AI/ML": "#F5A623",
-  Engineering: "#2DC7B0",
-  Product: "#5FD08A",
+  Engineering: "#7A6E5E", // warm grey (single-accent system; was teal)
+  Product: "#2B2723",     // ink (was green)
 };
 
 type Placed = { name: string; core: boolean; color: string; pos: [number, number, number] };

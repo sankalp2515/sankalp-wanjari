@@ -15,7 +15,7 @@ import { track } from "@/lib/behavior";
 import { noteUserSpend } from "@/lib/aiBudget";
 import { safeLocal } from "@/lib/safeStorage";
 import { helios } from "@/lib/voice";
-import { glideToSection, driftThroughSection } from "@/lib/cinema/camera";
+import { glideToSection, glideToProgress, driftThroughSection } from "@/lib/cinema/camera";
 import { TOUR, DIRECTOR_INTRO, DIRECTOR_OUTRO_HANDBACK, CLOSING_LINE, type Beat } from "@/lib/cinema/tourScript";
 
 export interface ConciergeMessage {
@@ -303,6 +303,21 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
   const [reserveReason, setReserveReason] = useState<"cooling" | "unconfigured" | null>(null);
   const [statusLine, setStatusLine] = useState<string | null>(null);
   const idRef = useRef(0);
+
+  // Helios talks only while the visitor is with it. Outside the guided tour
+  // (which manages its own pause/replay), closing the dock or hiding the tab
+  // silences any answer that is still being read aloud — no audio playing to
+  // an empty room, no TTS chunks fetched for nobody.
+  const tourRunningRef = useRef(false);
+  useEffect(() => { tourRunningRef.current = tourRunning; }, [tourRunning]);
+  useEffect(() => {
+    if (!open && !tourRunningRef.current) helios.stop();
+  }, [open]);
+  useEffect(() => {
+    const onVis = () => { if (document.hidden && !tourRunningRef.current) helios.stop(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
   const backoffIdxRef = useRef(0);
   /** The question the models couldn't answer — replayed for real on recovery. */
   const pendingQuestionRef = useRef<string | null>(null);
@@ -568,12 +583,18 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
         if (tourAbortRef.current) break;
 
         const filmsSection = !!ch.section && !takesOverScreen;
+        // The camera may frame a sub-element (one decision-film chapter) while
+        // the spotlight stays on the whole section.
+        const camId = ch.camera ?? ch.section;
+        // Beat-anchored chapters land the camera per beat instead of drifting.
+        const beatAnchored = ch.beats.some((b) => b.at !== undefined);
 
         // 4 — frame the section header FIRST (native smooth scroll, masked by
         // the act card that's still fading), and wait for it to settle before
         // the first word. No snap, no half-framed section.
-        if (filmsSection) {
-          await glideToSection(ch.section!, 0, { signal: camera.signal });
+        if (filmsSection && camId) {
+          if (beatAnchored) await glideToProgress(camId, ch.beats[0].at ?? 0, { signal: camera.signal });
+          else await glideToSection(camId, 0, { signal: camera.signal });
           if (tourAbortRef.current) break;
         }
 
@@ -594,7 +615,7 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
         // travel stays smooth. (The arc's timeline spring is cheap enough to ride
         // along, and it draws the line as the camera descends — a feature, not a
         // fight.)
-        const canDrift = filmsSection;
+        const canDrift = filmsSection && !beatAnchored;
         const voiceOn = helios.isEnabled();
         const speed = tourSpeedRef.current;
         const beatMs = (b: Beat) => {
@@ -621,7 +642,7 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
           camera.signal.addEventListener("abort", () => ctrl.abort(), { once: true });
           // driftThroughSection travels from the CURRENT scroll position to the
           // section end, so resuming mid-chapter naturally covers only what's left.
-          driftThroughSection(ch.section!, driftMsFrom(from), { signal: ctrl.signal });
+          driftThroughSection(camId!, driftMsFrom(from), { signal: ctrl.signal });
         };
         restartDrift = () => runDrift(beatIndex);
         runDrift(0);
@@ -634,6 +655,12 @@ export function ConciergeProvider({ children }: { children: ReactNode }) {
           const beat = ch.beats[beatIndex];
           await waitWhileHidden();
           if (tourAbortRef.current) break;
+          // Beat-anchored: move the camera to this beat's frame, THEN speak —
+          // never talk while the camera is still travelling.
+          if (beat.at !== undefined && beatIndex > 0 && camId && !document.hidden) {
+            await glideToProgress(camId, beat.at, { signal: camera.signal });
+            if (tourAbortRef.current) break;
+          }
           if (beat.cue) window.dispatchEvent(new CustomEvent("film:cue", { detail: beat.cue }));
           await narrateBeatResilient(beat.text, "sankalp");
           if (tourAbortRef.current) break;

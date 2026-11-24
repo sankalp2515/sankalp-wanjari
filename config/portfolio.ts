@@ -49,8 +49,42 @@ My teammates know me as a problem solver who enjoys simplifying complexity and a
   phone: "+91 90118 12149",
   // Exact Git filename case matters on Linux; npm run build verifies it.
   resumeUrl: "/sankalp-wanjari-resume.pdf",
-  resumeUpdated: "October 2026",
+  resumeUpdated: "November 2026",
   profilePhoto: "/profile_pic_2.png",
+
+  // ── Hero (APM redesign) ───────────────────────────────────
+  heroRole: "AI Product Manager · AI Engineer",
+  // First-person intro, voiced ONCE by `npm run voice:gen` (ElevenLabs) into
+  // public/voice/hero-intro.mp3 and served as a static file — zero credits per
+  // visit. Changing this text and re-running the script re-records it.
+  heroIntro:
+    "Hi, I'm Sankalp. I'm an AI product manager who also builds. At FIS, I turned manual banking work into software, and cut manual data entry by ninety percent. Now I build AI that knows what to refuse. Scroll down: you'll see the decisions first, and the code second.",
+  // The same intro split into the three spoken lines of the talking clip.
+  heroIntroLines: [
+    "Hi, I'm Sankalp. I'm an AI product manager who also builds.",
+    "At FIS, I turned manual banking work into software, and cut manual data entry by ninety percent.",
+    "Now I build AI that knows what to refuse. Scroll down: you'll see the decisions first, and the code second.",
+  ],
+  // Talking-avatar video (illustrated likeness lip-synced to heroIntro).
+  // Leave empty until the asset exists; the hero then shows the portrait.
+  avatarVideo: "",
+  // Background-removed cutout of profilePhoto for the hero walk-in
+  // (npx hyperframes remove-background public/profile_pic_2.png -o …).
+  avatarCutout: "/avatar/sankalp-cutout.png",
+  // Walk-in clip: generated in Google Flow from Sankalp's own photos (9:16,
+  // 8 s), background removed locally (hyperframes remove-background), VP9 with
+  // alpha at 540 px (~470 KB). Plays once on load; Safari/reduced motion fall
+  // back to the CSS walk-in of avatarCutout.
+  avatarWalkIn: "/avatar/walkin-540.webm",
+  avatarWalkInPoster: "/avatar/walkin-first.webp",
+  // Talking clip: three Flow clips (Veo voice) that start AND end on the
+  // walk-in's final frame, joined, background removed, VP9+alpha with Opus
+  // audio (~1 MB, preload none — fetched only when "Hear my intro" is tapped).
+  avatarTalk: "/avatar/talk-540.webm",
+  // Caption timing measured from the clip (Groq Whisper): one [start, end]
+  // window in seconds per line of heroIntroLines; words spread evenly inside.
+  avatarTalkCues: [[0, 5.0], [6.4, 13.3], [14.4, 22.4]] as [number, number][],
+  avatarPoster: "",
 
   stats: [
     { value: "3+", label: "years solving business problems with software" },
@@ -115,33 +149,21 @@ export const skills = [
 // Career = work experience only. Education lives in `education` below.
 export const experience = [
   {
-    date: "2022-12-01",
-    endDate: "2025-07-01",
-    title: "Implementation Conversion Analyst (Software Engineer)",
-    company: "FIS Global",
-    location: "Bangalore, India",
-    description:
-      "Cut manual data entry by 90% with a config-driven PDF table extraction pipeline spanning 50+ layouts (<5% correction rate). Led end-to-end bank data conversion and deconversion across U.S. and U.K. migrations. Built an LLM-powered SQL generation system for an org-wide innovation challenge.",
-    tags: ["Python", ".NET", "SQL Server", "LLM", "PowerShell"],
-    highlights: [
-      "PDF extraction pipeline: 50+ layouts, <5% correction rate, 90% less manual entry",
-      "LLM-powered SQL generation system for FIS innovation challenge",
-      "Data Migration Manager with AES encryption & project tracking",
-      "Eliminated manual checks across 1,000+ documents via Python automation",
-    ],
-  },
-  {
     date: "2022-06-01",
-    endDate: "2022-12-01",
-    title: "IT Trainee",
+    endDate: "2025-07-01",
+    title: "Software Engineer (Implementation-Conversion Analyst)",
     company: "FIS Global",
     location: "Bangalore, India",
+    metric: { value: "90%", label: "less manual data entry" },
     description:
-      "Six-month graduate training across FIS banking platforms, data conversion tooling, and enterprise engineering practices — promoted to Implementation Conversion Analyst.",
-    tags: ["SQL Server", ".NET", "Banking Systems"],
+      "Built tools for U.S. and U.K. bank clients. Cut manual document-data entry by 90% with a config-driven extraction framework across 50+ layouts (<5% correction rate). Led a team of 6, including 4 senior leads, to build an LLM query optimizer in an org-wide hackathon that cut estimated SQL execution time by ~35% and was adopted into the team's workflow. Joined as an IT Trainee and was promoted after six months.",
+    tags: ["Python", "C#/.NET", "SQL Server", "LLM", "Angular", "PowerShell"],
     highlights: [
-      "Trained across FIS banking platforms and conversion tooling",
-      "Promoted to Implementation Conversion Analyst after 6 months",
+      "Led a team of 6 (4 senior leads) to build an LLM query optimizer: ~35% lower estimated SQL execution time, adopted into the team's workflow; scored 3 rewrites per query and fell back safely when none passed validation",
+      "Config-driven extraction framework: 50+ financial-document layouts onboarded with no code changes, <5% correction rate, 90% less manual entry",
+      "Delivered migrations of millions of bank records for U.S. and U.K. clients; diagnosed failures legacy tools could not trace and presented findings in client technical reports",
+      "Cleared processing failures across 1,000+ regulated financial documents by tracing a hidden encryption flag, then turned the fix into a reusable detection tool",
+      "Joined as IT Trainee (Jun 2022); promoted to Implementation-Conversion Analyst after 6 months",
     ],
   },
   {
@@ -150,6 +172,7 @@ export const experience = [
     title: "Data Analyst Intern",
     company: "Suven Consultants & Technology Pvt. Ltd.",
     location: "India (Remote)",
+    metric: { value: "95%", label: "digit-recognition accuracy" },
     description:
       "Applied data-analysis and classic ML across client projects — meteorological data analysis, digit recognition, and NLP sentiment analysis — publishing a blog write-up for each project.",
     tags: ["Python", "Scikit-learn", "NLP", "Data Analysis"],
@@ -257,6 +280,84 @@ export const projects = [
     },
   },
   {
+    id: "010",
+    name: "Assever",
+    shortName: "assever",
+    description:
+      "Purchase integrity for AI agents on India's commerce and payment rails: approve a purchase once, and the agent can't buy a second basket, swap the supplier or share extra data.",
+    longDescription:
+      "Payment rails check whether a payment is authorised and within limit. Assever checks whether it is exactly the purchase the person approved. The owner's plain-language request becomes an exact work order (items, suppliers, all-in cap, purchase count, data fields, expiry) that they confirm once. Every proposal from any agent, worker or child agent maps back to that one approved demand; money and stock are reserved together; only a private executor holds credentials; and a standard-library checker rebuilds what happened from separate order, payment and disclosure records.",
+    stack: ["Python", "Vertex Gemini", "Model Armor", "PostgreSQL", "Google Cloud Run"],
+    category: "Agent Commerce",
+    status: "LIVE",
+    impact: "CRITICAL",
+    highlights: [
+      "0/144 unsafe purchases vs 36/144 for a budget-only guard and 54/144 with no guard",
+      "126/144 tasks completed vs 92/144 for the budget-only guard",
+      "720-case campaign on the deployed system: 24 attack families × 3 provider profiles × 2 role topologies",
+      "Unknown provider outcomes are held, never retried and never counted as success",
+    ],
+    github: "https://github.com/sankalp2515/assever",
+    liveUrl: "https://assever-872171487489.us-central1.run.app/#/red-team",
+    preview: "",
+    poster: "/projects/assever/poster.webp",
+    diagrams: [],
+    year: "2026",
+    breakdown: {
+      problem:
+        "Two ₹700 baskets fit inside a ₹1,500 cap even when the owner approved one. A seller's message can redirect an agent without breaking any limit, parallel workers can repeat a purchase with fresh request IDs, and a timed-out payment may have succeeded, so a blind retry pays twice.",
+      approach:
+        "Ask a different question from a budget guard: is this exactly the purchase the person approved, and did that, and only that, happen? Confirmation and activation happen in one PostgreSQL transaction bound to the order's digest; agent keys can never approve. Admission reserves integer paise, quantities and purchase count together with a durable outbox record. Outcomes are proven from independent records with hash-chained receipts.",
+      results: [
+        "Deployed comparison on the same proposals: no guard 54/144 unsafe, budget-only guard 36/144 unsafe (92/144 tasks), Assever 0/144 unsafe (126/144 tasks)",
+        "Recorded on the live deployment: a real Vertex Gemini buyer fell for a fake notice and proposed two baskets; Assever admitted one ₹700 order",
+        "Its own authored suite, so zero is not proof of safety; 12 unknown provider outcomes were held rather than retried",
+      ],
+      lessons:
+        "Within budget is not the same as approved. The useful product question was what the person meant, not what the payment rail allows.",
+      role: "See the repository for contributors and scope.",
+    },
+  },
+  {
+    id: "011",
+    name: "Tasleem",
+    shortName: "tasleem",
+    description:
+      "Know whether follow-up care actually happened: after a positive screening test, Tasleem reconciles referral status with clinical evidence, flags the gap and names the clinician who acts next.",
+    longDescription:
+      "A referral can say Completed while the care is unverified. Tasleem keeps the case open until the required evidence exists, assigns a named owner and escalates on deadlines. A deterministic case core owns workflow state, a hash-chained audit log and an outbox; a connector ingests HL7 v2 and FHIR; a scheduler and notifier handle deadlines and delivery; an AI service only extracts evidence and drafts suggestions for human review. Includes an Arabic right-to-left patient companion.",
+    stack: ["Python", "PostgreSQL", "HL7 v2", "FHIR", "Azure"],
+    category: "Health Workflow",
+    status: "LIVE",
+    impact: "HIGH",
+    highlights: [
+      "99.9% of journeys needing action flagged to a named human, vs 81.8% for a status-only monitor",
+      "Median 1.9 days to an alert for cases without a colonoscopy, vs 16.5 days",
+      "0 incomplete journeys counted as done, vs 160",
+      "2,000 synthetic journeys; 72 of 75 hard cases, misses published",
+    ],
+    github: "https://github.com/sankalp2515/screening-to-care",
+    liveUrl: "https://tasleem.swedencentral.cloudapp.azure.com/demo?tour=1",
+    preview: "",
+    poster: "/projects/tasleem/poster.webp",
+    diagrams: [],
+    year: "2026",
+    breakdown: {
+      problem:
+        "In a cited 2015–16 study at Abu Dhabi's SEHA clinics, 30.5% of Emirati adults aged 40–75 with a positive stool screening test underwent follow-up colonoscopy. Referral systems record status, not whether the care happened, so incomplete journeys look finished.",
+      approach:
+        "Separate status from evidence. A case stays open until the specified evidence or a signed clinical decision exists, always with a named owner. Handoffs transfer ownership only after the recipient accepts. Deterministic rules decide; AI only extracts evidence and drafts for human review.",
+      results: [
+        "Against a team-built referral-status-only monitor on 2,000 synthetic journeys: 99.9% vs 81.8% of action-needed journeys flagged to a named human",
+        "Median 1.9 vs 16.5 days to an alert; 0 vs 160 incomplete journeys counted as done; 53.5 vs 38.5 first alerts per 100 patients",
+        "Distress routing reached a clinician within 24 hours for 10 of 11 messages; patient outcomes require a field pilot",
+      ],
+      lessons:
+        "More alerts is a cost, not a win: the comparison publishes alert volume next to catch rate so the workload trade-off is visible.",
+      role: "Future Health Digital Innovation Challenge 2026, Population Health, Challenge 05. See the repository for contributors.",
+    },
+  },
+  {
     id: "008",
     name: "Abide",
     shortName: "abide",
@@ -270,7 +371,7 @@ export const projects = [
     impact: "HIGH",
     highlights: [
       "Grounded work orders: every permission must quote the employee's request",
-      "0/28 unauthorised actions and 26/26 legitimate task completions in its own evaluation suite",
+      "0/28 unauthorised actions and 26/26 legitimate task completions at 0.38 clarifying questions per task, versus 28 of 28 failures for an approve-every-step baseline",
       "Agent keys cannot confirm or approve; approvals bind to one exact action",
       "190/190 handoff provenance labels preserved; 256/256 tampering probes caught",
       "Live Gemini/ADK agent demo with Cloud SQL persistence and BigQuery receipts",
@@ -701,14 +802,160 @@ export const projects = [
       role: "Full product, solo: concept, architecture, design system, Next.js/React frontend, the 3D knowledge graph, the multi-provider streaming LLM backend, agent + tool design, the cinematic tour and voice pipeline, guardrails, observability, and motion choreography.",
     },
   },
+  {
+    id: "012",
+    name: "Assay",
+    shortName: "assay",
+    description:
+      "AI outcome assurance for video delivery: recover clips that were made but never arrived, verify the buyer actually got them, and charge PayPal once for exactly that.",
+    longDescription:
+      "Generation APIs delete outputs on a timer (Replicate 1 hour, Veo 2 days, Runway 24–48 hours), so a failed callback can lose a finished, paid-for video. Assay archives each output, uses AI with read-only tools to investigate missing clips and cite its records, restores the original instead of re-rendering, verifies delivery by SHA-256 through the buyer's own route, then captures only the verified amount from a PayPal authorization and issues an Ed25519-signed per-clip statement. AI proposes; rules decide; PayPal moves money once.",
+    stack: ["TypeScript", "Gemini", "PayPal", "PostgreSQL"],
+    category: "AI Payments",
+    status: "LIVE",
+    impact: "HIGH",
+    highlights: [
+      "Hosted end to end on PayPal Sandbox: $50 hold, lost clip recovered, one $40 capture for 8 verified clips",
+      "Gemini read buyer messages correctly 25/30 vs a keyword baseline's 15/30",
+      "Gemini chose the right action 17/20 vs rules 20/20, which is why AI never decides actions",
+      "75/75 local tests; 23-request Postman run with 0 failures against the hosted service",
+    ],
+    github: "https://github.com/sankalp2515/Assay",
+    liveUrl: "https://assay-34-59-154-73.sslip.io",
+    preview: "",
+    poster: "/projects/assay/poster.webp",
+    diagrams: [],
+    year: "2026",
+    breakdown: {
+      problem:
+        "AI-video apps lose money twice when a render 'fails': the provider deletes the finished output, then the app pays to render it again or refunds work that was actually done. Payments, models, queues and storage each hold their own version of the truth.",
+      approach:
+        "Authorize a ceiling, recover before re-rendering, verify delivery by bytes, capture exactly once, and give the buyer a signed statement anyone can verify. The AI investigates and cites; it never sets a price, approves a charge or moves money.",
+      results: [
+        "Real PayPal Sandbox run: $50 authorization, one $40 capture, remaining $10 released; webhooks verified",
+        "AI reading of buyer messages 25/30 vs keyword baseline 15/30 (30 held-out messages, single run)",
+        "AI action choice 17/20 vs rules 20/20: measured evidence for keeping decisions in rules",
+      ],
+      lessons:
+        "Measuring the model against plain rules on the same task told me where the AI belonged and where it didn't.",
+      role: "See the repository for contributors and scope.",
+    },
+  },
+  {
+    id: "013",
+    name: "AutoML Autopilot",
+    shortName: "autopilot",
+    description:
+      "An ML coding agent that checks beyond green tests: it repairs broken Python ML repositories and hands back a patch with independent code and model verification. Nothing merges automatically.",
+    longDescription:
+      "The agent investigates competing causes, writes source edits and regression tests in isolated candidate workspaces, and submits the result to a separate verifier that checks parity, leakage, quality and protected groups as well as fail-to-pass tests. Reviewers see the diff, the checks, missing evidence and a verdict before downloading a patch or requesting a draft PR.",
+    stack: ["Python", "NVIDIA Nemotron", "Nebius Sandboxes", "PostgreSQL", "Docker"],
+    category: "ML Agents",
+    status: "LIVE",
+    impact: "HIGH",
+    highlights: [
+      "Hosted runs: 3 VERIFIED, 1 REJECTED, 1 INCONCLUSIVE across five fixtures, all published",
+      "$0.080805 estimated inference across six hosted attempts",
+      "398 passing backend tests at the audited commit",
+      "A rejected example where software checks passed but the ML comparison failed",
+    ],
+    github: "https://github.com/sankalp2515/AutoML-Autopilot",
+    liveUrl: "https://136-112-7-18.sslip.io/repair",
+    preview: "",
+    poster: "/projects/autopilot/poster.webp",
+    diagrams: [],
+    year: "2026",
+    breakdown: {
+      problem:
+        "Passing a test suite is evidence, not proof, that a model still behaves correctly after a code change. Leakage, preprocessing drift and online/batch mismatches can all ship with green tests.",
+      approach:
+        "Separate the agent that writes the patch from the verifier that grades it, run candidates in isolated sandboxes, and keep the human in control of the merge.",
+      results: [
+        "Five hosted fixtures: churn, loan scorer and fraud batch VERIFIED; refund risk REJECTED; credit approval INCONCLUSIVE with no success claimed",
+        "A small integration sample, not a benchmark success rate",
+      ],
+      lessons:
+        "Publishing the rejected and inconclusive runs is what makes the verified ones believable.",
+      role: "See the repository for contributors and scope.",
+    },
+  },
+  {
+    id: "015",
+    name: "PatchPilot",
+    shortName: "patchpilot",
+    description:
+      "An agent that repairs broken API adapters when a vendor changes its API: it finds the official change, proposes a cited patch and proves the application's output contract still holds.",
+    longDescription:
+      "A vendor moves one field and an integration breaks. PatchPilot reproduces the failure, researches the target version through SerpApi, accepts only fetched official evidence with literal supporting quotations, and proposes a focused repair. The repair must pass the unchanged protected cases plus an independent audit; failed checks feed the next attempt (up to three, 240-second budget). Code runs in a restricted interpreter with no imports, shell, filesystem or network. Reviewers export the adapter, diff, citations and scoped proof.",
+    stack: ["Python", "SerpApi", "React", "TypeScript", "SQLite", "Docker"],
+    category: "Developer Agents",
+    status: "LIVE",
+    impact: "HIGH",
+    highlights: [
+      "Best in Track, AI Agents: SerpApi India Hackathon 2026 (700+ entries)",
+      "Live Stripe migration: 0/5 to 5/5 protected cases, 20/20 audit cases",
+      "First live proposal passed acceptance but only 14/20 audit cases; the second passed 20/20",
+      "Missing evidence or exhausted attempts stay unresolved, never silently patched",
+    ],
+    github: "https://github.com/sankalp2515/PatchPilot",
+    liveUrl: "",
+    preview: "",
+    poster: "/projects/patchpilot/poster.webp",
+    diagrams: [],
+    year: "2026",
+    breakdown: {
+      problem:
+        "When a third-party API changes, finding the replacement field is only half the job: the repair must keep the exact output the application depends on, including the cases an obvious patch misses.",
+      approach:
+        "A bounded feedback loop, not one code-generation call: reproduce, research official evidence, propose a cited repair, then grade it against protected tests and a separate audit. Failures return as concrete feedback; the agent may change code, never the tests.",
+      results: [
+        "Live Stripe invoice migration: 0/5 to 5/5 protected cases and 20/20 applicable audit cases",
+        "Controlled comparison: an adapter passing all 5 supplied cases still failed 14 of 20 audit cases",
+        "Known gap: an adapter that already passes every supplied case returns no_change before the audit runs",
+      ],
+      lessons:
+        "Green supplied tests can hide a broken contract; the audit is what caught the incomplete first repair.",
+      role: "See the repository for contributors and scope.",
+    },
+  },
 ];
 
 // Competition work stays separate from the engineering-project catalogue.
 export const achievements = [
   {
+    id: "et-ai-hackathon-2026",
+    project: "IntentSeal",
+    title: "National 1st Runner-Up",
+    rank: "2nd",
+    event: "ET AI Hackathon: Agentic Edition 2026",
+    organiser: "The Economic Times × Accenture",
+    team: "Team Helios",
+    date: "2026",
+    prize: "₹60,000",
+    // Official winners card (shared by The Economic Times) and the announcement post.
+    image: "/achievements/et-ai-hackathon-2026.webp",
+    proofUrl: "https://www.linkedin.com/posts/hackathon-results-ugcPost-7522997024439595008-aeym/",
+    proofLabel: "ET announcement",
+    description:
+      "Second place nationally with IntentSeal: a prompt-injection firewall that inspects everything an AI agent reads and checks every action against what the user actually asked for.",
+    approach:
+      "Detection and authority are separated: content is extracted, normalised and scored, while a deterministic guard checks each tool call against a versioned intent contract, so an attack that slips past detection still can't act.",
+    highlights: [
+      "99.2% recall on 359 third-party-content attacks",
+      "0 of 28 reference-agent attacks succeeded with detectors switched off",
+      "Python SDK, REST API and compatible LLM proxy",
+    ],
+    limitation:
+      "Direct-turn recall is 68.1% with 5.1% false positives on hard benign cases; the published report says high aggregate recall alone is not enough.",
+    github: "https://github.com/sankalp2515/intentseal",
+  },
+  {
     id: "hackerrank-orchestrate-2026",
     project: "Buy or Wait?",
-    title: "7th of 3,062",
+    title: "7th of 3,062 finalists",
+    rank: "7th",
+    organiser: "HackerRank",
+    team: "",
     event: "HackerRank Orchestrate",
     date: "September 2026",
     description:
@@ -716,6 +963,7 @@ export const achievements = [
     approach:
       "The model reads financial messages and resolves ambiguous evidence; deterministic Python owns the 90-day ledger, affordability calculations and payment-plan ranking.",
     highlights: [
+      "3,062 finalists from 35,712 registrants",
       "77.3/100 final competition score",
       "250 purchase decisions; 51 offline validation checks",
       "Python standard library + Gemini; no third-party packages",
@@ -724,6 +972,43 @@ export const achievements = [
     limitation:
       "Competition submission, not financial advice. The repository documents forecast error and a pending-credit validation limitation.",
     github: "https://github.com/sankalp2515/buy-or-wait",
+  },
+  {
+    id: "serpapi-india-2026",
+    project: "PatchPilot",
+    title: "Best in Track: AI Agents",
+    rank: "1st",
+    organiser: "SerpApi",
+    team: "",
+    event: "SerpApi India Hackathon 2026",
+    date: "October 2026",
+    description:
+      "Won the AI Agents track with PatchPilot, one of 14 projects named among 700+ entries: an agent that repairs integration code after an API change and proves the output contract still holds.",
+    approach:
+      "SerpApi finds the official change; only fetched vendor text with literal quotations counts as evidence, and every repair is graded against unchanged tests plus an independent audit.",
+    highlights: [
+      "700+ entries across six tracks",
+      "0/5 to 5/5 protected cases, 20/20 audit cases on a live Stripe migration",
+      "Prize: 10,000 SerpApi credits",
+    ],
+    limitation:
+      "Verified within the tested contract only; adapters that already pass every supplied case skip the audit today.",
+    github: "https://github.com/sankalp2515/PatchPilot",
+    proofUrl: "https://serpapi.com/blog/meet-the-winners-of-the-serpapi-india-hackathon-2026/",
+    proofLabel: "Winners list",
+  },
+];
+
+// Verified credentials (issuer-hosted records). Shown after the ranked results,
+// as credentials, never as placements.
+export const credentials: { title: string; issuer: string; date: string; context: string; id: string; url: string }[] = [
+  {
+    title: "AI Data Harness Solution Developer",
+    issuer: "Zetaris × SpaceXSI",
+    date: "November 2026",
+    context: "Awarded for building an AI agent on the Zetaris Data Harness during the Open Agent Hackathon.",
+    id: "ZTR-DHSD-J343CA",
+    url: "https://www.zetaris.com/credentials/ztr-dhsd-j343ca",
   },
 ];
 
@@ -775,6 +1060,251 @@ export const heroVariants: Record<HeroVariantKey, {
   },
 };
 
+// ── DECISION FILM (the pinned flagship-project story) ─────
+// Four beats per flagship, condensed from that project's own breakdown above
+// (problem / approach / lessons+results / results). `video` is an optional
+// pre-rendered motion loop (HyperFrames, motion/<project>/) whose four scenes
+// line up with the beats via `beats` (seconds). Without it the poster is used.
+export type FilmBeatKey = "problem" | "decision" | "tradeoff" | "outcome";
+// The three builds told as decision films, in order. Others stay in the index.
+export const flagshipIds = ["007", "010", "011"];
+
+export const projectFilms: Record<string, {
+  tagline: string;
+  beats: Record<FilmBeatKey, string>;
+  metric: { value: string; label: string };
+  video?: string;
+  videoPoster?: string;
+  segments?: Record<FilmBeatKey, [number, number]>;
+}> = {
+  "007": {
+    video: "/motion/intentseal.mp4",
+    videoPoster: "/motion/intentseal-poster.webp",
+    segments: { problem: [0, 2.45], decision: [2.5, 4.95], tradeoff: [5, 7.45], outcome: [7.5, 9.95] },
+    tagline: "A prompt-injection firewall for AI agents",
+    beats: {
+      problem: "Agents read untrusted files, pages and messages, then act with real permissions. Flagging suspicious text cannot stop an action the user never authorised.",
+      decision: "Separate detection from authority. A deterministic guard checks every tool call against the user's versioned intent contract, even when detection misses.",
+      tradeoff: "Recall is strong on third-party content (99.2%) but weaker on direct turns (68.1%), with 5.1% false positives on hard benign cases. All of it published.",
+      outcome: "With detectors switched off, 0 of 28 reference-agent attacks succeeded. Shipped as a Python SDK, REST API and compatible LLM proxy.",
+    },
+    metric: { value: "99.2%", label: "third-party-content recall, 359 attacks" },
+  },
+  "010": {
+    video: "/motion/assever.mp4",
+    videoPoster: "/motion/assever-poster.webp",
+    segments: { problem: [0, 2.45], decision: [2.5, 4.95], tradeoff: [5, 7.45], outcome: [7.5, 9.95] },
+    tagline: "Purchase integrity for AI agents on India's payment rails",
+    beats: {
+      problem: "Two ₹700 baskets fit inside a ₹1,500 cap even when the owner approved one. A seller's message can redirect an agent without breaking any limit.",
+      decision: "Ask a different question from a budget guard: is this exactly the purchase the person approved? Approve once; every proposal maps back to that one demand.",
+      tradeoff: "Stricter than a budget guard, and unknown provider outcomes are held, never retried, so some tasks wait for reconciliation instead of finishing fast.",
+      outcome: "On the deployed system: 0/144 unsafe purchases vs 36/144 for a budget-only guard, while completing more tasks (126 vs 92). Our own suite, stated as such.",
+    },
+    metric: { value: "0/144", label: "unsafe purchases on the deployed system" },
+  },
+  "011": {
+    video: "/motion/tasleem.mp4",
+    videoPoster: "/motion/tasleem-poster.webp",
+    segments: { problem: [0, 2.45], decision: [2.5, 4.95], tradeoff: [5, 7.45], outcome: [7.5, 9.95] },
+    tagline: "Know whether follow-up care actually happened",
+    beats: {
+      problem: "A referral can say Completed while the colonoscopy never happened. Status systems record paperwork, not care, so incomplete journeys look finished.",
+      decision: "Keep the case open until the evidence exists, always with a named clinician as owner. Deterministic rules decide; AI only extracts evidence for human review.",
+      tradeoff: "More alerts: 53.5 first alerts per 100 patients vs 38.5 for a status-only monitor. Catching gaps costs clinician attention, and that cost is published.",
+      outcome: "On 2,000 synthetic journeys: 99.9% of action-needed cases reached a named human (vs 81.8%), and 0 incomplete journeys were counted as done (vs 160).",
+    },
+    metric: { value: "99.9%", label: "of action-needed journeys reached a named human" },
+  },
+  "008": {
+    video: "/motion/abide.mp4",
+    videoPoster: "/motion/abide-poster.webp",
+    segments: { problem: [0, 2.45], decision: [2.5, 4.95], tradeoff: [5, 7.45], outcome: [7.5, 9.95] },
+    tagline: "A permission checkpoint for delegated AI work",
+    beats: {
+      problem: "Content filters miss ordinary-looking malicious instructions, and approving every agent step by hand creates approval fatigue.",
+      decision: "Turn the employee's request into a grounded work order they confirm once. A deterministic gate checks every action against it; agents can never approve themselves.",
+      tradeoff: "A +166 ms median overhead per workflow, and approvals bind to one exact action, so genuine exceptions still need a person.",
+      outcome: "0/28 attacks caused an unauthorised action, 26/26 normal tasks completed and 0/126 authorised calls were falsely blocked. Live on Google Cloud.",
+    },
+    metric: { value: "0/28", label: "attacks caused an unauthorised action" },
+  },
+  "009": {
+    video: "/motion/caseproof.mp4",
+    videoPoster: "/motion/caseproof-poster.webp",
+    segments: { problem: [0, 2.45], decision: [2.5, 4.95], tradeoff: [5, 7.45], outcome: [7.5, 9.95] },
+    tagline: "A first-hour workspace for payment-scam analysts",
+    beats: {
+      problem: "In the first hour after a scam, analysts reconcile receipts, chats, statements and bank records. An unexplained AI summary cannot show which payment is disputed.",
+      decision: "Keep the provenance of every piece of evidence. Gemini helps interpret documents; deterministic rules own money allocation, urgency and readiness.",
+      tradeoff: "Approval is bound to the case revision, so any new evidence forces a fresh review. Slower, but a report never ships on stale sign-off.",
+      outcome: "51 public-cloud browser checks passed, across customer, analyst and reviewer journeys. A synthetic staging prototype, stated as such.",
+    },
+    metric: { value: "51", label: "public-cloud browser checks passed" },
+  },
+};
+
+// Projects kept in the data (Helios can still discuss them) but not shown in
+// the Work section's project wall.
+export const hiddenFromIndex = ["005", "006"];
+
+// ── PROOF LINE per indexed project ────────────────────────
+// The one number a reviewer reads in the 10-second scan of the project index.
+// Each line restates a fact already in that project's highlights or results.
+export const projectProof: Record<string, string> = {
+  "008": "0/28 attacks · 26/26 tasks · 0.38 questions per task",
+  "009": "Approval bound to one case revision · 51 cloud checks",
+  "001": "132 automated tests · 6-provider fallback",
+  "002": "0 fabricated citations, enforced in CI",
+  "003": "Schema compliance 25% → 99%",
+  "004": "Fully offline · $0 API cost",
+  "005": "Schema-only to the LLM · 3-layer SQL guard",
+  "006": "5-provider router · $0 paid API",
+  "012": "Message reading 25/30 vs keyword 15/30",
+  "013": "3 verified · 1 rejected · 1 inconclusive",
+  "015": "0/5 → 5/5 tests · 20/20 audit",
+};
+
+// ── PRODUCT MAP (the Graph button's default view) ─────────
+// The work as a map: territories are problem domains, cities are projects,
+// routes are the relationships already recorded in `graphLinks` between two
+// projects (plus `mapExtraRoutes`, each sourced from a project's own text).
+// Coordinates are in a 1000 × 620 viewBox.
+export const mapTerritories: { id: string; name: string; blurb: string; path: string; label: [number, number]; projects: { id: string; at: [number, number] }[] }[] = [
+  {
+    id: "trust", name: "Trust & safety", blurb: "Keeping agents inside what a person authorised.",
+    path: "M70 120 C 140 60, 330 50, 400 110 C 450 160, 430 260, 360 300 C 280 340, 130 320, 80 260 C 40 210, 40 160, 70 120 Z",
+    label: [96, 108], projects: [{ id: "007", at: [160, 190] }, { id: "008", at: [300, 225] }, { id: "010", at: [230, 280] }],
+  },
+  {
+    id: "agents", name: "Agents & research", blurb: "Multi-agent systems that plan, check and repair their own work.",
+    path: "M520 70 C 620 30, 820 40, 900 110 C 960 170, 930 270, 840 300 C 740 330, 590 310, 530 250 C 480 200, 470 110, 520 70 Z",
+    label: [560, 78], projects: [{ id: "001", at: [640, 160] }, { id: "002", at: [790, 220] }, { id: "013", at: [700, 260] }, { id: "015", at: [830, 150] }],
+  },
+  {
+    id: "platform", name: "LLM platform", blurb: "The infrastructure under the products: fine-tuning, local models, tooling.",
+    path: "M540 360 C 640 330, 840 340, 910 410 C 960 470, 920 560, 820 580 C 700 600, 570 580, 530 510 C 500 460, 490 390, 540 360 Z",
+    label: [570, 378], projects: [{ id: "003", at: [630, 450] }, { id: "004", at: [780, 430] }, { id: "005", at: [720, 530] }],
+  },
+  {
+    id: "product", name: "Product & finance", blurb: "Workflows for real users with real money at stake.",
+    path: "M80 380 C 160 340, 360 345, 420 400 C 470 450, 450 540, 370 575 C 280 610, 140 590, 90 530 C 50 480, 40 420, 80 380 Z",
+    label: [104, 396], projects: [{ id: "009", at: [170, 460] }, { id: "006", at: [330, 500] }, { id: "011", at: [262, 452] }, { id: "012", at: [200, 540] }],
+  },
+];
+export const mapExtraRoutes: { from: string; to: string; note: string }[] = [
+  { from: "007", to: "008", note: "Abide builds on IntentSeal's security foundations with an employee-facing delegation experience." },
+  { from: "008", to: "010", note: "Assever applies the approve-once checkpoint idea to purchases on Indian commerce and payment rails." },
+];
+
+// ── AI RADAR ───────────────────────────────────────────────
+// The labs and companies Sankalp follows. `query` goes into ONE combined
+// Google News search (SerpAPI) per 12 h; `match` tags each headline to an
+// entity (lower-case substrings of title + source). `angle` places the entity
+// on the radar dial (degrees, 0 = top, clockwise).
+export const radarWatchlist: { name: string; query: string; match: string[]; angle: number }[] = [
+  { name: "OpenAI", query: "OpenAI", match: ["openai", "chatgpt", "sam altman"], angle: 0 },
+  { name: "Anthropic", query: "Anthropic", match: ["anthropic", "claude"], angle: 40 },
+  { name: "Google DeepMind", query: "Google DeepMind", match: ["deepmind", "gemini", "google ai"], angle: 80 },
+  { name: "Meta AI", query: "Meta AI", match: ["meta ai", "llama"], angle: 120 },
+  { name: "NVIDIA", query: "NVIDIA AI", match: ["nvidia"], angle: 160 },
+  { name: "Microsoft", query: "Microsoft AI", match: ["microsoft", "copilot"], angle: 200 },
+  { name: "Mistral AI", query: "Mistral AI", match: ["mistral"], angle: 240 },
+  { name: "Hugging Face", query: "Hugging Face", match: ["hugging face", "huggingface"], angle: 280 },
+  { name: "Perplexity", query: "Perplexity AI", match: ["perplexity"], angle: 320 },
+];
+
+// Deterministic "related to my work" links (keyword → project). Kept in code,
+// not left to the LLM, so a link is never hallucinated. First match wins.
+export const radarProjectLinks: { projectId: string; keywords: string[] }[] = [
+  { projectId: "007", keywords: ["prompt injection", "jailbreak", "security", "attack", "vulnerab"] },
+  { projectId: "008", keywords: ["agent", "agentic", "mcp", "computer use", "operator", "autonomous"] },
+  { projectId: "009", keywords: ["fraud", "payment", "bank", "scam", "fintech"] },
+  { projectId: "002", keywords: ["research", "benchmark", "eval", "hallucinat", "reasoning"] },
+  { projectId: "003", keywords: ["fine-tun", "fine tun", "small model", "distill", "open-weight", "open weight"] },
+  { projectId: "004", keywords: ["local model", "on-device", "ollama", "llama"] },
+];
+
+// ── PROOF METRICS (hero proof strip) ──────────────────────
+// Every number is restated from a record above, with its source named, so a
+// reviewer can trace it. Do not add a metric that has no source here.
+export const proofMetrics: { value: string; label: string; source: string }[] = [
+  { value: "90%", label: "less manual data entry from a PDF-extraction pipeline across 50+ layouts", source: "FIS Global · 2022–2025" },
+  { value: "2nd", label: "nationally with IntentSeal, the agent-security firewall, judged by The Economic Times and Accenture", source: "ET AI Hackathon: Agentic Edition · 2026" },
+  { value: "7th", label: "of 3,062 finalists (35,712 registrants), building an AI purchase-decision agent in 24 hours", source: "HackerRank Orchestrate · Sep 2026" },
+  { value: "99.2%", label: "recall on 359 third-party-content prompt-injection attacks", source: "IntentSeal · published evaluation" },
+];
+
+// ── PRODUCT DECISIONS (the rotating "How I decide" tile) ───
+// Each entry is lifted from a case study or project breakdown above: the call,
+// why it was made, and what it cost. The cost is the point: a decision with no
+// stated trade-off is not included.
+export const productDecisions: {
+  id: string;
+  theme: string;
+  project: string;
+  decision: string;
+  why: string;
+  cost: string;
+}[] = [
+  {
+    id: "d1",
+    theme: "Activation",
+    project: "ArthRakshak AI",
+    decision: "Removed the signup wall. First value before first login.",
+    why: "Journey mapping after 10 JTBD interviews showed sign-up-first onboarding broke trust; for informal earners it was the single largest drop-off point.",
+    cost: "Stateless demo sessions made the engineering harder.",
+  },
+  {
+    id: "d2",
+    theme: "AI safety",
+    project: "ArthRakshak AI",
+    decision: "Every message passes a 5-class intent gate before it reaches the model.",
+    why: "Off-topic and regulated-advice questions are blocked upstream, so the tutor cannot hallucinate financial advice.",
+    cost: "Added latency to every answer. We treated the guardrail as non-negotiable.",
+  },
+  {
+    id: "d3",
+    theme: "Trust",
+    project: "ArthRakshak AI",
+    decision: "Process financial data for the session only. Store nothing.",
+    why: "Full DPDP Act 2023 compliance from Sprint 0, for a segment scarred by data misuse.",
+    cost: "No historical trend analysis in V1.",
+  },
+  {
+    id: "d4",
+    theme: "Scope",
+    project: "ArthRakshak AI",
+    decision: "Shipped rules-based credit parsing, with an honesty notice, instead of the AI engine.",
+    why: "The AI transaction-categorisation engine did not pass internal testing. Overpromising would break trust.",
+    cost: "Pushed the B2B revenue plan back.",
+  },
+  {
+    id: "d5",
+    theme: "Business model",
+    project: "ArthRakshak AI",
+    decision: "No commissions, ads or lender referrals.",
+    why: "Keeps the product's incentives permanently aligned with the user it sometimes tells not to borrow.",
+    cost: "Closed off the easiest fintech revenue model.",
+  },
+  {
+    id: "d6",
+    theme: "Permissions",
+    project: "Abide",
+    decision: "Agent credentials can never confirm, widen or approve their own permissions.",
+    why: "A detector asks whether content looks dangerous; a delegation gate asks whether a person authorised the action.",
+    cost: "+166 ms median overhead per workflow.",
+  },
+  {
+    id: "d7",
+    theme: "Honesty",
+    project: "IntentSeal",
+    decision: "Published the evaluation with its failures, not just the headline recall.",
+    why: "Detection quality and action safety are different claims; reviewers need both to trust either.",
+    cost: "On record: 0 of 9 attack categories met the joint recall and false-positive target.",
+  },
+];
+
 // ── PRODUCT CASE STUDIES ──────────────────────────────────
 // A deliberately separate track from `projects`. These demonstrate product
 // thinking — user research, problem framing, prioritization, trade-offs,
@@ -791,6 +1321,7 @@ export type CaseStudy = {
   cover?: string;        // /case-studies/xyz.jpg
   externalUrl?: string;  // Notion / PDF / write-up, if hosted elsewhere
   liveUrl?: string;  // Notion / PDF / write-up, if hosted elsewhere
+  stat?: { value: string; label: string }; // one number from the study, counted up on the card
   study: {
     context: string;       // the market/product situation
     problem: string;       // the user problem, framed
@@ -811,7 +1342,7 @@ export const caseStudies: CaseStudy[] = [
     company: "",
     year: "2026",
     summary:
-      "Built a volatility-aware financial risk platform for 500M informal-income Indians. The product answers one question: given my actual irregular income, is this loan safe? Led problem discovery, product strategy, backend architecture, and zero-budget GTM across an 8-sprint Agile build.",
+      "Built a volatility-aware financial risk platform for 500M informal-income Indians. The product answers one question: given my actual irregular income, is this loan safe? As research, UX and engineering lead in a cross-functional team of 6: reframed it from investment advice to a pre-loan safety check after 10 JTBD interviews, then took it to a 50-user pilot with gig workers and kirana owners after 8 sprints.",
     tags: [
       "Financial Inclusion",
       "AI Product Safety",
@@ -856,7 +1387,74 @@ export const caseStudies: CaseStudy[] = [
       gtm:
         "Three-phase soft launch following the Ansoff Matrix. Phase 1 (Market Penetration): Pune-only, 5 delivery-partner ambassadors sharing scam alerts via WhatsApp. Zero paid spend. Target: 500 demo users. Phase 2 (Market Development): Diwali counter-campaign across Mumbai. Ride competitor ad spend as free fuel. RBI Verification Directory as shareable content. Target: 2,500 cumulative users. Phase 3 (Product Development): ₹99 Credit Profile report for existing users. NGO/SHG offline channels for kirana owners. Target: 5,000 users, 500 paid conversions.",
       outcome:
-        "Shipped a functional 6-module MVP on Next.js/Vercel in 8 sprints (65 story points). Core features live: multilingual AI Tutor (7 Indian languages), Loan Safety Checker with true APR and RBI verification, Cash Flow Risk Radar with volatility engine, Financial Calculators, Daily Quiz, and Dashboard. Figma prototype with connected navigation flows. Full PRD, project plan, ethical framework, launch strategy, customer service architecture, and brand system delivered. Honest limitation: the AI-powered Credit Profile transaction engine remains in refinement — V1 uses rules-based parsing with transparent user disclosure.",
+        "Discovery: 10 JTBD interviews with gig workers, kirana owners and daily-wage earners, plus 10 listening sources, distilled into 3 personas, reframed the product from investment advice to a pre-loan safety check. Launched a 50-user pilot with gig and kirana users after 8 two-week sprints; the 7-language AI tutor was moved to Sprint 3 to de-risk it early and passed a 10/10 safety rubric. A 5-dimension trust test found the product more accurate but less trusted than Kuber AI (5/10 vs 6/10); a 2-channel experiment then led to a WhatsApp-first launch plan with a scam-alert referral loop. Shipped a functional 6-module MVP on Next.js/Vercel in 8 sprints (65 story points). Core features live: multilingual AI Tutor (7 Indian languages), Loan Safety Checker with true APR and RBI verification, Cash Flow Risk Radar with volatility engine, Financial Calculators, Daily Quiz, and Dashboard. Figma prototype with connected navigation flows. Full PRD, project plan, ethical framework, launch strategy, customer service architecture, and brand system delivered. Honest limitation: the AI-powered Credit Profile transaction engine remains in refinement — V1 uses rules-based parsing with transparent user disclosure.",
+    },
+    stat: { value: "50", label: "-user pilot, after 10 JTBD interviews" },
+  },
+  {
+    id: "CS-002",
+    title: "LinguaLearn: one growth bet for the board",
+    company: "LinguaLearn (course case, fictional company)",
+    year: "2026",
+    summary:
+      "Four executives, four growth bets, capacity for one. I recommended fixing the core experience for career-motivated learners, and showed the most persuasive number in the room was probably a mix effect.",
+    tags: ["Product strategy", "Unit economics", "Experiment design", "EdTech"],
+    externalUrl: "https://app.notion.com/p/LinguaLearn-A-Product-Strategy-Case-Study-42087cf3bb3c81e2b651f37934535ca0",
+    stat: { value: "93%", label: "of 10,000 re-weightings kept the same ranking" },
+    study: {
+      context:
+        "A Bengaluru learning app (fictional, from a course brief) with 4.1M registered users and $24.5M revenue. Engineering was at capacity and investors had moved from rewarding growth to rewarding capital discipline. Role played: senior PM advising the CEO before a board meeting.",
+      problem:
+        "The board could fund one of four bets: employability services, institutional partnerships, core experience, or regional expansion. Each sponsor had real data behind their option, and the brief said the data clarifies assumptions rather than removing uncertainty.",
+      users:
+        "Segment economics from the case tables: working professionals are 25% of users, about 33% of revenue and about 43% of estimated lifetime value. Students are the largest group (42%) but buy on price and retain worst.",
+      hypothesis:
+        "Growth is masking weaker engagement (revenue growth fell from 217% to 56%; active share from 32% to 28%), so retention for career-motivated learners is worth more than another acquisition-led bet.",
+      decisions: [
+        "Tested the strongest-looking evidence first: the interview-prep revenue premium. Segment mix alone predicts a $2.44 gap against $2.40 observed; even under much weaker assumptions mix explains two-thirds or more. The number was real but couldn't show causation.",
+        "Priced the CPO's claim instead of dismissing it: five points of premium retention adds about $0.9M in year one and over $3M a year later, equal to roughly 564k new registered users. Told the board both the year-one and long-run numbers.",
+        "Preferred the reversible bet: a retention investment can be undone; enterprise contracts and new-language content cannot.",
+        "Made the scoring judgement explicit, then stress-tested it: the ranking held in 93% of 10,000 random re-weightings.",
+      ],
+      metrics: [
+        "North Star — weekly active learners completing 3+ lessons",
+        "Inputs — % of new users reaching 10 lessons in month one; D30 retention",
+        "Guardrails — notification opt-outs, uninstalls, lesson ratings, refund requests; no streak dark patterns",
+        "Kill criterion — if month-one lessons rise but D30 and 6-month retention don't move in two quarters, stop and re-diagnose churn",
+      ],
+      outcome:
+        "Recommended prioritising core experience for career-motivated learners, with cheap experiments (a career-track matched test, a pricing test, one institutional pilot) deciding whether employability earns the next cycle. My gut pick before the analysis was employability; the mix-shift test changed my mind.",
+    },
+  },
+  {
+    id: "CS-003",
+    title: "NovaAssist: choosing the next enterprise AI bet",
+    company: "NovaAssist (PwC case brief)",
+    year: "2026",
+    summary:
+      "One flagship AI initiative, four executive sponsors, each with a positive pilot. I recommended governed workflow agents, with grounded retrieval and governance built in rather than funded separately.",
+    tags: ["AI product strategy", "Agents", "Enterprise SaaS", "Evals"],
+    externalUrl: "https://app.notion.com/p/NovaAssist-Case-Study-Choosing-the-Next-Generation-of-Enterprise-AI-42087cf3bb3c810da026ddfafcd890b8",
+    stat: { value: "80%", label: "of workflow time is outside search" },
+    study: {
+      context:
+        "NovaAssist (case brief): US$190M ARR, 4,800 enterprise customers, 3.2M users, able to fund one flagship AI initiative: Knowledge Copilot (RAG), Autonomous Workflow Agents, an AI Platform for Enterprises, or Responsible Enterprise AI.",
+      problem:
+        "ARR per customer has been flat at about $40K for five years ($41.6K to $39.6K), so the existing AI features are not earning revenue. Growth slowed to 17.3%, about half the market's >35% CAGR, while infrastructure cost rose 38%.",
+      users:
+        "Search is only 20% of workflow time; the other 80% is approvals, data entry, follow-ups and coordination. Launch segment chosen: Process Optimizers (tech and manufacturing).",
+      hypothesis:
+        "Value sits in the 80% of work that isn't search, so the flagship should be governed workflow agents, not another copilot.",
+      decisions: [
+        "Fund Governed Workflow Agents as the flagship; build grounded retrieval (from the Copilot) and governance controls (from Responsible AI) into it.",
+        "Discounted the Copilot pilot: its customers were stronger than average (31% verification baseline vs 41% across all users).",
+        "Launch with three workflows: customer service, HR scheduling and procurement requests. The configurable platform follows in Year 3.",
+      ],
+      metrics: [
+        "Metrics and evals defined per workflow, with assumptions, risks and a research plan written up as separate steps of the case",
+      ],
+      outcome:
+        "A nine-step strategy workspace (frame, data, market, options, decision, metrics and evals, risks, AI-PM workflow, interview story) plus an 11-frame Miro board.",
     },
   },
 ];

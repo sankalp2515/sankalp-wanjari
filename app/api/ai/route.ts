@@ -19,6 +19,15 @@ import { ORCHESTRATOR_MODEL } from "@/config/orchestrator";
 import { getClientIP } from "@/lib/clientIP";
 import { rateLimit } from "@/lib/rateStore";
 import { log, newReqId } from "@/lib/observability/log";
+
+// Groq's gpt-oss models are reasoning models: by default they spend output
+// tokens on hidden reasoning (and stream it as separate deltas), which left the
+// chat with "empty response" failures. Ask for low effort and no reasoning
+// text, so every token budgeted is answer. Direct Groq calls only.
+function reasoningControls(endpoint: string, model: string): Record<string, unknown> {
+  if (!endpoint.includes("api.groq.com") || !/gpt-oss/.test(model)) return {};
+  return { reasoning_effort: "low", include_reasoning: false };
+}
 import { reportError } from "@/lib/observability/alert";
 
 export const runtime = "nodejs"; // Required for in-memory Map state
@@ -145,6 +154,7 @@ async function callOpenAICompat(
     ],
     max_tokens:  provider.maxTokens,
     temperature: 0.7,
+    ...reasoningControls(endpoint, model),
   };
 
   const res = await fetch(endpoint, {
@@ -306,6 +316,7 @@ async function callOpenAICompatStream(
       max_tokens: provider.maxTokens,
       temperature: 0.7,
       stream: true,
+      ...reasoningControls(endpoint, model),
     }),
     signal: AbortSignal.timeout(provider.timeoutMs ?? 14_000),
   });

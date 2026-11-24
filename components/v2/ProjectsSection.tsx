@@ -1,49 +1,57 @@
 "use client";
 
-// Engineering projects — tilt cards in a responsive grid; click opens the
-// two-level modal (overview → technical breakdown). These are built systems,
-// deliberately NOT labelled case studies: product case studies are a separate
-// section (CaseStudiesSection). All content is in the SSR markup; the modal
-// is progressive detail.
+// Work. The three flagship builds play as a pinned decision film
+// (Problem → Decision → Trade-off → Outcome). Every other build sits on a
+// "decision wall": poster cards whose BACK is the decision, not more pixels.
+//
+//   front  poster key art · name · the one proof number
+//   back   the problem · the call made · the proof · what it taught
+//
+// Built for how reviewers read (about a minute per application, ten seconds on
+// a first screen): the front is the 10-second scan, the back is the
+// 30-second judgement, and "Full breakdown" opens the two-level ProjectModal.
+// A "What are you hiring for?" lens filters the wall by the product map's own
+// problem domains. Cards flip on hover/focus with a fine pointer, and with the
+// explicit "See the decision" button everywhere (touch, keyboard, reduced
+// motion swaps the 3D turn for a cross-fade).
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowUpRight, Zap } from "lucide-react";
-import { projects } from "@/config/portfolio";
+import Image from "next/image";
+import { ArrowUpRight, RotateCcw } from "lucide-react";
+import { projects, flagshipIds, mapTerritories, projectProof, hiddenFromIndex } from "@/config/portfolio";
 import SectionShell from "./SectionShell";
-const ProjectModal = dynamic(() => import("./ProjectModal"), { ssr: false });
-import ProjectMedia from "./ProjectMedia";
-import TiltCard from "./TiltCard";
+import DecisionFilm from "./DecisionFilm";
 import { GithubIcon } from "@/components/ui/Icons";
 
-const IMPACT_COLOR: Record<string, string> = {
-  CRITICAL: "var(--os-accent-orange)",
-  HIGH: "var(--os-accent-cyan)",
+const ProjectModal = dynamic(() => import("./ProjectModal"), { ssr: false });
+
+const FLAGSHIP = flagshipIds;
+const REST = projects.filter((p) => !flagshipIds.includes(p.id) && !hiddenFromIndex.includes(p.id));
+// Lenses = the product map's territories, limited to ones with work on the wall.
+const LENSES = mapTerritories
+  .map((t) => ({ id: t.id, name: t.name, ids: t.projects.map((x) => x.id).filter((id) => REST.some((p) => p.id === id)) }))
+  .filter((l) => l.ids.length > 0);
+
+// First sentence only: the back of a card is a 30-second read.
+const firstSentence = (t: string) => {
+  const m = t.match(/^.*?[.!?](\s|$)/);
+  return (m ? m[0] : t).trim();
 };
 
-const FILTERS = ["All", ...new Set(projects.map((p) => p.category))];
-
-export default function ProjectsSection({ variant = "a" }: { variant?: "a" | "b" }) {
+export default function ProjectsSection(_props: { variant?: "a" | "b" } = {}) {
+  void _props;
   const [openId, setOpenId] = useState<string | null>(null);
   const [caseView, setCaseView] = useState(false);
-  const [filter, setFilter] = useState("All");
   const [detailReady, setDetailReady] = useState(false);
-  const gridRef = useRef<HTMLDivElement>(null);
-  // Warm details before the grid is reached, including on touch where there
-  // is no hover. The hero still avoids paying for the detail bundle at boot.
-  useEffect(() => {
-    const grid = gridRef.current;
-    if (!grid || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) { setDetailReady(true); observer.disconnect(); }
-    }, { rootMargin: "600px" });
-    observer.observe(grid);
-    return () => observer.disconnect();
-  }, []);
-  const shown = filter === "All" ? projects : projects.filter((p) => p.category === filter);
+  const [lens, setLens] = useState<string>("all");
+  const [flipped, setFlipped] = useState<string | null>(null);
+  const lensIds = LENSES.find((l) => l.id === lens)?.ids;
+  const cards = lensIds ? REST.filter((p) => lensIds.includes(p.id)) : REST;
 
-  // Agent tool: [CASE:001] opens a project breakdown directly
+  const open = (id: string) => { setDetailReady(true); setOpenId(id); setCaseView(true); };
+
+  // Agent tool: [CASE:001] opens a project breakdown directly.
   useEffect(() => {
     const onCase = (e: Event) => {
       const id = (e as CustomEvent<string>).detail;
@@ -51,7 +59,7 @@ export default function ProjectsSection({ variant = "a" }: { variant?: "a" | "b"
         setDetailReady(true);
         setOpenId(id);
         setCaseView(true);
-        document.getElementById("section-work")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        document.getElementById("section-work")?.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     };
     const onCaseClose = () => setOpenId(null);
@@ -66,140 +74,83 @@ export default function ProjectsSection({ variant = "a" }: { variant?: "a" | "b"
   return (
     <SectionShell
       id="section-work"
-      kicker="ENGINEERING PROJECTS"
-      title="Systems built to survive production"
-      subtitle={`${projects.length} engineering builds — from agent security and financial workflows to ML infrastructure. Open a card for its architecture, measured evidence and limitations; deployment status is shown in the overview.`}
+      index="02"
+      layout="stack"
+      kicker="Selected work"
+      title="Three systems, told as the decisions behind them."
+      subtitle="Scroll each one: the problem, the call I made, what it cost, and what it measured. Below, every other build carries its decision on the back of the card."
     >
-      {/* Category filters — mono chips, active gets the accent underline */}
-      <div className="flex flex-wrap items-center gap-2 mb-8">
-        {FILTERS.map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            aria-pressed={filter === f}
-            className="relative text-[11.5px] font-mono mono-small uppercase tracking-[0.12em] px-3.5 py-1.5 rounded-full border transition-all hover:-translate-y-0.5"
-            style={
-              filter === f
-                ? {
-                    borderColor: "color-mix(in srgb, var(--os-accent) 55%, transparent)",
-                    color: "var(--os-accent)",
-                    background: "color-mix(in srgb, var(--os-accent) 10%, transparent)",
-                  }
-                : {
-                    borderColor: "var(--os-border)",
-                    color: "var(--os-text-muted)",
-                    background: "transparent",
-                  }
-            }
-          >
-            {f}
-            {filter === f && (
-              <motion.span
-                layoutId="project-filter-dot"
-                className="absolute -bottom-[3px] left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
-                style={{ background: "var(--os-accent)" }}
-                aria-hidden
-              />
-            )}
-          </button>
-        ))}
+      <DecisionFilm ids={FLAGSHIP} onOpen={(id) => { setDetailReady(true); setOpenId(id); setCaseView(false); }} />
+
+      <div className="pwall" onPointerEnter={() => setDetailReady(true)}>
+        <div className="pindex__head">
+          <div>
+            <p className="ds-label pindex__title">The decision wall · {cards.length} builds</p>
+            <p className="pwall__hint">Turn a card to read the call behind it.</p>
+          </div>
+          <div className="pindex__lenses" role="group" aria-label="What are you hiring for?">
+            <span className="pindex__lens-q">What are you hiring for?</span>
+            {[{ id: "all", name: "Everything" }, ...LENSES].map((l) => (
+              <button key={l.id} type="button" className="pindex__lens" aria-pressed={lens === l.id} onClick={() => { setLens(l.id); setFlipped(null); }}>
+                {l.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <ul className="pwall__grid" key={lens}>
+          {cards.map((p, i) => {
+            const isFlipped = flipped === p.id;
+            const proof = projectProof[p.id];
+            return (
+              <li key={p.id} className={`pcard${isFlipped ? " is-flipped" : ""}`} style={{ ["--i" as string]: i }}>
+                <div className="pcard__inner">
+                  {/* FRONT: the 10-second scan */}
+                  <article className="pcard__face pcard__front" aria-hidden={isFlipped}>
+                    <div className="pcard__poster">
+                      <Image src={p.poster} alt="" fill sizes="(max-width: 700px) 92vw, (max-width: 1100px) 46vw, 440px" loading="lazy" />
+                    </div>
+                    <div className="pcard__meta">
+                      <p className="pcard__cat">{p.category} · {p.year}</p>
+                      <h3 className="pcard__name">{p.name}</h3>
+                      {proof && <p className="pcard__proof">{proof}</p>}
+                      <button type="button" className="pcard__flip" onClick={() => setFlipped(p.id)} tabIndex={isFlipped ? -1 : 0}>
+                        See the decision <RotateCcw size={14} aria-hidden />
+                      </button>
+                    </div>
+                  </article>
+
+                  {/* BACK: the 30-second judgement */}
+                  <article className="pcard__face pcard__back" aria-hidden={!isFlipped} aria-label={`${p.name}: the decision`}>
+                    <p className="pcard__cat">{p.name}</p>
+                    <dl className="pcard__dl">
+                      <div><dt>The problem</dt><dd>{firstSentence(p.breakdown.problem)}</dd></div>
+                      <div><dt>The call</dt><dd>{firstSentence(p.breakdown.approach)}</dd></div>
+                      <div><dt>The proof</dt><dd>{p.breakdown.results[0]}</dd></div>
+                      <div><dt>What it taught</dt><dd>{firstSentence(p.breakdown.lessons)}</dd></div>
+                    </dl>
+                    <div className="pcard__actions">
+                      <button type="button" className="ds-btn ds-btn--primary pcard__open" onClick={() => open(p.id)} tabIndex={isFlipped ? 0 : -1}>
+                        Full breakdown <ArrowUpRight size={15} aria-hidden />
+                      </button>
+                      {p.github && (
+                        <a className="pcard__icon" href={p.github} target="_blank" rel="noopener noreferrer" aria-label={`${p.name} source on GitHub`} tabIndex={isFlipped ? 0 : -1}>
+                          <GithubIcon size={16} />
+                        </a>
+                      )}
+                      <button type="button" className="pcard__icon" onClick={() => setFlipped(null)} aria-label="Turn the card back" tabIndex={isFlipped ? 0 : -1}>
+                        <RotateCcw size={15} aria-hidden />
+                      </button>
+                    </div>
+                  </article>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </div>
 
-      <motion.div ref={gridRef} layout onPointerEnter={() => setDetailReady(true)} onFocusCapture={() => setDetailReady(true)} className={`project-grid ${variant === "b" ? "project-grid--film" : ""}`}>
-        <AnimatePresence mode="popLayout">
-        {shown.map((p, i) => (
-          <motion.div
-            key={p.id}
-            layout
-            initial={{ opacity: 0, scale: 0.96, filter: "blur(6px)" }}
-            animate={{ opacity: 1, scale: 1, filter: "blur(0px)", transitionEnd: { filter: "none" } }}
-            exit={{ opacity: 0, scale: 0.94, filter: "blur(6px)" }}
-            transition={{ duration: 0.45, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] }}
-            className={`project-grid__item ${i === 0 ? "project-grid__item--featured" : ""}`}
-          >
-            {/* Variant A: cards catch a pointer-driven 3D tilt + sheen. Variant B stays flat. */}
-            {(() => {
-            const cardBtn = (
-            <button className="project-grid__card" onClick={() => { setDetailReady(true); setOpenId(p.id); setCaseView(false); }} aria-label={`Open the ${p.name} technical breakdown`}>
-              <div className="project-grid__media"><ProjectMedia id={p.id} name={p.name} preview={p.preview} poster={p.poster} /><span className="project-grid__number">{String(i + 1).padStart(2, "0")}</span><span className="project-grid__year">PROJECT_{String(i + 1).padStart(3, "0")} / {p.year}</span></div>
-              <div className="project-grid__content">
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <span className="text-[11px] font-mono" style={{ color: "var(--os-text-muted)" }}>
-                  {p.category}
-                </span>
-                <span
-                  className="flex items-center gap-1 text-[10px] font-mono mono-small px-2 py-0.5 rounded-full border"
-                  style={{
-                    color: IMPACT_COLOR[p.impact] ?? "var(--os-text-muted)",
-                    borderColor: `color-mix(in srgb, ${IMPACT_COLOR[p.impact] ?? "var(--os-border)"} 35%, transparent)`,
-                  }}
-                >
-                  <Zap size={9} aria-hidden /> {p.impact}
-                </span>
-              </div>
-
-              <h3 className="font-display font-bold text-[clamp(1.35rem,2.3vw,2rem)] leading-[.95] mb-3" style={{ color: "var(--os-text)" }}>
-                {p.name}
-              </h3>
-              <p className="text-[13px] leading-relaxed flex-1" style={{ color: "var(--os-text-secondary)" }}>
-                {p.description}
-              </p>
-
-              {/* Stack */}
-              <div className="flex flex-wrap gap-1.5 mt-4 mb-4">
-                {p.stack.slice(0, 4).map((s) => (
-                  <span
-                    key={s}
-                    className="text-[10.5px] font-mono px-2 py-0.5 rounded-md"
-                    style={{ background: "var(--os-bg-surface)", color: "var(--os-text-muted)" }}
-                  >
-                    {s}
-                  </span>
-                ))}
-                {p.stack.length > 4 && (
-                  <span className="text-[10.5px] font-mono px-1 py-0.5" style={{ color: "var(--os-text-muted)" }}>
-                    +{p.stack.length - 4}
-                  </span>
-                )}
-              </div>
-
-              <span className="flex items-center gap-1 text-[12px] font-mono" style={{ color: "var(--os-accent)" }}>
-                Technical breakdown <ArrowUpRight size={12} aria-hidden />
-              </span>
-              </div>
-            </button>
-            );
-            return variant === "a" ? <TiltCard className="h-full">{cardBtn}</TiltCard> : cardBtn;
-            })()}
-            {/* Config-driven quick links — render only for fields that are set.
-                Kept outside the card <button> so they're valid, standalone links. */}
-            {variant === "a" && (p.github || p.liveUrl) && (
-              <div className="project-grid__links">
-                {p.github && (
-                  <a href={p.github} target="_blank" rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()} aria-label={`${p.name} source on GitHub`} title="Source code">
-                    <GithubIcon size={14} />
-                  </a>
-                )}
-                {p.liveUrl && (
-                  <a href={p.liveUrl} target="_blank" rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()} aria-label={`${p.name} live demo`} title="Live demo">
-                    <ArrowUpRight size={15} aria-hidden />
-                  </a>
-                )}
-              </div>
-            )}
-          </motion.div>
-        ))}
-        </AnimatePresence>
-      </motion.div>
-
-      {detailReady && <ProjectModal
-        projectId={openId}
-        caseView={caseView}
-        setCaseView={setCaseView}
-        onClose={() => setOpenId(null)}
-      />}
+      {detailReady && <ProjectModal projectId={openId} caseView={caseView} setCaseView={setCaseView} onClose={() => setOpenId(null)} />}
     </SectionShell>
   );
 }

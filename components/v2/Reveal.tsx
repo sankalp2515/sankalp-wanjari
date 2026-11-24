@@ -1,43 +1,71 @@
 "use client";
 
-// Scroll-reveal wrapper. Content is visible in SSR markup (SEO-safe):
-// the hidden state is only applied client-side by Framer once mounted.
+// Scroll-reveal wrapper — CSS + ONE shared IntersectionObserver (no Framer).
+//
+// The server HTML is fully visible (SEO, no-JS, LCP). On mount, a block that is
+// still below the fold gets `is-pending` (hidden, lowered); when it nears the
+// viewport the observer swaps it to `is-in` and a CSS transition plays.
+// Blocks already on screen at mount are never hidden, so nothing flashes.
+// Transform + opacity only. Reduced motion: nothing is ever hidden.
+//
+// Was a framer-motion component with blur + 3D tilt on every block; this keeps
+// the look (rise + fade) at a fraction of the hydration and paint cost.
 
-import { motion } from "framer-motion";
-import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useRef } from "react";
+
+let io: IntersectionObserver | null = null;
+function observer(): IntersectionObserver {
+  if (io) return io;
+  io = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        const el = e.target as HTMLElement;
+        el.classList.add("is-in");
+        el.classList.remove("is-pending");
+        io!.unobserve(el);
+      }
+    },
+    { rootMargin: "0px 0px -60px 0px" },
+  );
+  return io;
+}
 
 export default function Reveal({
   children,
   delay = 0,
-  y = 26,
+  y = 22,
   className,
-  // Subtle 3D tip — content hinges up from just below the viewer's eyeline.
-  // Set to 0 for a flat rise (e.g. wide media that shouldn't skew).
-  depth = 7,
+  depth,
 }: {
   children: ReactNode;
   delay?: number;
   y?: number;
   className?: string;
+  /** Kept for API compatibility; the 3D tilt was removed for performance. */
   depth?: number;
 }) {
-  const reduced = useReducedMotion();
-  if (reduced) return <div className={className}>{children}</div>;
+  void depth;
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (el.getBoundingClientRect().top < window.innerHeight * 0.92) return; // already seen
+    el.classList.add("is-pending");
+    const o = observer();
+    o.observe(el);
+    return () => o.unobserve(el);
+  }, []);
 
   return (
-    // Cinematic entrance: content resolves out of depth — it hinges up in 3D,
-    // rises, sharpens from a blur, and settles to scale. One shared component
-    // = every section on the site gets the same dimensional lens language.
-    <motion.div
-      className={className}
-      style={{ transformPerspective: 1100, transformOrigin: "50% 100%" }}
-      initial={{ opacity: 0, y, scale: 0.975, rotateX: depth, filter: "blur(8px)" }}
-      whileInView={{ opacity: 1, y: 0, scale: 1, rotateX: 0, filter: "blur(0px)", transitionEnd: { filter: "none" } }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.85, delay, ease: [0.22, 1, 0.36, 1] }}
+    <div
+      ref={ref}
+      className={`reveal${className ? ` ${className}` : ""}`}
+      style={{ "--reveal-delay": `${delay}s`, "--reveal-y": `${y}px` } as React.CSSProperties}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }

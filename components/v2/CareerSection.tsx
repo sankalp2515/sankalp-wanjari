@@ -1,111 +1,163 @@
 "use client";
 
-// Career — vertical timeline. Fully responsive: single column with
-// a left rail; no fixed widths, nothing clipped.
+// Career, told as a migration log (Sankalp's FIS work was data migration).
+//
+// Left, sticky: the current year in large type and a to-scale 2020 → now bar
+// where every role is a segment of its real length, so the gaps and the jumps
+// are honest. Right: one log record per role, oldest first, each with its
+// headline number and the work as checked log lines. The last record, "Now",
+// is assembled from the featured certification and the ranked achievements;
+// nothing in it is new copy.
+//
+// The active record is picked by an IntersectionObserver; reduced motion keeps
+// everything static.
 
-import { useRef } from "react";
-import { motion, useScroll, useSpring } from "framer-motion";
-import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { Briefcase } from "lucide-react";
-import { experience } from "@/config/portfolio";
+import { useEffect, useRef, useState } from "react";
+import { Check } from "lucide-react";
+import { experience, education, achievements } from "@/config/portfolio";
 import SectionShell from "./SectionShell";
-import Reveal from "./Reveal";
-import TiltCard from "./TiltCard";
 
-function fmt(date: string) {
-  return new Date(date).toLocaleDateString("en-US", { month: "short", year: "numeric" });
-}
+type Entry = {
+  key: string;
+  start: Date;
+  end: Date | null;
+  title: string;
+  org: string;
+  place: string;
+  metric?: { value: string; label: string };
+  lines: string[];
+  tags: string[];
+};
 
-export default function CareerSection({ variant = "a" }: { variant?: "a" | "b" }) {
+const month = (d: Date) => d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+
+const lastJob = experience.reduce((a, b) => (new Date(b.endDate ?? 0) > new Date(a.endDate ?? 0) ? b : a));
+const lead = achievements[0];
+
+const ENTRIES: Entry[] = [
+  ...[...experience]
+    .sort((a, b) => +new Date(a.date) - +new Date(b.date))
+    .map((e) => ({
+      key: `${e.company}-${e.title}`,
+      start: new Date(e.date),
+      end: e.endDate ? new Date(e.endDate) : null,
+      title: e.title,
+      org: e.company,
+      place: e.location,
+      metric: e.metric,
+      lines: e.highlights,
+      tags: e.tags,
+    })),
+  {
+    key: "now",
+    start: new Date(lastJob.endDate ?? lastJob.date),
+    end: null,
+    title: "AI products, built and judged in public",
+    org: "Independent",
+    place: "India",
+    metric: lead ? { value: lead.rank, label: `${lead.event.replace(/ 20\d\d$/, "")}, nationally` } : undefined,
+    lines: [
+      `${education.featuredCert.title}, ${education.featuredCert.issuer}`,
+      ...achievements.map((a) => `${a.title}: ${a.event} (${a.project})`),
+    ],
+    tags: ["Agents", "Evaluation", "Product strategy"],
+  },
+];
+
+const T0 = ENTRIES[0].start.getTime();
+// Month-aligned so the server and the browser compute the same bar.
+const T1 = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+const pct = (t: number) => ((t - T0) / (T1 - T0)) * 100;
+
+export default function CareerSection(_props: { variant?: "a" | "b" } = {}) {
+  void _props;
+  const [active, setActive] = useState(ENTRIES.length - 1);
   const listRef = useRef<HTMLOListElement>(null);
-  const reduced = useReducedMotion();
 
-  // Scroll-scrubbed: the timeline draws itself as you move through it
-  const { scrollYProgress } = useScroll({
-    target: listRef,
-    offset: ["start 0.8", "end 0.45"],
-  });
-  const lineScale = useSpring(scrollYProgress, { stiffness: 90, damping: 24 });
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const items = Array.from(list.querySelectorAll<HTMLElement>("[data-i]"));
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) if (e.isIntersecting) setActive(Number((e.target as HTMLElement).dataset.i));
+      },
+      { rootMargin: "-45% 0px -45% 0px" },
+    );
+    items.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+
+  const cur = ENTRIES[active];
+  const year = cur.end ? `${cur.start.getFullYear()}` : "Now";
 
   return (
     <SectionShell
+      layout="stack"
+      index="07"
       id="section-arc"
-      kicker="THE ARC"
-      title="Three years of shipping, then all-in on AI"
-      subtitle="From enterprise data migration at scale to agentic systems — the engineering discipline carried over."
+      kicker="The arc"
+      title="A career, read as a migration log."
+      subtitle="Three years of enterprise data migration at FIS, then the same discipline pointed at AI. Scroll the log: the year and the to-scale bar follow you."
     >
-      <div className="relative ml-3 sm:ml-5">
-        {/* Static faint rail + scroll-drawn gradient line on top */}
-        <div className="absolute left-0 top-0 bottom-0 w-[2px]" style={{ background: "var(--os-border)" }} aria-hidden />
-        <motion.div
-          className="absolute left-0 top-0 bottom-0 w-[2px] origin-top"
-          style={{
-            background: "linear-gradient(180deg, var(--os-accent), var(--os-accent-cyan))",
-            scaleY: reduced ? 1 : lineScale,
-          }}
-          aria-hidden
-        />
-      <ol ref={listRef} className="space-y-10">
-        {experience.map((e, i) => (
-          <li key={`${e.company}-${e.title}`} className="relative pl-8 sm:pl-10">
-            {/* Node — ignites as the drawn line reaches it */}
-            <motion.span
-              className="absolute -left-[17px] top-0 grid place-items-center w-8 h-8 rounded-full border-2"
-              initial={reduced ? undefined : { borderColor: "var(--os-border)", color: "var(--os-text-muted)", boxShadow: "0 0 0 0 transparent" }}
-              whileInView={{
-                borderColor: "var(--os-accent)",
-                color: "var(--os-accent)",
-                boxShadow: "0 0 18px color-mix(in srgb, var(--os-accent) 45%, transparent)",
-              }}
-              viewport={{ once: true, margin: "-35% 0px -35% 0px" }}
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              style={{ background: "var(--os-bg-elevated)" }}
-              aria-hidden
-            >
-              <Briefcase size={13} />
-            </motion.span>
-
-            <Reveal delay={i * 0.06}>
-              {/* Variant A: each stop lifts on a pointer-driven 3D tilt. B stays flat. */}
-              {(() => {
-              const card = (
-              <div className="glass-card rounded-2xl p-5 sm:p-6">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] font-mono mb-2" style={{ color: "var(--os-text-muted)" }}>
-                  <span style={{ color: "var(--os-accent)" }}>
-                    {fmt(e.date)} — {e.endDate ? fmt(e.endDate) : "present"}
-                  </span>
-                  <span>· {e.location}</span>
-                </div>
-                <h3 className="font-display font-bold text-[17px] leading-snug" style={{ color: "var(--os-text)" }}>
-                  {e.title}
-                </h3>
-                <div className="text-[13.5px] font-medium mt-0.5 mb-3" style={{ color: "var(--os-text-secondary)" }}>
-                  {e.company}
-                </div>
-                <ul className="space-y-1.5 mb-4">
-                  {e.highlights.map((h) => (
-                    <li key={h} className="flex items-start gap-2 text-[13px] leading-relaxed" style={{ color: "var(--os-text-secondary)" }}>
-                      <span className="mt-[7px] w-1 h-1 rounded-full shrink-0" style={{ background: "var(--os-accent)" }} aria-hidden />
-                      {h}
-                    </li>
-                  ))}
-                </ul>
-                <div className="flex flex-wrap gap-1.5">
-                  {e.tags.map((t) => (
-                    <span key={t} className="text-[10.5px] font-mono px-2 py-0.5 rounded-md"
-                      style={{ background: "var(--os-bg-surface)", color: "var(--os-text-muted)" }}>
-                      {t}
-                    </span>
-                  ))}
-                </div>
-              </div>
+      <div className="arc3">
+        <aside className="arc3__rail" aria-hidden>
+          <p className="arc3__year" key={year}>{year}</p>
+          <p className="arc3__role">{cur.title}</p>
+          <p className="arc3__org">{cur.org}</p>
+          <div className="arc3__bar">
+            {ENTRIES.map((e, i) => {
+              const l = pct(e.start.getTime());
+              const r = pct(e.end ? e.end.getTime() : T1);
+              return (
+                <span
+                  key={e.key}
+                  className={`arc3__seg${i === active ? " is-on" : ""}${e.key === "now" ? " is-now" : ""}`}
+                  style={{ left: `${l}%`, width: `${Math.max(1.5, r - l)}%` }}
+                />
               );
-              return variant === "a" ? <TiltCard className="h-full">{card}</TiltCard> : card;
-              })()}
-            </Reveal>
-          </li>
-        ))}
-      </ol>
+            })}
+          </div>
+          <div className="arc3__ticks">
+            {Array.from({ length: new Date(T1).getFullYear() - ENTRIES[0].start.getFullYear() + 1 }, (_, k) => {
+              const y = ENTRIES[0].start.getFullYear() + k;
+              const left = Math.max(0, pct(new Date(`${y}-01-01`).getTime()));
+              return <span key={y} style={{ left: `${left}%` }}>{String(y).slice(2)}</span>;
+            })}
+          </div>
+        </aside>
+
+        <ol ref={listRef} className="arc3__log">
+          {ENTRIES.map((e, i) => (
+            <li key={e.key} data-i={i} className={`arc3__rec${i === active ? " is-on" : ""}${e.key === "now" ? " is-now" : ""}`}>
+              <p className="arc3__stamp">
+                <span>{month(e.start)} → {e.end ? month(e.end) : "present"}</span>
+                <span>{e.place}</span>
+              </p>
+              <div className="arc3__headrow">
+                <div>
+                  <h3 className="arc3__title">{e.title}</h3>
+                  <p className="arc3__company">{e.org}</p>
+                </div>
+                {e.metric && (
+                  <p className="arc3__metric">
+                    <b>{e.metric.value}</b>
+                    <span>{e.metric.label}</span>
+                  </p>
+                )}
+              </div>
+              <ul className="arc3__lines">
+                {e.lines.map((l, k) => (
+                  <li key={l} style={{ ["--k" as string]: k }}>
+                    <Check size={14} aria-hidden />
+                    <span>{l}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="arc3__tags">{e.tags.join(" · ")}</p>
+            </li>
+          ))}
+        </ol>
       </div>
     </SectionShell>
   );

@@ -33,6 +33,7 @@
   "exclude": [
     "node_modules",
     "Pre-loader",
+    "motion/about-reel",
     // components/v3 is the "Stage" 3D build. It is currently unreferenced —
     // app/page.tsx and Landing.tsx no longer wire up the experience flag — and
     // it targets a newer config/portfolio (heroVariants, education.featuredCert)

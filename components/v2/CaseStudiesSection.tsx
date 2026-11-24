@@ -12,11 +12,11 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { ArrowUpRight, X, Target, Users, FlaskConical, Scale, Gauge, Rocket } from "lucide-react";
 import { caseStudies, type CaseStudy } from "@/config/portfolio";
 import SectionShell from "./SectionShell";
-import TiltCard from "./TiltCard";
+import Metric from "./Metric";
 import DiagramGallery from "./DiagramGallery";
 
 // Hide the image (and its wrapper) if the file 404s, so a missing/misnamed
@@ -39,16 +39,16 @@ const SECTIONS = [
 function StudyModal({ study, onClose }: { study: CaseStudy; onClose: () => void }) {
   // Portal to <body> so no transformed ancestor traps the overlay under the nav.
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => { const id = requestAnimationFrame(() => setMounted(true)); return () => cancelAnimationFrame(id); }, []);
   const overlay = (
-    <motion.div
+    <m.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
       className="fixed inset-0 z-[1200] flex items-center justify-center p-3 sm:p-6"
       style={{ background: "color-mix(in srgb, var(--os-bg) 72%, transparent)", backdropFilter: "blur(8px)" }}
       onClick={onClose}
     >
-      <motion.div
+      <m.div
         role="dialog" aria-modal="true" aria-label={`${study.title} — product case study`}
         initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 16, scale: 0.98 }}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
@@ -136,8 +136,8 @@ function StudyModal({ study, onClose }: { study: CaseStudy; onClose: () => void 
           </div>
         )}
   
-      </motion.div>
-    </motion.div>
+      </m.div>
+    </m.div>
   );
 
   return mounted ? createPortal(overlay, document.body) : null;
@@ -150,45 +150,39 @@ export default function CaseStudiesSection() {
   const open = caseStudies.find((c) => c.id === openId) ?? null;
 
   return (
-    <SectionShell
+    <SectionShell layout="split-reverse" index="03"
       id="section-cases"
-      kicker="PRODUCT CASE STUDIES"
-      title="How the product decisions get made"
+      kicker="Product case studies"
+      title="How the product decisions get made."
       subtitle="Product thinking, separate from the engineering: user research, problem framing, prioritisation, trade-offs, and the metrics each bet is judged on."
     >
-      <div className="grid gap-5 sm:grid-cols-2">
+      <ul className="cs3">
         {caseStudies.map((c, i) => (
-          <TiltCard key={c.id} className="h-full">
-            <button
-              onClick={() => setOpenId(c.id)}
-              aria-label={`Read the ${c.title} case study`}
-              className="w-full h-full text-left flex flex-col rounded-2xl border p-6 overflow-hidden transition-colors hover:border-[var(--os-accent)]"
-              style={{ borderColor: "var(--os-border)", background: "color-mix(in srgb, var(--os-bg-elevated) 35%, transparent)" }}
-            >
-              {c.cover && (
-                <div data-cover className="-mx-6 -mt-6 mb-5 border-b" style={{ borderColor: "var(--os-border-subtle)" }}>
-                  <img src={c.cover} alt="" loading="lazy" decoding="async" onError={hideOnError}
-                    className="w-full aspect-[16/9] object-cover" />
-                </div>
-              )}
-              <div className="flex items-center justify-between gap-3 mb-4 text-[10.5px] font-mono mono-small tracking-[0.14em]" style={{ color: "var(--os-text-muted)" }}>
-                <span style={{ color: "var(--os-accent)" }}>CASE_STUDY_{String(i + 1).padStart(3, "0")}</span>
-                <span>{c.company} · {c.year}</span>
-              </div>
-              <h3 className="font-display font-bold text-[clamp(1.2rem,2vw,1.6rem)] leading-tight mb-3" style={{ color: "var(--os-text)" }}>{c.title}</h3>
-              <p className="text-[13px] leading-relaxed flex-1" style={{ color: "var(--os-text-secondary)" }}>{c.summary}</p>
-              <div className="flex flex-wrap gap-1.5 mt-4 mb-4">
-                {c.tags.map((t) => (
-                  <span key={t} className="text-[10.5px] font-mono px-2 py-0.5 rounded-md" style={{ background: "var(--os-bg-surface)", color: "var(--os-text-muted)" }}>{t}</span>
-                ))}
-              </div>
-              <span className="flex items-center gap-1 text-[12px] font-mono" style={{ color: "var(--os-accent)" }}>
-                Read case study <ArrowUpRight size={12} aria-hidden />
+          <li key={c.id} className="cs3__item">
+            <button type="button" onClick={() => setOpenId(c.id)} aria-label={`Read the ${c.title} case study`} className="cs3__card">
+              <span className="cs3__top">
+                <span className="ds-label">Case {String(i + 1).padStart(2, "0")}</span>
+                <span className="cs3__meta">{c.company ? `${c.company} · ` : ""}{c.year}</span>
               </span>
+              {c.stat && (
+                <span className="cs3__stat">
+                  <span className="cs3__value"><Metric value={c.stat.value} /></span>
+                  <span className="cs3__statlabel">{c.stat.label}</span>
+                </span>
+              )}
+              <span className="cs3__title">{c.title}</span>
+              <span className="cs3__summary">{c.summary}</span>
+              <span className="cs3__tags">{c.tags.slice(0, 4).join(" · ")}</span>
+              <span className="cs3__cta">Read the case <ArrowUpRight size={15} aria-hidden /></span>
             </button>
-          </TiltCard>
+            {c.externalUrl && (
+              <a className="cs3__ext" href={c.externalUrl} target="_blank" rel="noopener noreferrer">
+                {/notion\./.test(c.externalUrl) ? "Full write-up on Notion" : "Full write-up"} <ArrowUpRight size={13} aria-hidden />
+              </a>
+            )}
+          </li>
         ))}
-      </div>
+      </ul>
 
       <AnimatePresence>
         {open && <StudyModal key={open.id} study={open} onClose={() => setOpenId(null)} />}

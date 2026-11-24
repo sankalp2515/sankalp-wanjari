@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { GraduationCap, Award, BadgeCheck, X, ArrowUpRight } from "lucide-react";
 import { education, certificates } from "@/config/portfolio";
 import SectionShell from "./SectionShell";
@@ -30,7 +30,7 @@ function CertLightbox({ cert, onClose }: { cert: Cert | null; onClose: () => voi
   return (
     <AnimatePresence>
       {cert && (
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -42,7 +42,7 @@ function CertLightbox({ cert, onClose }: { cert: Cert | null; onClose: () => voi
           aria-modal="true"
           aria-label={`${cert.title} certificate preview`}
         >
-          <motion.div
+          <m.div
             initial={{ opacity: 0, scale: 0.95, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 10 }}
@@ -79,8 +79,8 @@ function CertLightbox({ cert, onClose }: { cert: Cert | null; onClose: () => voi
                 )}
               </div>
             )}
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
       )}
     </AnimatePresence>
   );
@@ -91,7 +91,7 @@ export default function EducationSection() {
   const { degree, featuredCert } = education;
 
   return (
-    <SectionShell
+    <SectionShell layout="split-reverse" index="10"
       id="section-education"
       kicker="THE FOUNDATION"
       title="Built to engineer it — and to know if it's worth building"

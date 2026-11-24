@@ -1,0 +1,38 @@
+<template>
+  <style>
+  #outcome { position: absolute; inset: 0; background: #F4F2EE; color: #121110; font-family: Inter, sans-serif; overflow: hidden; }
+  #outcome .lbl { position: absolute; left: 72px; top: 60px; font: 500 18px 'JetBrains Mono', monospace; letter-spacing: .14em; text-transform: uppercase; color: #6A655D; }
+  #outcome .lbl b { color: #9C5304; font-weight: 500; }
+  #outcome .head { position: absolute; left: 72px; bottom: 64px; width: 1136px; font: 900 52px/1.04 Inter, sans-serif; letter-spacing: -0.035em; text-wrap: balance; }
+  #outcome .grid { position: absolute; inset: 0; background-image: linear-gradient(#12111008 1px, transparent 1px), linear-gradient(90deg, #12111008 1px, transparent 1px); background-size: 40px 40px; }
+
+    #outcome .big { position: absolute; left: 68px; top: 120px; font: 900 220px/1 Inter, sans-serif; letter-spacing: -0.06em; color: #9C5304; }
+    #outcome .sub { position: absolute; left: 76px; top: 360px; width: 560px; font: 700 28px/1.25 Inter, sans-serif; color: #121110; }
+    #outcome ul { position: absolute; left: 760px; top: 170px; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 22px; }
+    #outcome li { display: flex; align-items: center; gap: 16px; padding: 18px 24px; width: 440px; border-radius: 16px; background: #fff; border: 1.5px solid #DEDAD3; font: 700 24px Inter, sans-serif; }
+    #outcome li svg path { fill: none; stroke: #9C5304; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 30; stroke-dashoffset: 30; }
+    #outcome .head { display: none; }
+  </style>
+  <div id="outcome" data-composition-id="outcome" data-width="1280" data-height="720">
+    <div class="grid"></div>
+    <p class="lbl" id="outcome-lbl"><b>04</b> · Outcome</p>
+    <div class="big" id="o-big">0/144</div><p class="sub" id="o-sub">unsafe purchases on the deployed system (budget-only guard: 36/144)</p><ul><li id="o-check0"><svg viewBox="0 0 24 24" width="26" height="26"><path id="o-tick0" d="M4 12.5 L10 18 L20 6" /></svg>720-case campaign</li><li id="o-check1"><svg viewBox="0 0 24 24" width="26" height="26"><path id="o-tick1" d="M4 12.5 L10 18 L20 6" /></svg>Vertex Gemini</li><li id="o-check2"><svg viewBox="0 0 24 24" width="26" height="26"><path id="o-tick2" d="M4 12.5 L10 18 L20 6" /></svg>Live on Google Cloud</li></ul><h2 class="head" id="outcome-head">Assever</h2>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#outcome-lbl", { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: "power3.out" }, 0.05);
+    tl.fromTo("#outcome-head", { y: 26, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 0.15);
+    
+    tl.fromTo("#o-big", { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power4.out" }, 0.15);
+    
+    tl.fromTo("#o-sub", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: "power3.out" }, 0.55);
+    tl.fromTo("#o-check0", { x: 30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.35, ease: "power3.out" }, 0.80);
+    tl.fromTo("#o-tick0", { strokeDashoffset: 30 }, { strokeDashoffset: 0, duration: 0.3, ease: "power2.out" }, 1.00);
+    tl.fromTo("#o-check1", { x: 30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.35, ease: "power3.out" }, 0.98);
+    tl.fromTo("#o-tick1", { strokeDashoffset: 30 }, { strokeDashoffset: 0, duration: 0.3, ease: "power2.out" }, 1.18);
+    tl.fromTo("#o-check2", { x: 30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.35, ease: "power3.out" }, 1.16);
+    tl.fromTo("#o-tick2", { strokeDashoffset: 30 }, { strokeDashoffset: 0, duration: 0.3, ease: "power2.out" }, 1.36);
+  
+    window.__timelines["outcome"] = tl;
+  </script>
+</template>

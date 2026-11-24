@@ -1,0 +1,38 @@
+<template>
+  <style>
+  #tradeoff { position: absolute; inset: 0; background: #F4F2EE; color: #121110; font-family: Inter, sans-serif; overflow: hidden; }
+  #tradeoff .lbl { position: absolute; left: 72px; top: 60px; font: 500 18px 'JetBrains Mono', monospace; letter-spacing: .14em; text-transform: uppercase; color: #6A655D; }
+  #tradeoff .lbl b { color: #9C5304; font-weight: 500; }
+  #tradeoff .head { position: absolute; left: 72px; bottom: 64px; width: 1136px; font: 900 52px/1.04 Inter, sans-serif; letter-spacing: -0.035em; text-wrap: balance; }
+  #tradeoff .grid { position: absolute; inset: 0; background-image: linear-gradient(#12111008 1px, transparent 1px), linear-gradient(90deg, #12111008 1px, transparent 1px); background-size: 40px 40px; }
+
+    #tradeoff .beam-wrap { position: absolute; left: 240px; top: 150px; width: 800px; height: 300px; }
+    #tradeoff .beam { position: absolute; left: 0; top: 0; width: 800px; height: 8px; border-radius: 4px; background: #121110; transform-origin: 400px 4px; }
+    #tradeoff .fulcrum { position: absolute; left: 370px; top: 8px; width: 0; height: 0; border-left: 30px solid transparent; border-right: 30px solid transparent; border-bottom: 46px solid #121110; }
+    #tradeoff .pan { position: absolute; top: 26px; width: 320px; padding: 20px 22px; border-radius: 18px; background: #fff; border: 1.5px solid #DEDAD3; box-shadow: 0 10px 28px #1e181014; }
+    #tradeoff .pan small { display: block; font: 500 15px 'JetBrains Mono', monospace; letter-spacing: .14em; color: #6A655D; }
+    #tradeoff .pan strong { display: block; margin-top: 8px; font: 900 46px/1 Inter, sans-serif; letter-spacing: -0.04em; }
+    #tradeoff .pan span { display: block; margin-top: 8px; font: 400 19px/1.3 Inter, sans-serif; color: #45413B; }
+    #tradeoff .pan.cost { border: 2.5px solid #9C5304; }
+    #tradeoff .pan.cost strong { color: #9C5304; }
+  </style>
+  <div id="tradeoff" data-composition-id="tradeoff" data-width="1280" data-height="720">
+    <div class="grid"></div>
+    <p class="lbl" id="tradeoff-lbl"><b>03</b> · Trade-off</p>
+    <div class="beam-wrap"><div class="beam" id="t-beam"><div class="pan gain" id="t-gain" style="left:-40px"><small>GAIN</small><strong>1.9 days</strong><span>median time to alert (vs 16.5)</span></div><div class="pan cost" id="t-cost" style="left:520px"><small>COST</small><strong>53.5</strong><span>first alerts per 100 patients (vs 38.5)</span></div></div><div class="fulcrum" id="t-fulcrum"></div></div><h2 class="head" id="tradeoff-head">Catching gaps costs attention.</h2>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#tradeoff-lbl", { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: "power3.out" }, 0.05);
+    tl.fromTo("#tradeoff-head", { y: 26, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 0.15);
+    
+    tl.fromTo("#t-fulcrum", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: "power3.out" }, 0.15);
+    tl.fromTo("#t-beam", { scaleX: 0.2, opacity: 0, rotation: 0 }, { scaleX: 1, opacity: 1, duration: 0.45, ease: "power3.out" }, 0.25);
+    tl.fromTo("#t-gain", { y: -30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: "power3.out" }, 0.6);
+    tl.fromTo("#t-cost", { y: -30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: "power3.out" }, 0.8);
+    tl.fromTo("#t-beam", { rotation: 0 }, { rotation: 3.5, duration: 0.9, ease: "elastic.out(1, 0.45)" }, 1.25);
+    tl.fromTo(["#t-gain", "#t-cost"], { rotation: 0 }, { rotation: -3.5, duration: 0.9, ease: "elastic.out(1, 0.45)" }, 1.25);
+  
+    window.__timelines["tradeoff"] = tl;
+  </script>
+</template>

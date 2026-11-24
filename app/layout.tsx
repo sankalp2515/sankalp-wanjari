@@ -1,26 +1,35 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Inter, Space_Grotesk } from "next/font/google";
+import { JetBrains_Mono, Inter, Inter_Tight } from "next/font/google";
 import "./globals.css";
+import { MOBILE_TUNING } from "@/config/mobileTuning";
 import { personal, social, projects } from "@/config/portfolio";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
+// design-system/MASTER.md §3: Inter Tight display, Inter body, JetBrains label.
+const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap" });
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500"],
+  display: "swap",
 });
-const spaceGrotesk = Space_Grotesk({
+const interTight = Inter_Tight({
   variable: "--font-display",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["500", "600", "700", "800"],
+  display: "swap",
 });
+
+// Runs before first paint so a saved dark preference never flashes light.
+// Also stamps the mobile-tuning class BEFORE first layout: adding a class to
+// <html> after hydration re-styles and re-lays-out the whole (very long) page.
+const THEME_BOOT = `try{var t=localStorage.getItem("portfolio-theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}${MOBILE_TUNING ? 'document.documentElement.classList.add("mobile-tuned");' : ""}`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(social.website),
-  title: `${personal.name} — ${personal.roles.join(" · ")}`,
+  title: `${personal.name} — AI Product Manager · AI Engineer`,
   description: `${personal.tagline} ${personal.roles.join(" and ")} — 3 years shipping software, specialised in agentic AI, RAG, and LLM systems. ${personal.availability}.`,
   keywords: ["AI Engineer", "AI Product Manager", "ML Engineer", "LangGraph", "Agentic AI", "RAG", "Python", "TypeScript", "Portfolio"],
   authors: [{ name: personal.name }],
@@ -68,7 +77,12 @@ function jsonLd() {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark" className={`${inter.variable} ${jetbrainsMono.variable} ${spaceGrotesk.variable}`}>
+    <html lang="en" data-theme="light" suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable} ${interTight.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+        <meta name="theme-color" content="#F4F2EE" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#0E0D0B" media="(prefers-color-scheme: dark)" />
+      </head>
       <body className="antialiased" style={{ background: "var(--os-bg)" }}>
         <script
           type="application/ld+json"

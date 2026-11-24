@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "historyId": "a2e9057f-b68e-4dcb-a057-92276f581229",
+  "currentRevision": null,
+  "pendingChanges": false,
+  "files": {
+    "compositions/decision.html": {
+      "hash": "daec1a6b5e79bc30fd2ae347b8caaf89c824c73539479fc24ff0215b463b3dcb",
+      "content": "C:\\Users\\sanka\\.cache\\hyperframes\\history\\a2e9057f-b68e-4dcb-a057-92276f581229\\blobs\\da\\daec1a6b5e79bc30fd2ae347b8caaf89c824c73539479fc24ff0215b463b3dcb"
+    },
+    "compositions/outcome.html": {
+      "hash": "037fde92bf215b2936a8834107e79297a2e67604982a7bb622359787191429a9",
+      "content": "C:\\Users\\sanka\\.cache\\hyperframes\\history\\a2e9057f-b68e-4dcb-a057-92276f581229\\blobs\\03\\037fde92bf215b2936a8834107e79297a2e67604982a7bb622359787191429a9"
+    },
+    "compositions/problem.html": {
+      "hash": "e718a5debeacd1b301733e94dd4394b187e58601db3022b8aeda15e0a278539b",
+      "content": "C:\\Users\\sanka\\.cache\\hyperframes\\history\\a2e9057f-b68e-4dcb-a057-92276f581229\\blobs\\e7\\e718a5debeacd1b301733e94dd4394b187e58601db3022b8aeda15e0a278539b"
+    },
+    "compositions/tradeoff.html": {
+      "hash": "2a88c07a217d2a1481eea1967ad6e1988b14e3f5af1079de216c8d01609ba1c4",
+      "content": "C:\\Users\\sanka\\.cache\\hyperframes\\history\\a2e9057f-b68e-4dcb-a057-92276f581229\\blobs\\2a\\2a88c07a217d2a1481eea1967ad6e1988b14e3f5af1079de216c8d01609ba1c4"
+    },
+    "index.html": {
+      "hash": "97ad58166e403dc5f169aa05a633996b3ea476909d7a3cabead1d941ccc25c85",
+      "content": "C:\\Users\\sanka\\.cache\\hyperframes\\history\\a2e9057f-b68e-4dcb-a057-92276f581229\\blobs\\97\\97ad58166e403dc5f169aa05a633996b3ea476909d7a3cabead1d941ccc25c85"
+    }
+  },
+  "revisions": {},
+  "checks": {
+    "latest": null,
+    "revisions": {},
+    "unversioned": []
+  },
+  "snapshots": {
+    "latest": null,
+    "revisions": {},
+    "unversioned": []
+  },
+  "renders": {
+    "latest": {
+      "id": "6ff541d5-a81e-485d-8a8a-3766d2725d2f",
+      "completedAt": 1795549258312,
+      "output": "E:\\New_Project Portfolio\\claude\\new_portfolio\\public\\motion\\assever.mp4",
+      "status": "completed",
+      "revision": null
+    },
+    "retainedRevisions": []
+  },
+  "pendingArtifactCleanup": []
+}

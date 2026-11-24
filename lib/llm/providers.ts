@@ -39,13 +39,15 @@ export const PROVIDERS: LLMProvider[] = [
     id:            "groq",
     name:          "Groq",
     endpoint:      "https://api.groq.com/openai/v1/chat/completions",
-    model:         "llama-3.3-70b-versatile",
+    // llama-3.3-70b-versatile was retired by Groq (404 "model not found"), which
+    // silently pushed every chat to the next provider. gpt-oss-120b is served.
+    model:         "openai/gpt-oss-120b",
     apiKeyEnv:     "GROQ_API_KEY",
     maxTokens:     1024,
     type:          "openai-compat",
     contextWindow: 128_000,
     role:          "fast",
-    gatewayModel:  "groq/llama-3.3-70b-versatile",
+    gatewayModel:  "groq/openai/gpt-oss-120b",
   },
   // 2. Google Gemini — 1M context, fast flash model. Doubles as a large-context
   //    fallback behind NVIDIA.

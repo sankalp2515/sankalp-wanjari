@@ -74,7 +74,7 @@ function StripContent({ persona }: { persona: Persona }) {
         <>
           <span className="min-w-0 truncate">
             <strong style={{ color: "var(--os-text)" }}>Welcome!</strong> Easiest way in: let the AI concierge drive you
-            through the whole portfolio in 45 seconds
+            through the whole portfolio in two minutes
           </span>
           <button onClick={() => tour()} className="persona-strip-cta shrink-0">
             Start the tour <ArrowRight size={11} aria-hidden />

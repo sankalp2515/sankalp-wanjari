@@ -356,7 +356,7 @@ function buildGraph(): { nodes: GNode[]; edges: GraphEdge[]; adjacency: Map<stri
   // 6. Career → capability. Enterprise engineering is the reliability lineage.
   link("e-0", "cap-backend", "career", 3, "Config-driven PDF extraction across 50+ layouts cut manual entry by 90%.");
   link("e-0", "cap-infra", "career", 2, "Bank data migrations across US and UK — failure was not an abstract concern.");
-  link("e-0", "cap-product", "career", 1, "An LLM SQL generator built for an org-wide innovation challenge, pitched as a product.");
+  link("e-0", "cap-product", "career", 1, "An LLM query optimizer built with a team of 6 in an org-wide hackathon, then adopted into the team workflow.");
   link("e-1", "e-0", "career", 2, "Six months of graduate training became the engineering role.");
 
   // 7. Education → capability.

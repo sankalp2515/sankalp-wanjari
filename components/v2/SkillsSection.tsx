@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { skills } from "@/config/portfolio";
 import { useConcierge } from "@/contexts/ConciergeContext";
@@ -67,7 +67,7 @@ export default function SkillsSection({ variant = "a" }: { variant?: "a" | "b" }
   };
 
   return (
-    <SectionShell
+    <SectionShell layout="split" index="11"
       id="section-skills"
       kicker="CAPABILITIES"
       title="Three disciplines, one system"
@@ -96,7 +96,7 @@ export default function SkillsSection({ variant = "a" }: { variant?: "a" | "b" }
             ))}
           </div>
           <div className="capability-console__field" style={{ "--capability-color": active.color } as React.CSSProperties}>
-            <motion.div key={active.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+            <m.div key={active.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
               <span className="capability-console__readout">ACTIVE FIELD / {active.id.toUpperCase()}</span>
               <h3>{active.label}</h3>
               <p>{active.proof}</p>
@@ -107,7 +107,7 @@ export default function SkillsSection({ variant = "a" }: { variant?: "a" | "b" }
                   </button>
                 ))}
               </div>
-            </motion.div>
+            </m.div>
           </div>
         </div>
       </Reveal>

@@ -9,6 +9,7 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    "motion/about-reel/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

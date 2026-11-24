@@ -5,13 +5,14 @@
 // The problem it solves: a portfolio visitor stays 2-4 minutes and may never
 // discover the concierge, the tour, or any of the AI. This announces it ONCE,
 // early — a small Helios bubble in the corner naming the two things worth
-// doing (ask, or take the 45-second tour). Without it, the differentiator is
+// doing (ask, or take the two-minute tour). Without it, the differentiator is
 // invisible until the visitor happens to stumble into it.
 //
 // Restraint: once per session, appears after the loader clears, yields to the
 // dock and the tour, auto-dismisses so it never lingers, Variant A only.
 
 import { useEffect, useState } from "react";
+import { usePastHero } from "@/hooks/usePastHero";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Sparkles, Play, MessageSquare } from "lucide-react";
 import { useConcierge } from "@/contexts/ConciergeContext";
@@ -21,16 +22,16 @@ const SEEN_KEY = "helios-intro-seen";
 export default function HeliosIntro() {
   const { open, setOpen, tour, tourRunning } = useConcierge();
   const [show, setShow] = useState(false);
+  const pastHero = usePastHero();
 
   useEffect(() => {
+    if (!pastHero) return; // never on the first screen: the hero is one impression
     try { if (sessionStorage.getItem(SEEN_KEY) === "1") return; } catch { return; }
-    // Wait out the loader (~2.2s) + hero entrance, then a beat, so it lands in a
-    // calm moment rather than fighting the first impression.
     const t = setTimeout(() => {
       if (!open && !tourRunning) setShow(true);
-    }, 5200);
+    }, 1800);
     return () => clearTimeout(t);
-  }, [open, tourRunning]);
+  }, [open, tourRunning, pastHero]);
 
   const seen = () => { try { sessionStorage.setItem(SEEN_KEY, "1"); } catch { /* ignore */ } };
   const dismiss = () => { seen(); setShow(false); };
@@ -77,7 +78,7 @@ export default function HeliosIntro() {
             <div className="min-w-0">
               <p className="text-[12.5px] leading-relaxed" style={{ color: "var(--os-text)" }}>
                 <strong>Hi — I&apos;m Helios</strong>, the AI running this site. Ask me anything about Sankalp,
-                or I&apos;ll give you the 45-second tour.
+                or I&apos;ll give you the two-minute tour.
               </p>
             </div>
             <button onClick={dismiss} aria-label="Dismiss"

@@ -1,174 +1,87 @@
-"use client";
+// About — who Sankalp is (server component; the reel is the only client island).
+//
+// A full-width motion stage leads: a Remotion-rendered loop (AboutReel) of
+// Sankalp inside a turning ring while verified facts surface around him, with
+// his status card pinned on top. Below it, the bio reads itself: as each line scrolls up, its words turn from muted to
+// ink, and the key phrases get an amber underline that draws in. All of it is a
+// CSS scroll-driven animation (animation-timeline: view()), so it costs no
+// JavaScript and runs off the main thread. Browsers without scroll timelines,
+// and reduced motion, show the finished text. Replaces the old BioScanner,
+// which ran a per-frame JS magnifier.
 
-// About — who Sankalp is. Photo card on the left; education,
-// expertise, and mission cards on the right (reference-inspired).
-
-import Image from "next/image";
-import { motion } from "framer-motion";
-import { GraduationCap, Code2, Target, FileText, Download } from "lucide-react";
-import { personal, education, skills } from "@/config/portfolio";
+import { FileText, MapPin } from "lucide-react";
+import { personal, education } from "@/config/portfolio";
 import SectionShell from "./SectionShell";
-import Reveal from "./Reveal";
-import BioScanner from "./BioScanner";
-import { useMotionRegion } from "@/hooks/useMotionRegion";
+import Metric from "./Metric";
+import ResumeButton from "./ResumeButton";
+import AboutReel from "./AboutReel";
 
-const CORE_STACK = skills.filter((s) => s.core).map((s) => s.name).slice(0, 6);
+// Split a paragraph into words, marking the ones inside a key phrase.
+function words(paragraph: string, phrases: string[]) {
+  const marks = new Array(paragraph.length).fill(false);
+  for (const p of phrases) {
+    const at = paragraph.indexOf(p);
+    if (at >= 0) for (let i = at; i < at + p.length; i++) marks[i] = true;
+  }
+  const out: { w: string; key: boolean }[] = [];
+  const re = /\S+/g;
+  let mt: RegExpExecArray | null;
+  while ((mt = re.exec(paragraph))) out.push({ w: mt[0], key: marks[mt.index] });
+  return out;
+}
 
 export default function AboutSection() {
-  const { ref, active } = useMotionRegion<HTMLDivElement>();
+  const paragraphs = personal.bio.split(/\n\s*\n/);
   return (
     <SectionShell
+      layout="stack"
+      index="06"
       id="section-about"
-      kicker="THE OPERATOR"
-      title="The person behind the systems"
+      kicker="About"
+      title="The person behind the systems."
       subtitle={personal.tagline}
+      aside={
+        <div className="about3__actions">
+          <ResumeButton className="ds-btn ds-btn--primary">
+            <FileText size={16} aria-hidden /> See the full record
+          </ResumeButton>
+          <a className="ds-btn ds-btn--ghost" href={personal.resumeUrl} download>Download PDF</a>
+        </div>
+      }
     >
-      <div ref={ref} className="grid gap-5 md:grid-cols-[340px_1fr]">
-        {/* Photo card */}
-        <Reveal>
-          <div className="glass-card rounded-3xl overflow-hidden h-full flex flex-col">
-            <div className="relative w-full overflow-hidden" style={{ aspectRatio: "4/4.4", background: "var(--os-bg-surface)" }}>
-              {/* Slow Ken Burns drift — a still photo that breathes */}
-              <motion.div
-                className="absolute inset-0"
-                animate={{ scale: active ? [1, 1.06, 1] : 1 }}
-                transition={{ duration: active ? 22 : 0, repeat: active ? Infinity : 0, ease: "easeInOut" }}
-              >
-                <Image
-                  src={personal.profilePhoto}
-                  alt={`Portrait of ${personal.name}`}
-                  fill
-                  className="object-cover object-top"
-                  sizes="(max-width: 768px) 100vw, 340px"
-                />
-              </motion.div>
-              <div
-                className="absolute inset-x-0 bottom-0 h-24 pointer-events-none"
-                style={{ background: "linear-gradient(transparent, color-mix(in srgb, var(--os-bg-window) 92%, transparent))" }}
-                aria-hidden
-              />
-            </div>
-            <div className="p-5 flex-1 flex flex-col">
-              <div className="font-display font-bold text-[19px]" style={{ color: "var(--os-text)" }}>
-                {personal.name}
-              </div>
-              <div className="text-[12.5px] font-medium mt-0.5 mb-3" style={{ color: "var(--os-accent)" }}>
-                {personal.roles.join(" & ")}
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {CORE_STACK.map((s) => (
-                  <span key={s} className="text-[10.5px] font-mono px-2 py-0.5 rounded-md"
-                    style={{ background: "var(--os-bg-surface)", color: "var(--os-text-muted)" }}>
-                    {s}
-                  </span>
-                ))}
-              </div>
+      <div className="about3 about3--stage">
+        <figure className="about3__stage">
+          <AboutReel alt={`${personal.name}, surrounded by verified milestones from education, FIS and national hackathons`} />
+          <figcaption className="about3__card">
+            <p className="about3__name">{personal.name}</p>
+            <p className="about3__roles">{personal.roles.join(" · ")}</p>
+            <p className="about3__status"><i aria-hidden /> {personal.availability} · {personal.noticePeriod}</p>
+            <p className="about3__loc"><MapPin size={13} aria-hidden /> {personal.location}</p>
+          </figcaption>
+        </figure>
 
-              {/* Identity footer — anchored to the card bottom so the photo card
-                  fills the height of the info column instead of leaving dead space. */}
-              <div className="mt-auto pt-5">
-                <div
-                  className="flex items-center gap-2 text-[11.5px] font-medium mb-3 pt-4 border-t"
-                  style={{ borderColor: "var(--os-border)", color: "var(--os-accent-green)" }}
-                >
-                  <span className="relative flex w-2 h-2">
-                    <motion.span
-                      className="absolute inset-0 rounded-full"
-                      style={{ background: "var(--os-accent-green)" }}
-                      animate={{ scale: active ? [1, 2.4] : 1, opacity: active ? [0.6, 0] : 0 }}
-                      transition={{ duration: active ? 1.8 : 0, repeat: active ? Infinity : 0, ease: "easeOut" }}
-                    />
-                    <span className="relative w-2 h-2 rounded-full" style={{ background: "var(--os-accent-green)" }} />
-                  </span>
-                  {personal.availability}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {personal.stats.slice(0, 2).map((stat) => (
-                    <div
-                      key={stat.label}
-                      className="rounded-xl px-3 py-2"
-                      style={{ background: "var(--os-bg-surface)" }}
-                    >
-                      <div className="font-display font-bold text-[16px] leading-none" style={{ color: "var(--os-text)" }}>
-                        {stat.value}
-                      </div>
-                      <div className="text-[9.5px] leading-tight mt-1" style={{ color: "var(--os-text-muted)" }}>
-                        {stat.label}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </Reveal>
+        <div className="about3__text">
+          {paragraphs.map((p, pi) => (
+            <p key={pi} className="about3__para">
+              {words(p, personal.bioKeywords).map((t, i) => (
+                <span key={i} className={t.key ? "about3__w about3__w--key" : "about3__w"}>{t.w} </span>
+              ))}
+            </p>
+          ))}
 
-        {/* Info cards */}
-        <div className="flex flex-col gap-4">
-          <Reveal delay={0.06}>
-            <div className="glass-card rounded-2xl p-5 flex gap-4">
-              <span className="grid place-items-center w-10 h-10 rounded-xl shrink-0"
-                style={{ background: "color-mix(in srgb, var(--os-accent-cyan) 14%, transparent)", color: "var(--os-accent-cyan)" }}>
-                <GraduationCap size={17} aria-hidden />
-              </span>
-              <div>
-                <div className="text-[14px] font-semibold mb-1" style={{ color: "var(--os-text)" }}>Education</div>
-                <p className="text-[13px] leading-relaxed" style={{ color: "var(--os-text-secondary)" }}>
-                  <strong style={{ color: "var(--os-accent-cyan)" }}>{education.degree.title}</strong> at{" "}
-                  {education.degree.school} (CGPA 8.54), topped with an executive certification in{" "}
-                  <strong style={{ color: "var(--os-accent-cyan)" }}>{education.featuredCert.title}</strong> from{" "}
-                  {education.featuredCert.issuer}.
-                </p>
-              </div>
-            </div>
-          </Reveal>
+          <ul className="about3__stats">
+            {personal.stats.map((s) => (
+              <li key={s.label}>
+                <p className="about3__stat"><Metric value={s.value} /></p>
+                <p className="about3__statlabel">{s.label}</p>
+              </li>
+            ))}
+          </ul>
 
-          <Reveal delay={0.12}>
-            <div className="glass-card rounded-2xl p-5 flex gap-4">
-              <span className="grid place-items-center w-10 h-10 rounded-xl shrink-0"
-                style={{ background: "color-mix(in srgb, var(--os-accent) 14%, transparent)", color: "var(--os-accent)" }}>
-                <Code2 size={17} aria-hidden />
-              </span>
-              <div className="flex-1">
-                <div className="text-[14px] font-semibold mb-3" style={{ color: "var(--os-text)" }}>My Approach</div>
-                <BioScanner bio={personal.bio} keywords={personal.bioKeywords} />
-              </div>
-            </div>
-          </Reveal>
-
-          <Reveal delay={0.18}>
-            <div className="glass-card rounded-2xl p-5 flex gap-4">
-              <span className="grid place-items-center w-10 h-10 rounded-xl shrink-0"
-                style={{ background: "color-mix(in srgb, var(--os-accent-green) 14%, transparent)", color: "var(--os-accent-green)" }}>
-                <Target size={17} aria-hidden />
-              </span>
-              <div className="flex-1">
-                <div className="text-[14px] font-semibold mb-1" style={{ color: "var(--os-text)" }}>Mission</div>
-                <p className="text-[13px] leading-relaxed mb-4" style={{ color: "var(--os-text-secondary)" }}>
-                  Close the gap between what AI can do and what actually ships — systems that are
-                  reliable, evaluated, and worth building. The engineer half makes it work;
-                  the PM half makes it matter.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => window.dispatchEvent(new CustomEvent("resume:open"))}
-                    className="flex items-center gap-1.5 text-[12.5px] font-semibold px-4 py-2 rounded-xl transition-all hover:opacity-90 active:scale-95"
-                    style={{ background: "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))", color: "#fff" }}
-                  >
-                    <FileText size={13} aria-hidden /> See the full record
-                  </button>
-                  <a
-                    href={personal.resumeUrl}
-                    download
-                    className="flex items-center gap-1.5 text-[12.5px] font-mono px-4 py-2 rounded-xl border transition-colors hover:bg-[var(--os-bg-hover)]"
-                    style={{ borderColor: "var(--os-border)", color: "var(--os-text-secondary)" }}
-                  >
-                    <Download size={13} aria-hidden /> Download PDF
-                  </a>
-                </div>
-              </div>
-            </div>
-          </Reveal>
+          <p className="about3__edu">
+            <span className="ds-label">Education</span>
+            {education.degree.title}, {education.degree.school} (CGPA 8.54) · {education.featuredCert.title}, {education.featuredCert.issuer}
+          </p>
         </div>
       </div>
     </SectionShell>

@@ -26,6 +26,7 @@ import { fileURLToPath } from "node:url";
 import { TOUR, DIRECTOR_INTRO, DIRECTOR_OUTRO_HANDBACK, CLOSING_LINE } from "../lib/cinema/tourScript";
 import { GRAPH_TOUR } from "../lib/cinema/graphTourScript";
 import { cleanForSpeech, voiceHash, type VoiceName } from "../lib/cinema/voiceAssets";
+import { personal } from "../config/portfolio";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -71,9 +72,29 @@ function collectLines(): Line[] {
 // ── ElevenLabs (Sankalp) ───────────────────────────────────────
 const ELEVEN_MODEL = "eleven_turbo_v2_5";
 const ELEVEN_DEFAULT_VOICE = "onwK4e9ZLuTAKqWW03F9"; // "Daniel" fallback
+// Every configured key, in order: ELEVENLABS_API_KEY, then _2.._8 (matches
+// lib/llm/keys.ts MAX_KEYS). A key that is out of quota or rejected is skipped
+// for the rest of the run so one exhausted account doesn't block the render.
+const elevenKeys = () =>
+  [process.env.ELEVENLABS_API_KEY, ...Array.from({ length: 7 }, (_, i) => process.env[`ELEVENLABS_API_KEY_${i + 2}`])]
+    .filter((k): k is string => !!k && k.trim().length > 0);
+const deadElevenKeys = new Set<string>();
 async function renderElevenLabs(text: string): Promise<Buffer> {
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  if (!apiKey) throw new Error("ELEVENLABS_API_KEY is not set — needed for the 'sankalp' voice.");
+  const keys = elevenKeys().filter((k) => !deadElevenKeys.has(k));
+  if (!keys.length) throw new Error("No usable ELEVENLABS_API_KEY[_N] — needed for the 'sankalp' voice.");
+  let last: unknown;
+  for (const key of keys) {
+    try { return await renderElevenLabsWith(key, text); }
+    catch (err) {
+      last = err;
+      const msg = (err as Error).message;
+      if (/ElevenLabs (401|402|403|429)/.test(msg)) { deadElevenKeys.add(key); console.warn(`    ↷ key #${elevenKeys().indexOf(key) + 1} unusable (${msg.slice(0, 60)}), trying next`); continue; }
+      throw err;
+    }
+  }
+  throw last;
+}
+async function renderElevenLabsWith(apiKey: string, text: string): Promise<Buffer> {
   const voiceId = process.env.ELEVENLABS_SANKALP_VOICE_ID || process.env.ELEVENLABS_VOICE_ID || ELEVEN_DEFAULT_VOICE;
   const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: "POST",
@@ -217,9 +238,31 @@ async function renderWithRetry(voice: VoiceName, text: string, attempts = 4): Pr
   throw lastErr;
 }
 
+// The hero's first-person intro has a FIXED filename (the hero's <audio> points
+// at it and drives live captions from its currentTime). A sidecar .txt holds
+// the text it was rendered from, so editing personal.heroIntro re-records it
+// once and an unchanged text never bills again.
+async function ensureHeroIntro() {
+  const text = personal.heroIntro?.trim();
+  if (!text) return;
+  const mp3 = path.join(OUT_DIR, "hero-intro.mp3");
+  const txt = path.join(OUT_DIR, "hero-intro.txt");
+  const prev = await fs.readFile(txt, "utf8").catch(() => "");
+  const have = await fs.access(mp3).then(() => true).catch(() => false);
+  if (have && prev.trim() === text) {
+    console.log("  · hero-intro.mp3 up to date");
+    return;
+  }
+  const buf = await renderWithRetry("sankalp", text);
+  await fs.writeFile(mp3, buf);
+  await fs.writeFile(txt, text);
+  console.log(`  ✓ hero-intro.mp3 (${Math.round(buf.length / 1024)} KB)`);
+}
+
 async function main() {
   await loadEnv();
   await fs.mkdir(OUT_DIR, { recursive: true });
+  try { await ensureHeroIntro(); } catch (err) { console.error(`  ✗ hero-intro  ${(err as Error).message}`); }
 
   // De-duplicate: the same (voice, cleaned text) maps to one file.
   const lines = collectLines();
@@ -274,7 +317,8 @@ async function main() {
   // mistake — only genuine orphans go. Only .mp3/.wav are touched.
   let pruned = 0;
   for (const entry of await fs.readdir(OUT_DIR)) {
-    const m = entry.match(/^(.+)\.(mp3|wav)$/);
+    // Hashed lines only: fixed-name assets such as hero-intro.mp3 are kept.
+    const m = entry.match(/^([0-9a-f]{8})\.(mp3|wav)$/);
     if (!m || seen.has(m[1])) continue; // not an audio file, or still a live line
     try { await fs.unlink(path.join(OUT_DIR, entry)); pruned++; } catch { /* ignore */ }
   }

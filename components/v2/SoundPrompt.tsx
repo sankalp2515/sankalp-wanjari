@@ -6,6 +6,7 @@
 // A only.
 
 import { useEffect, useState } from "react";
+import { usePastHero } from "@/hooks/usePastHero";
 import { AnimatePresence, motion } from "framer-motion";
 import { Volume2, X } from "lucide-react";
 import { helios } from "@/lib/voice";
@@ -14,13 +15,15 @@ const SEEN_KEY = "helios-sound-prompt";
 
 export default function SoundPrompt() {
   const [show, setShow] = useState(false);
+  const pastHero = usePastHero();
 
   useEffect(() => {
-    if (!helios.supported() || helios.isEnabled()) return;
+    // After the hero, and well after the Helios intro card, so the two never stack.
+    if (!pastHero || !helios.supported() || helios.isEnabled()) return;
     if (sessionStorage.getItem(SEEN_KEY)) return;
-    const t = setTimeout(() => setShow(true), 2600); // let the hero breathe first
+    const t = setTimeout(() => setShow(true), 20_000);
     return () => clearTimeout(t);
-  }, []);
+  }, [pastHero]);
 
   const dismiss = () => { sessionStorage.setItem(SEEN_KEY, "1"); setShow(false); };
 

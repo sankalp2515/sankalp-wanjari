@@ -100,6 +100,16 @@ export default function FilmMode() {
         setCue((p) => ({ ...p, label: "ZERO FABRICATED CITATIONS" }));
       } else if (c === "think:stack") {
         setCue((p) => ({ ...p, label: "LANGGRAPH · RAG · EVAL" }));
+      } else if (c === "proof:fis") {
+        setCue((p) => ({ ...p, label: "−90% MANUAL DATA ENTRY · FIS" }));
+      } else if (c === "proof:et") {
+        setCue((p) => ({ ...p, label: "2ND IN INDIA · ET AI HACKATHON" }));
+      } else if (c === "proof:rank") {
+        setCue((p) => ({ ...p, label: "7TH OF 3,062 TEAMS" }));
+      } else if (c.startsWith("decide:")) {
+        setCue((p) => ({ ...p, label: "DECISION → TRADE-OFF" }));
+      } else if (c === "radar:live") {
+        setCue((p) => ({ ...p, label: "LIVE · AI RADAR" }));
       } else if (c === "why:meta") {
         setCue((p) => ({ ...p, label: "YOU ARE INSIDE THE PROOF" }));
       }
@@ -245,17 +255,19 @@ export default function FilmMode() {
             <div
               className="flex items-center gap-4 px-5 py-3 rounded-2xl border backdrop-blur-md"
               style={{
-                background: "color-mix(in srgb, #000 55%, transparent)",
-                borderColor: "color-mix(in srgb, var(--os-accent-cyan) 30%, transparent)",
+                // Ink pill in both themes (design system): the old teal-on-black
+                // read as an empty dark pill once the light theme became default.
+                background: "var(--os-cta-bg)",
+                borderColor: "color-mix(in srgb, var(--os-cta-text) 18%, transparent)",
               }}
             >
               {cue.label && (
-                <span className="text-[11px] font-mono tracking-[0.28em]" style={{ color: "var(--os-accent-cyan)" }}>
+                <span className="text-[12px] font-mono tracking-[0.2em]" style={{ color: "var(--os-cta-text)" }}>
                   {cue.label}
                 </span>
               )}
               {cue.tests && (
-                <span className="font-display font-bold tabular-nums" style={{ fontSize: 26, color: "#fff" }}>
+                <span className="font-display font-bold tabular-nums" style={{ fontSize: 26, color: "var(--os-cta-text)" }}>
                   {count}
                 </span>
               )}

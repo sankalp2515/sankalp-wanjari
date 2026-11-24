@@ -245,7 +245,7 @@ export default function ContactSection() {
                   type="submit"
                   disabled={status === "sending"}
                   className="w-full flex items-center justify-center gap-2 text-[14px] font-semibold px-5 py-3 rounded-2xl transition-all hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
-                  style={{ background: "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))", color: "#fff" }}
+                  style={{ background: "var(--os-cta-bg)", color: "var(--os-cta-text)" }}
                 >
                   {status === "sending"
                     ? <><Loader2 size={15} className="animate-spin" aria-hidden /> Sending…</>
@@ -266,12 +266,6 @@ export default function ContactSection() {
         </Reveal>
       </div>
 
-      {/* Footer line */}
-      <div className="mt-14 pt-6 border-t flex flex-wrap items-center justify-between gap-3 text-[11.5px] font-mono"
-        style={{ borderColor: "var(--os-border-subtle)", color: "var(--os-text-muted)" }}>
-        <span>© {new Date().getFullYear()} {personal.name}</span>
-        <span>Resume updated {personal.resumeUpdated} · The AI concierge runs on a 6-provider LLM fallback</span>
-      </div>
     </section>
   );
 }

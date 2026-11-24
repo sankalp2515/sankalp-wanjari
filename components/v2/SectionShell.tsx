@@ -1,106 +1,59 @@
-"use client";
 
-import { ReactNode, useRef } from "react";
-import { motion, useScroll, useTransform, useInView } from "framer-motion";
-import { useReducedMotion } from "@/hooks/useReducedMotion";
+// Section chrome for the design system (design-system/MASTER.md §4).
+// "split": a sticky label column (index, kicker, title, thesis) on the left
+// and the evidence on the right. "split-reverse" mirrors it so neighbouring
+// sections never look alike. "stack" is a full-width header for sections whose
+// content needs the whole measure (the decision film, the radar).
+//
+// No backgrounds, rails or borders: every section sits on one continuous
+// surface. Titles animate transform only, so they paint on the first frame.
+
+import { ReactNode } from "react";
 import Reveal from "./Reveal";
 
-const CHAPTER_INDEX: Record<string, string> = {
-  "section-about": "01",
-  "section-work": "02",
-  "section-achievements": "2A",
-  // Companion chapter to the work: product thinking, not engineering.
-  // Only rendered once config/portfolio.ts `caseStudies` has entries.
-  "section-cases": "2B",
-  "section-research": "03",
-  "section-arc": "04",
-  "section-education": "05",
-  "section-skills": "06",
-};
+export type SectionLayout = "split" | "split-reverse" | "stack";
 
-// Consistent section chrome: an animated kicker rule, the title, and an
-// optional subtitle. The whole header drifts up as it enters view, so
-// each section "announces itself" rather than just fading in.
 export default function SectionShell({
   id,
   kicker,
   title,
   subtitle,
+  index,
+  layout = "split",
+  aside,
   children,
 }: {
   id: string;
   kicker: string;
   title: string;
   subtitle?: string;
+  /** Two-character chapter number shown above the kicker, e.g. "03". */
+  index?: string;
+  layout?: SectionLayout;
+  /** Extra content under the thesis in the sticky column (a CTA, a legend). */
+  aside?: ReactNode;
   children: ReactNode;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const reduced = useReducedMotion();
-  // Drive the masked title reveal from the header container's in-view state —
-  // the SAME reliable signal Reveal uses. The title's own translated span
-  // (y:110%, clipped out of its box) could miss its intersection during a fast
-  // programmatic scroll, which is why the title alone stayed hidden during the
-  // tour. Watching the untranslated header instead reveals it consistently,
-  // whether the visitor scrolls normally or the camera frames it.
-  const inView = useInView(ref, { once: true, margin: "-60px" });
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start end", "start 0.4"],
-  });
-  // Header parallax: rises a touch as the section scrolls into place
-  const headerY = useTransform(scrollYProgress, [0, 1], [40, 0]);
+  const header = (
+    <header className="ds-section__head">
+      <Reveal>
+        <p className="ds-kicker">
+          {index && <span className="ds-kicker__index">{index}</span>}
+          <span>{kicker}</span>
+        </p>
+        <h2 className="ds-h2">{title}</h2>
+        {subtitle && <p className="ds-lead">{subtitle}</p>}
+        {aside && <div className="ds-section__aside">{aside}</div>}
+      </Reveal>
+    </header>
+  );
 
   return (
-    <section id={id} className="story-section relative max-w-5xl mx-auto px-5 py-24 sm:py-32">
-      <div className="story-section__index" aria-hidden>
-        <span>{CHAPTER_INDEX[id] ?? "--"}</span>
-        <i />
+    <section id={id} className={`ds-section story-section ds-section--${layout}`}>
+      <div className="ds-container ds-section__grid">
+        {header}
+        <div className="ds-section__body">{children}</div>
       </div>
-      <div ref={ref} className="mb-10 sm:mb-14">
-        <motion.div style={reduced ? undefined : { y: headerY }}>
-          <Reveal>
-            <div className="flex items-center gap-3 mb-3">
-              {/* Animated accent rule that draws in */}
-              <motion.span
-                initial={{ scaleX: 0 }}
-                whileInView={{ scaleX: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-                className="h-[2px] w-8 origin-left rounded-full"
-                style={{ background: "linear-gradient(90deg, var(--os-accent), var(--os-accent-cyan))" }}
-                aria-hidden
-              />
-              {/* Bracketed instrument-style kicker — [ SELECTED WORK ] */}
-              <div className="text-[11px] font-mono mono-small tracking-[0.2em]" style={{ color: "var(--os-accent)" }}>
-                <span style={{ color: "var(--os-text-muted)" }}>[&nbsp;</span>
-                {kicker}
-                <span style={{ color: "var(--os-text-muted)" }}>&nbsp;]</span>
-              </div>
-            </div>
-            {/* Masked line reveal: the title rises out of a clipped box —
-                the editorial "printing" moment, not just a fade */}
-            <h2
-              className="font-display font-bold tracking-tight leading-tight overflow-hidden"
-              style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)", color: "var(--os-text)" }}
-            >
-              <motion.span
-                className="block"
-                initial={reduced ? undefined : { y: "110%" }}
-                animate={reduced ? undefined : { y: inView ? 0 : "110%" }}
-                transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
-              >
-                {title}
-              </motion.span>
-            </h2>
-            {subtitle && (
-              <p className="mt-3 max-w-xl text-[14.5px] leading-relaxed" style={{ color: "var(--os-text-secondary)" }}>
-                {subtitle}
-              </p>
-            )}
-          </Reveal>
-        </motion.div>
-      </div>
-      {children}
     </section>
   );
 }

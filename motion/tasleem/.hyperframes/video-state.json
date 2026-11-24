@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "historyId": "37802e75-c60b-4270-8389-9ade1ec6d8e8",
+  "currentRevision": null,
+  "pendingChanges": false,
+  "files": {
+    "compositions/decision.html": {
+      "hash": "81d5c60dda0be4234deec2dbecdbbd54519d87f1df7392b66b9241e5f8b9ad53",
+      "content": "C:\\Users\\sanka\\.cache\\hyperframes\\history\\37802e75-c60b-4270-8389-9ade1ec6d8e8\\blobs\\81\\81d5c60dda0be4234deec2dbecdbbd54519d87f1df7392b66b9241e5f8b9ad53"
+    },
+    "compositions/outcome.html": {
+      "hash": "2fde32bc9f0916ea2e66644d96bf3a34a06cc57327c3fe4da8d5d46757bad573",
+      "content": "C:\\Users\\sanka\\.cache\\hyperframes\\history\\37802e75-c60b-4270-8389-9ade1ec6d8e8\\blobs\\2f\\2fde32bc9f0916ea2e66644d96bf3a34a06cc57327c3fe4da8d5d46757bad573"
+    },
+    "compositions/problem.html": {
+      "hash": "98aea3d9bfc099a10514670d3f89d866ac78fca9466c9a2bcbb80003cda83458",
+      "content": "C:\\Users\\sanka\\.cache\\hyperframes\\history\\37802e75-c60b-4270-8389-9ade1ec6d8e8\\blobs\\98\\98aea3d9bfc099a10514670d3f89d866ac78fca9466c9a2bcbb80003cda83458"
+    },
+    "compositions/tradeoff.html": {
+      "hash": "2912743bda905674ec936882cc2153ced6f4580b906e6d3d3b12e726a824d2a4",
+      "content": "C:\\Users\\sanka\\.cache\\hyperframes\\history\\37802e75-c60b-4270-8389-9ade1ec6d8e8\\blobs\\29\\2912743bda905674ec936882cc2153ced6f4580b906e6d3d3b12e726a824d2a4"
+    },
+    "index.html": {
+      "hash": "e246c41d7180360874c085811012d76c5b8c2bc9b5143521c620af808d188a87",
+      "content": "C:\\Users\\sanka\\.cache\\hyperframes\\history\\37802e75-c60b-4270-8389-9ade1ec6d8e8\\blobs\\e2\\e246c41d7180360874c085811012d76c5b8c2bc9b5143521c620af808d188a87"
+    }
+  },
+  "revisions": {},
+  "checks": {
+    "latest": null,
+    "revisions": {},
+    "unversioned": []
+  },
+  "snapshots": {
+    "latest": null,
+    "revisions": {},
+    "unversioned": []
+  },
+  "renders": {
+    "latest": {
+      "id": "35250b43-c6b7-4662-8eea-ad79e96559f8",
+      "completedAt": 1795549301528,
+      "output": "E:\\New_Project Portfolio\\claude\\new_portfolio\\public\\motion\\tasleem.mp4",
+      "status": "completed",
+      "revision": null
+    },
+    "retainedRevisions": []
+  },
+  "pendingArtifactCleanup": []
+}

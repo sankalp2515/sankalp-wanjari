@@ -1,0 +1,41 @@
+<template>
+  <style>
+  #problem { position: absolute; inset: 0; background: #F4F2EE; color: #121110; font-family: Inter, sans-serif; overflow: hidden; }
+  #problem .lbl { position: absolute; left: 72px; top: 60px; font: 500 18px 'JetBrains Mono', monospace; letter-spacing: .14em; text-transform: uppercase; color: #6A655D; }
+  #problem .lbl b { color: #9C5304; font-weight: 500; }
+  #problem .head { position: absolute; left: 72px; bottom: 64px; width: 1136px; font: 900 52px/1.04 Inter, sans-serif; letter-spacing: -0.035em; text-wrap: balance; }
+  #problem .grid { position: absolute; inset: 0; background-image: linear-gradient(#12111008 1px, transparent 1px), linear-gradient(90deg, #12111008 1px, transparent 1px); background-size: 40px 40px; }
+
+    #problem .card { position: absolute; left: 72px; width: 328px; height: 60px; display: flex; align-items: center; padding: 0 22px; border-radius: 14px; background: #fff; border: 1.5px solid #DEDAD3; font: 700 22px Inter, sans-serif; box-shadow: 0 6px 18px #1e18100f; }
+    #problem .card.bad { border-color: #9C5304; }
+    #problem .flag { position: absolute; right: -14px; top: -16px; padding: 6px 10px; border-radius: 999px; background: #9C5304; color: #fff; font: 700 14px Inter, sans-serif; }
+    #problem svg { position: absolute; inset: 0; }
+    #problem path { fill: none; stroke: #CFCAC1; stroke-width: 2.5; stroke-dasharray: 600; stroke-dashoffset: 600; }
+    #problem path.hot { stroke: #9C5304; stroke-width: 3.5; }
+    #problem .target { position: absolute; left: 880px; top: 230px; width: 300px; height: 140px; border-radius: 70px; background: #121110; color: #F4F2EE; display: grid; place-items: center; font: 900 30px Inter, sans-serif; letter-spacing: -.02em; }
+  </style>
+  <div id="problem" data-composition-id="problem" data-width="1280" data-height="720">
+    <div class="grid"></div>
+    <p class="lbl" id="problem-lbl"><b>01</b> · Problem</p>
+    <svg viewBox="0 0 1280 720" width="1280" height="720"><path id="p-line0" class="" d="M 400 180 C 620 180, 700 300, 880 300" /><path id="p-line1" class="hot" d="M 400 264 C 620 264, 700 300, 880 300" /><path id="p-line2" class="" d="M 400 348 C 620 348, 700 300, 880 300" /><path id="p-line3" class="" d="M 400 432 C 620 432, 700 300, 880 300" /></svg><div class="card " id="p-card0" style="top:150px">Owner approves 1 basket</div><div class="card bad" id="p-card1" style="top:234px">Seller: ship in two<span class="flag" id="p-flag">Second basket</span></div><div class="card " id="p-card2" style="top:318px">Retry with new ID</div><div class="card " id="p-card3" style="top:402px">Supplier B swap</div><div class="target" id="p-target">Buyer agent</div><h2 class="head" id="problem-head">In budget is not the same as approved.</h2>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#problem-lbl", { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: "power3.out" }, 0.05);
+    tl.fromTo("#problem-head", { y: 26, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 0.15);
+    
+    tl.fromTo("#p-card0", { x: -40, opacity: 0 }, { x: 0, opacity: 1, duration: 0.4, ease: "power3.out" }, 0.15);
+    tl.fromTo("#p-card1", { x: -40, opacity: 0 }, { x: 0, opacity: 1, duration: 0.4, ease: "power3.out" }, 0.25);
+    tl.fromTo("#p-card2", { x: -40, opacity: 0 }, { x: 0, opacity: 1, duration: 0.4, ease: "power3.out" }, 0.35);
+    tl.fromTo("#p-card3", { x: -40, opacity: 0 }, { x: 0, opacity: 1, duration: 0.4, ease: "power3.out" }, 0.45);
+    tl.fromTo("#p-target", { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(1.6)" }, 0.35);
+    tl.fromTo("#p-line0", { strokeDashoffset: 600 }, { strokeDashoffset: 0, duration: 0.7, ease: "power2.inOut" }, 0.60);
+    tl.fromTo("#p-line1", { strokeDashoffset: 600 }, { strokeDashoffset: 0, duration: 0.7, ease: "power2.inOut" }, 0.68);
+    tl.fromTo("#p-line2", { strokeDashoffset: 600 }, { strokeDashoffset: 0, duration: 0.7, ease: "power2.inOut" }, 0.76);
+    tl.fromTo("#p-line3", { strokeDashoffset: 600 }, { strokeDashoffset: 0, duration: 0.7, ease: "power2.inOut" }, 0.84);
+    tl.fromTo("#p-flag", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: "back.out(2)" }, 1.25);
+    tl.fromTo("#p-card1", { x: 0 }, { x: 8, duration: 0.08, yoyo: true, repeat: 3, ease: "none" }, 1.3);
+  
+    window.__timelines["problem"] = tl;
+  </script>
+</template>

@@ -5,21 +5,20 @@
 // The agent operates the page via CustomEvents: stage:nav,
 // stage:case, stage:highlight (dispatched by ConciergeContext).
 
-import { memo, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, LazyMotion } from "framer-motion";
+
+// Animation features load async so Framer is not in the first-paint budget.
+const loadMotionFeatures = () => import("@/lib/motionFeatures").then((r) => r.default);
 import { MessageSquare } from "lucide-react";
 import { Persona } from "@/types";
 import { ConciergeProvider, useConcierge } from "@/contexts/ConciergeContext";
-import AmbientBackground from "./AmbientBackground";
 // PersonaLayer is PARKED (see docs/FEATURES.md §4) — the upfront "What brings
 // you here?" chooser was friction and the persona reorder was invisible. It was
 // replaced by HighlightStrip (the one-line strip under the nav). Import kept for
 // an easy revival, but it is intentionally NOT rendered.
 // import PersonaLayer from "./PersonaLayer";
-import HighlightStrip from "./HighlightStrip";
-import HeliosIntro from "./HeliosIntro";
-import ExitRecap from "./ExitRecap";
 import { startPerfGovernor } from "@/lib/perf";
 import { MOBILE_TUNING } from "@/config/mobileTuning";
 
@@ -31,61 +30,45 @@ import { MOBILE_TUNING } from "@/config/mobileTuning";
 
 // Only mounts when the visitor enters graph mode
 const GraphMode = dynamic(() => import("./GraphMode"), { ssr: false });
+// Overlays are not part of the first paint. They load as separate chunks and
+// mount once the browser is idle (or at once if the visitor opens Helios or
+// starts the tour), which keeps their hydration out of Total Blocking Time.
+const HeliosIntro = dynamic(() => import("./HeliosIntro"), { ssr: false });
+const ExitRecap = dynamic(() => import("./ExitRecap"), { ssr: false });
+const AgentDock = dynamic(() => import("./AgentDock"), { ssr: false });
+const FilmMode = dynamic(() => import("./FilmMode"), { ssr: false });
+const NudgeLayer = dynamic(() => import("./NudgeLayer"), { ssr: false });
+const BehaviorTracker = dynamic(() => import("./BehaviorTracker"), { ssr: false });
+const FeedbackWidget = dynamic(() => import("./FeedbackWidget"), { ssr: false });
+const SoundPrompt = dynamic(() => import("./SoundPrompt"), { ssr: false });
+// The Graph button opens the light 2D Product Map first; 3D is one click in.
+const ProductMap = dynamic(() => import("./ProductMap"), { ssr: false });
 
 import Nav from "./Nav";
-import Loader from "./Loader";
-import CursorDot from "./CursorDot";
-import Magnetic from "./Magnetic";
-import SignalRail from "./SignalRail";
-import Interlude from "./Interlude";
-const FilmLanding = dynamic(() => import("./FilmLanding"));
-import Hero from "./Hero";
-import MarqueeStrip from "./MarqueeStrip";
-import AboutSection from "./AboutSection";
-import ProjectsSection from "./ProjectsSection";
-import ReliabilityPreview from "./ReliabilityPreview";
-import AchievementsSection from "./AchievementsSection";
-import CaseStudiesSection from "./CaseStudiesSection";
-import ResearchSection from "./ResearchSection";
-import CareerSection from "./CareerSection";
-import EducationSection from "./EducationSection";
-import SkillsSection from "./SkillsSection";
-import ContactSection from "./ContactSection";
-import AgentDock from "./AgentDock";
+import SmoothCursor from "./SmoothCursor";
+// Event-driven ("resume:open"), so it stays mounted from the start: a click
+// before idle must not be lost.
 import ResumeModal from "./ResumeModal";
-import FilmMode from "./FilmMode";
-import NudgeLayer from "./NudgeLayer";
-import BehaviorTracker from "./BehaviorTracker";
-import FeedbackWidget from "./FeedbackWidget";
-import SoundPrompt from "./SoundPrompt";
+import Magnetic from "./Magnetic";
+const FilmLanding = dynamic(() => import("./FilmLanding"));
 import { helios } from "@/lib/voice";
 
 const VALID_PERSONAS = ["recruiter", "cto", "developer", "explorer"];
 
 // Parent overlay updates must not reconcile the complete portfolio story.
-const Story = memo(function Story({ variant }: { variant: "a" | "b" }) {
-  return <div className="relative z-[1]">
-    <Hero variant={variant} />
-    <MarqueeStrip />
-    <AboutSection />
-    <Interlude index="01" kicker="THE PREMISE" lines={["MAKE IT", "MATTER."]} caption="Models are easy to demo. The difficult part is making them dependable enough to earn a place in someone’s real workflow." />
-    <ProjectsSection />
-    <ReliabilityPreview />
-    <AchievementsSection />
-    <CaseStudiesSection />
-    <Interlude index="02" kicker="THE STANDARD" lines={["VERIFY", "EVERYTHING."]} caption="A confident answer is not evidence. Systems should show their work before people are asked to trust them." tone="cool" />
-    <ResearchSection />
-    <CareerSection />
-    <Interlude index="03" kicker="THE THROUGHLINE" lines={["SHIP THE", "HARD PART."]} caption="Good AI work does not stop at the model. It reaches the edge cases, the operators, the evaluation loop, and the outcome." tone="green" />
-    <EducationSection />
-    <SkillsSection />
-    <ContactSection />
-  </div>;
-});
+// Order = design-system/MASTER.md §8: who → proof → how I decide → work →
+// product case study → AI radar → the person and the record → contact.
+// Section ids are a contract with the tour and the agent's [NAV:x] tool.
+// The story itself is a SERVER component (components/v2/Story.tsx), rendered
+// by app/page.tsx and passed in as `story`, so static sections ship no JS.
+
 
 // Agent nav targets → DOM section ids
 const NAV_TARGET: Record<string, string> = {
   about: "section-about",
+  decisions: "section-decisions",
+  radar: "section-radar",
+  reliability: "section-reliability",
   work: "section-work",
   achievements: "section-achievements",
   research: "section-research",
@@ -95,14 +78,52 @@ const NAV_TARGET: Record<string, string> = {
   contact: "section-contact",
 };
 
-function LandingInner({ variant }: { variant: "a" | "b" }) {
+function LandingInner({ variant, story }: { variant: "a" | "b"; story: React.ReactNode }) {
   const { setPersona, open, setOpen, tourRunning } = useConcierge();
   const [graphOpen, setGraphOpen] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [idle, setIdle] = useState(false);
+  useEffect(() => {
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(() => setIdle(true), { timeout: 2500 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = window.setTimeout(() => setIdle(true), 1500);
+    return () => window.clearTimeout(t);
+  }, []);
+  // First intent mounts the overlays early. Ctrl/⌘+K before the dock has
+  // mounted opens Helios here so that first keypress is never lost.
+  useEffect(() => {
+    const wake = () => setIdle(true);
+    const onKey = (e: KeyboardEvent) => {
+      setIdle(true);
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setOpen(true); }
+    };
+    window.addEventListener("pointerdown", wake, { once: true, passive: true });
+    window.addEventListener("keydown", onKey, { once: true });
+    return () => { window.removeEventListener("pointerdown", wake); window.removeEventListener("keydown", onKey); };
+  }, [setOpen]);
+  const overlays = idle || open || tourRunning;
+  const graphOpenRef = useRef(false);
+  useEffect(() => { graphOpenRef.current = graphOpen; }, [graphOpen]);
   // Floating Ask-AI pill appears only after the hero is scrolled past —
   // inside the hero the nav button and the hero CTA already cover it.
   const [pastHero, setPastHero] = useState(false);
   // Scale the experience to the device (WebGL, blur, animation budget).
-  useEffect(() => startPerfGovernor(), []);
+  // Deferred to idle: the governor stamps <html> (data-tier / perf-* class),
+  // and any <html> change during hydration re-styles the whole long page.
+  useEffect(() => {
+    let stop: (() => void) | undefined;
+    const run = () => { stop = startPerfGovernor(); };
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(run, { timeout: 3000 });
+      return () => { w.cancelIdleCallback?.(id); stop?.(); };
+    }
+    const t = window.setTimeout(run, 1500);
+    return () => { window.clearTimeout(t); stop?.(); };
+  }, []);
   // Master switch for the mobile tuning pass. One class gates every scoped
   // CSS rule; flip MOBILE_TUNING to false to remove it and revert instantly.
   useEffect(() => {
@@ -136,7 +157,11 @@ function LandingInner({ variant }: { variant: "a" | "b" }) {
       const target = NAV_TARGET[(e as CustomEvent<string>).detail];
       if (target) document.getElementById(target)?.scrollIntoView({ behavior: "smooth" });
     };
-    const onGraphToggle = () => setGraphOpen((v) => !v);
+    const onGraphToggle = () => {
+      // Graph button: open the Product Map, or close whichever view is open.
+      if (graphOpenRef.current) { setGraphOpen(false); return; }
+      setMapOpen((v) => !v);
+    };
     // Spotlight: while the film runs, only the active section stays bright.
     const onSpotlight = (e: Event) => {
       const target = (e as CustomEvent<string>).detail;
@@ -165,13 +190,12 @@ function LandingInner({ variant }: { variant: "a" | "b" }) {
 
   return (
     <div className="relative" data-experience={variant} style={{ color: "var(--os-text)" }}>
-      <Loader />
+      {/* The 4-second first-visit Loader, the signal rail and the ambient
+          scroll field were removed in the APM redesign: the page now paints
+          its real content on the first frame (see design-system/MASTER.md). */}
       {variant === "b" ? <FilmLanding /> : <>
-      <AmbientBackground />
-      <SignalRail variant="a" />
       <Nav variant="a" />
-
-      <Story variant={variant} />
+      {story}
       </>}
 
       {/* Floating Ask-AI pill — discoverable after scrolling, hidden while dock open */}
@@ -186,9 +210,9 @@ function LandingInner({ variant }: { variant: "a" | "b" }) {
               aria-label="Open AI concierge (Ctrl+K)"
               className="flex items-center gap-2 text-[13px] font-medium pl-3.5 pr-4 py-3 rounded-full transition-all hover:scale-[1.04] active:scale-95"
               style={{
-                background: "linear-gradient(135deg, var(--os-accent), var(--os-accent-cyan))",
-                color: "var(--os-on-accent)",
-                boxShadow: "var(--os-shadow-accent)",
+                background: "var(--os-cta-bg)",
+                color: "var(--os-cta-text)",
+                boxShadow: "var(--os-shadow)",
               }}
             >
               <MessageSquare size={15} aria-hidden />
@@ -201,35 +225,43 @@ function LandingInner({ variant }: { variant: "a" | "b" }) {
         </div>
       )}
 
-      <CursorDot />
+      <SmoothCursor />
       {/* Feedback is a Variant-A feature — Variant B is intentionally untouched */}
       {/* Feedback pill is hidden in graph mode — the graph overlay owns the frame */}
-      {variant === "a" && !graphOpen && <FeedbackWidget />}
-      {variant === "a" && <SoundPrompt />}
-      <AgentDock />
+      {overlays && variant === "a" && !graphOpen && <FeedbackWidget />}
+      {overlays && variant === "a" && <SoundPrompt />}
+      {overlays && <AgentDock />}
       {/* The one-line highlight strip under the nav (replaces the parked
           PersonaLayer). Variant A only. */}
-      {variant === "a" && <HighlightStrip />}
+      {/* HighlightStrip removed from the first screen in the APM redesign
+          (it competed with the hero); the component is kept for reuse. */}
       {/* First-touch "there's a live AI here" heads-up + exit recap — Variant A. */}
-      {variant === "a" && <HeliosIntro />}
-      {variant === "a" && <ExitRecap />}
+      {overlays && variant === "a" && <HeliosIntro />}
+      {overlays && variant === "a" && <ExitRecap />}
       <ResumeModal />
+      {/* Event-driven (film:enter fires as the tour starts): always mounted;
+          still a separate chunk, so it stays out of the first bundle. */}
       <FilmMode />
-      <NudgeLayer />
-      <BehaviorTracker />
+      {overlays && <NudgeLayer />}
+      {overlays && <BehaviorTracker />}
 
       {/* Graph mode — the same portfolio as a knowledge graph */}
       <AnimatePresence>
         {graphOpen && <GraphMode onClose={() => setGraphOpen(false)} />}
       </AnimatePresence>
+      <AnimatePresence>
+        {mapOpen && <ProductMap onClose={() => setMapOpen(false)} onOpen3D={() => { setMapOpen(false); setGraphOpen(true); }} />}
+      </AnimatePresence>
     </div>
   );
 }
 
-export default function Landing({ variant = "a" }: { variant?: "a" | "b" }) {
+export default function Landing({ variant = "a", story }: { variant?: "a" | "b"; story: React.ReactNode }) {
   return (
     <ConciergeProvider>
-      <LandingInner variant={variant} />
+      <LazyMotion features={loadMotionFeatures}>
+        <LandingInner variant={variant} story={story} />
+      </LazyMotion>
     </ConciergeProvider>
   );
 }

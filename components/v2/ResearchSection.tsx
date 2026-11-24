@@ -1,4 +1,3 @@
-"use client";
 
 // Research is presented as a ledger of receipts, not another card gallery.
 
@@ -11,7 +10,7 @@ export default function ResearchSection() {
   if (research.length === 0) return null;
 
   return (
-    <SectionShell
+    <SectionShell layout="split" index="09"
       id="section-research"
       kicker="PUBLISHED RESEARCH"
       title="Peer-reviewed, not just deployed"

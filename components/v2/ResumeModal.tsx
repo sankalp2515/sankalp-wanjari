@@ -4,7 +4,7 @@
 // as a secondary action. Opens on the "resume:open" CustomEvent.
 
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { X, Download } from "lucide-react";
 import { personal } from "@/config/portfolio";
 
@@ -32,7 +32,7 @@ export default function ResumeModal() {
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -44,7 +44,7 @@ export default function ResumeModal() {
           aria-modal="true"
           aria-label="Resume"
         >
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 22, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 14, scale: 0.98 }}
@@ -97,8 +97,8 @@ export default function ResumeModal() {
               className="flex-1 w-full"
               style={{ background: "#fff", border: "none" }}
             />
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

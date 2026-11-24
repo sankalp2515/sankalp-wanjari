@@ -34,10 +34,10 @@ function templateText(id: NudgeId, persona: string | null): string {
   const p = persona ?? "explorer";
   const T: Record<NudgeId, Record<string, string>> = {
     "post-tour": {
-      recruiter: "You've seen the highlights — that's the 45-second case for Sankalp. Want the resume, or shall we talk?",
+      recruiter: "You've seen the highlights — that's the two-minute case for Sankalp. Want the resume, or shall we talk?",
       cto: "Tour done. The architecture depth lives in the case studies — or grab the resume for the summary.",
       developer: "That was the guided run. The interesting bits are in the case studies — or peek at the GitHub.",
-      explorer: "Enjoyed the tour? That's Sankalp's work in 45 seconds. The resume has the rest.",
+      explorer: "Enjoyed the tour? That's Sankalp's work in two minutes. The resume has the rest.",
     },
     "case-explorer": {
       recruiter: "Two case studies deep — you're doing real diligence. A JD fit check would take 20 seconds.",
@@ -52,10 +52,10 @@ function templateText(id: NudgeId, persona: string | null): string {
       explorer: "Been exploring a while — if anything caught your eye, Sankalp would love to hear it.",
     },
     "idle-explorer": {
-      recruiter: "Short on time? The 45-second tour hits everything a screen call would.",
+      recruiter: "Short on time? The two-minute tour hits everything a screen call would.",
       cto: "Fastest way to evaluate: the guided tour opens the flagship project breakdown for you.",
       developer: "Not sure where to start? The tour drives you through the whole thing.",
-      explorer: "Not sure where to start? Let the AI drive — 45 seconds, zero scrolling.",
+      explorer: "Not sure where to start? Let the AI drive — two minutes, zero scrolling.",
     },
     "deep-reader": {
       recruiter: "You're spending real time on this one — want the 2-line 'why it mattered to the business' version?",
@@ -64,10 +64,10 @@ function templateText(id: NudgeId, persona: string | null): string {
       explorer: "This one caught your eye — want the quick version of how it actually works?",
     },
     "silent-explorer": {
-      recruiter: "You've covered a lot without asking — want the 45-second version, or shortlist-ready bullets?",
+      recruiter: "You've covered a lot without asking — want the two-minute version, or shortlist-ready bullets?",
       cto: "Plenty explored, no questions yet — want to interrogate the architecture directly?",
       developer: "You've been reading — ask me anything about the stack or the code, anytime.",
-      explorer: "Lots explored! Want the guided 45-second tour to tie it together?",
+      explorer: "Lots explored! Want the guided two-minute tour to tie it together?",
     },
     "resume-no-contact": {
       recruiter: "You've got the resume — Sankalp can start soon. Want to reach out, or I can pass your details along?",

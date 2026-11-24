@@ -19,36 +19,6 @@ export interface GlideOptions {
 }
 
 /**
- * Wait until a native smooth scroll settles at (or near) endY. Resolves on the
- * `scrollend` event where supported, and always has a position poll + hard cap
- * as a fallback for browsers without it and for backgrounded tabs (which never
- * fire scrollend). Aborting resolves immediately — the visitor is scrolling.
- */
-function waitForSettle(endY: number, signal?: AbortSignal): Promise<void> {
-  return new Promise<void>((resolve) => {
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      window.removeEventListener("scrollend", finish);
-      signal?.removeEventListener("abort", finish);
-      clearInterval(poll);
-      clearTimeout(cap);
-      resolve();
-    };
-    // Native "the smooth scroll has come to rest" signal (Chromium/Firefox).
-    window.addEventListener("scrollend", finish);
-    signal?.addEventListener("abort", finish, { once: true });
-    // Fallback for Safari (<17) and frozen tabs: settle when we reach target…
-    const poll = setInterval(() => {
-      if (Math.abs(window.scrollY - endY) < 2) finish();
-    }, 90);
-    // …or after a generous cap so the tour can never hang.
-    const cap = setTimeout(finish, 1800);
-  });
-}
-
-/**
  * Glide the window to an absolute Y using native smooth scroll. Resolves when
  * the camera settles. Instant (respecting the sync contract) for reduced-motion.
  */
@@ -65,9 +35,59 @@ export function glideTo(targetY: number, opts: GlideOptions = {}): Promise<void>
     return Promise.resolve();
   }
 
-  // Hand the motion to the browser — compositor-driven, never a repaint storm.
-  window.scrollTo({ top: endY, behavior: "smooth" });
-  return waitForSettle(endY, opts.signal);
+  // Long jumps CUT, then glide: a native smooth scroll across several screens
+  // can outlast waitForSettle's cap, and the chapter's drift then overwrote it
+  // mid-flight — the camera arrived a chapter late (narration over the wrong
+  // section). So beyond ~1 screen we jump instantly to just short of the
+  // target (the act card is still covering the frame), then smooth-scroll the
+  // final stretch so the arrival still reads as camera movement.
+  const vh = window.innerHeight;
+  const dist = endY - window.scrollY;
+  if (Math.abs(dist) > vh * 1.1) {
+    const lead = Math.sign(dist) * vh * 0.45;
+    // "instant", not "auto": auto defers to the page's CSS scroll-behavior,
+    // which is smooth here — so an "auto" cut was just another slow glide.
+    window.scrollTo({ top: endY - lead, behavior: "instant" as ScrollBehavior });
+  }
+
+  // Own the motion: a short eased rAF move with instant writes (the page's CSS
+  // smooth-scroll suspended for its duration, as in driftThroughSection).
+  // A native smooth scroll has a browser-chosen duration and is cancelled by
+  // any other scroll write, which stalled the tour's first move; this always
+  // ends exactly on endY, then resolves. A wall-clock guard snaps to the end
+  // if rAF is throttled (hidden tab), so the tour can never hang.
+  const root = document.documentElement;
+  const prev = root.style.scrollBehavior;
+  root.style.scrollBehavior = "auto";
+  const fromY = window.scrollY;
+  const span = endY - fromY;
+  const duration = Math.min(1100, Math.max(450, 380 + Math.abs(span) * 0.5));
+  const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  return new Promise<void>((resolve) => {
+    let raf = 0;
+    let done = false;
+    const begin = performance.now();
+    const settle = (snap: boolean) => {
+      if (done) return;
+      done = true;
+      cancelAnimationFrame(raf);
+      clearTimeout(guard);
+      opts.signal?.removeEventListener("abort", onAbort);
+      if (snap) window.scrollTo({ top: endY, behavior: "instant" as ScrollBehavior });
+      root.style.scrollBehavior = prev;
+      resolve();
+    };
+    const onAbort = () => settle(false); // the visitor took the wheel: stay put
+    const guard = setTimeout(() => settle(true), duration + 600);
+    opts.signal?.addEventListener("abort", onAbort, { once: true });
+    const step = (now: number) => {
+      const t = Math.min(1, (now - begin) / duration);
+      window.scrollTo({ top: fromY + span * ease(t), behavior: "instant" as ScrollBehavior });
+      if (t >= 1) return settle(false);
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+  });
 }
 
 /**
@@ -194,4 +214,21 @@ export function driftThroughSection(
     };
     raf = requestAnimationFrame(step);
   });
+}
+
+/**
+ * Frame an exact scroll PROGRESS inside a pinned/sticky element (0..1 of its
+ * scrollable run: top at viewport top → bottom at viewport bottom). Used by
+ * the tour to land the decision film on a specific beat while that beat is
+ * narrated — the film's own useScroll reads the same progress, so the visual
+ * and the voice line up by construction.
+ */
+export function glideToProgress(elementId: string, progress: number, opts: GlideOptions = {}): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  const el = document.getElementById(elementId);
+  if (!el) return Promise.resolve();
+  const top = window.scrollY + el.getBoundingClientRect().top;
+  const run = Math.max(0, el.offsetHeight - window.innerHeight);
+  const p = Math.max(0, Math.min(1, progress));
+  return glideTo(top + run * p, opts);
 }

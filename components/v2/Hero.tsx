@@ -1,162 +1,278 @@
 "use client";
 
-// Seven seconds: a clear provocation, one tactile object, and proof.
-// Everything else waits until the visitor decides to keep going.
+// Hero (APM redesign). One job: in under ten seconds a recruiter knows who
+// this is, which role, one hard fact, and what to click.
+//
+//  • Name set huge behind the figure (decorative, aria-hidden).
+//  • The figure is Sankalp; tap "Hear the intro" and he speaks. The voice is a
+//    static mp3 recorded once (npm run voice:gen), so a visit costs zero TTS
+//    credits. Captions follow audio.currentTime word by word.
+//  • When personal.avatarVideo is set (the illustrated, lip-synced avatar),
+//    the video replaces the portrait and drives the same captions.
+//  • The voice only plays while the hero is on screen: scrolling away or
+//    hiding the tab pauses it.
+//
+// Performance: no WebGL, no opacity-0 entrance (the h1 paints on frame one),
+// one priority image, audio is preload="none".
 
-import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, useMotionValueEvent, useScroll, useTransform } from "framer-motion";
-import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { ArrowDown, ArrowUpRight, MessageSquare, Play } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import { ArrowDown, ArrowRight, FileText, Pause, Play, Sparkles } from "lucide-react";
 import { personal } from "@/config/portfolio";
 import { useConcierge } from "@/contexts/ConciergeContext";
-import CountUp from "./CountUp";
-import type { EvidenceNodeId } from "./ProofField";
-import Image from "next/image";
-import { useHeavyOk } from "@/lib/useHeavyOk";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { MOBILE_TUNING } from "@/config/mobileTuning";
-import { useTheme } from "@/contexts/ThemeContext";
+import { helios } from "@/lib/voice";
 
-const ProofCore = dynamic(() => import("./ProofCore"), { ssr: false });
-const ProofField = dynamic(() => import("./ProofField"), { ssr: false });
-const ease = [0.22, 1, 0.36, 1] as const;
+const INTRO_SRC = "/voice/hero-intro.mp3";
 
-export default function Hero({ variant = "a" }: { variant?: "a" | "b" }) {
+export default function Hero() {
   const sectionRef = useRef<HTMLElement>(null);
-  const [proofStep, setProofStep] = useState(0);
-  const [scrollStep, setScrollStep] = useState(0);
-  const [evidenceId, setEvidenceId] = useState<EvidenceNodeId>("001");
-  // When the concierge is reasoning, the hero object comes alive — it churns,
-  // brightens, and pulses like it's thinking. Reduces the "static prop" feel.
-  const [thinking, setThinking] = useState(false);
-  // On low-tier devices (or after a memory downgrade) skip the hero WebGL point
-  // cloud and fall back to the lightweight CSS proof core — same story, a
-  // fraction of the GPU/memory cost.
-  const heavyOk = useHeavyOk();
-  useEffect(() => {
-    const onTyping = (e: Event) => setThinking(!!(e as CustomEvent<boolean>).detail);
-    window.addEventListener("agent-typing-change", onTyping);
-    return () => window.removeEventListener("agent-typing-change", onTyping);
-  }, []);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0); // 0..1 through the intro
+  const [heard, setHeard] = useState(false);
   const { ask, tour, tourRunning } = useConcierge();
-  const { theme } = useTheme();
-  const reduced = useReducedMotion();
-  // #4 — on touch devices, drop the scroll-linked parallax (y / scale) so the
-  // hero rides the compositor instead of fighting native scroll. The opacity
-  // fade is cheap and stays. Gated by the master switch.
-  const coarse = useMediaQuery("(pointer: coarse)");
-  const lite = MOBILE_TUNING && coarse;
-  const { scrollYProgress } = useScroll({ target: sectionRef, offset: ["start start", "end start"] });
-  const y = useTransform(scrollYProgress, [0, 1], [0, -115]);
-  const opacity = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
-  const coreScale = useTransform(scrollYProgress, [0, 1], [1, 0.65]);
-  const contentStyle = reduced ? undefined : lite ? { opacity } : { y, opacity };
-  const objectStyle = reduced ? undefined : lite ? undefined : { scale: coreScale };
-  useMotionValueEvent(scrollYProgress, "change", (value) => {
-    const next = value < .36 ? 0 : value < .7 ? 1 : 2;
-    setScrollStep((current) => current === next ? current : next);
-  });
+  const hasVideo = !!personal.avatarVideo;
+  // Transparent VP9 plays everywhere except Safari (which ignores the alpha
+  // channel) — there, and for reduced motion, keep the CSS cutout walk-in.
+  // Server-rendered as the clip; swapped to the cutout after mount if needed.
+  const [walkClip, setWalkClip] = useState(!!personal.avatarWalkIn);
+  useEffect(() => {
+    if (!personal.avatarWalkIn) return;
+    const ua = navigator.userAgent;
+    const safari = /Safari\//.test(ua) && !/Chrome|Chromium|Edg|OPR|Android/.test(ua);
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (safari || reducedMotion) {
+      const id = requestAnimationFrame(() => setWalkClip(false));
+      return () => cancelAnimationFrame(id);
+    }
+  }, []);
 
-  const enter = (delay: number, offset = 20) => reduced ? {} : {
-    initial: { opacity: 0, y: offset }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.85, delay, ease },
+  // Talking clip (Flow/Veo, transparent) when the walk-in clip is in use;
+  // otherwise the ElevenLabs mp3 drives the captions.
+  const talkRef = useRef<HTMLVideoElement>(null);
+  const talkMode = walkClip && !!personal.avatarTalk;
+  const [time, setTime] = useState(0);
+  const [ended, setEnded] = useState(false);
+
+  const lines = personal.heroIntroLines;
+  const words = useMemo(() => lines.join(" ").split(/\s+/), [lines]);
+  // Word-weighted timing for the mp3: longer words take longer to say.
+  const cumulative = useMemo(() => {
+    const w = words.map((x) => x.replace(/[^\w]/g, "").length + 2);
+    const total = w.reduce((a, b) => a + b, 0);
+    const out: number[] = [];
+    w.reduce((acc, n) => { const next = acc + n; out.push(next / total); return next; }, 0);
+    return out;
+  }, [words]);
+  // Measured cue windows for the video: words before a line are all said;
+  // inside a line they're spread evenly across its spoken window.
+  const current = useMemo(() => {
+    if (!talkMode) {
+      const spoken = cumulative.findIndex((c) => c > progress);
+      return spoken === -1 ? words.length : spoken;
+    }
+    let said = 0;
+    personal.avatarTalkCues.forEach(([s0, e0], i) => {
+      const n = lines[i].split(/\s+/).length;
+      if (time >= e0) said += n;
+      else if (time > s0) said += Math.floor(((time - s0) / (e0 - s0)) * n);
+    });
+    return said;
+  }, [talkMode, cumulative, progress, words.length, time, lines]);
+
+  const media = useCallback((): HTMLMediaElement => {
+    if (hasVideo && videoRef.current) return videoRef.current;
+    if (talkMode && talkRef.current) return talkRef.current;
+    if (!audioRef.current) {
+      const a = new Audio();
+      a.preload = "none";
+      a.src = INTRO_SRC;
+      audioRef.current = a;
+    }
+    return audioRef.current;
+  }, [hasVideo, talkMode]);
+
+  const pause = useCallback(() => {
+    for (const m of [videoRef.current, talkRef.current, audioRef.current]) if (m && !m.paused) m.pause();
+  }, []);
+
+  const toggle = () => {
+    const m = media();
+    if (!m.paused) { m.pause(); return; }
+    helios.stop(); // never talk over Helios
+    if (m.ended || m.currentTime >= (m.duration || Infinity) - 0.05) m.currentTime = 0;
+    if (m instanceof HTMLVideoElement) m.muted = false;
+    setEnded(false);
+    m.play().catch(() => setPlaying(false));
   };
-  const goToWork = () => document.getElementById("section-work")?.scrollIntoView({ behavior: "smooth" });
-  const proofStates = [
-    { label: "CLAIM", title: "A confident answer is enough.", detail: "Most AI systems stop here. That is not trust — it is presentation." },
-    { label: "EVIDENCE", title: "Every claim needs a source.", detail: "Quote matching and NLI checks attach each answer to evidence before it reaches a person." },
-    { label: "VERDICT", title: "Fabrication fails the system.", detail: "Groundedness is evaluated in CI. If the proof breaks, the build does not ship." },
-  ];
-  const activeProof = variant === "a" ? proofStates[scrollStep] : proofStates[proofStep];
-  const advanceProof = () => {
-    if (variant === "a") window.scrollBy({ top: window.innerHeight * .28, behavior: "smooth" });
-    else setProofStep((step) => (step + 1) % proofStates.length);
-  };
-  const interrogate = () => ask("Show me the evidence behind the portfolio's AI reliability claims. Link me to the strongest project breakdown.");
-  const displayStep = variant === "a" ? scrollStep : proofStep;
-  const evidence = {
-    "001": { label: "ORCHESTRATE", title: "10 agents, one deployed ML system.", detail: "A LangGraph orchestration pipeline with sandboxed execution, self-repair, and 132 automated tests." },
-    "002": { label: "VERIFY", title: "Claims are checked before they ship.", detail: "Quote matching, NLI validation, and CI-gated groundedness make fabricated citations a build failure." },
-    "003": { label: "OPERATE", title: "The agent can act on the interface.", detail: "HELIOS navigates, opens cases, and highlights skills—this portfolio is a working product, not a chat demo." },
-  }[evidenceId];
-  const openEvidence = () => window.dispatchEvent(new CustomEvent("stage:case", { detail: evidenceId }));
+
+  // Wire media events once the element exists.
+  useEffect(() => {
+    const m = hasVideo ? videoRef.current : media();
+    if (!m) return;
+    const onPlay = () => { setPlaying(true); setHeard(true); };
+    const onPause = () => setPlaying(false);
+    const onTime = () => { setTime(m.currentTime); if (m.duration) setProgress(m.currentTime / m.duration); };
+    const onEnd = () => { setPlaying(false); setProgress(1); setEnded(true); };
+    m.addEventListener("play", onPlay);
+    m.addEventListener("pause", onPause);
+    m.addEventListener("timeupdate", onTime);
+    m.addEventListener("ended", onEnd);
+    return () => {
+      m.removeEventListener("play", onPlay);
+      m.removeEventListener("pause", onPause);
+      m.removeEventListener("timeupdate", onTime);
+      m.removeEventListener("ended", onEnd);
+      m.pause();
+    };
+  }, [hasVideo, media]);
+
+  // The talking clip shows while it plays (or is paused mid-way); when it ends
+  // the walk-in's final frame — the identical pose — takes over again.
+  const talking = talkMode && heard && !ended;
+
+  // Talk only while the visitor is here: off-screen or hidden tab → pause.
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => { if (e.intersectionRatio < 0.35) pause(); }, { threshold: [0, 0.35, 1] });
+    io.observe(el);
+    const onVis = () => { if (document.hidden) pause(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { io.disconnect(); document.removeEventListener("visibilitychange", onVis); };
+  }, [pause]);
+
+  const goTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  const showCaption = playing || (heard && !ended && (talkMode ? time > 0 : progress > 0 && progress < 1));
 
   return (
-    <section ref={sectionRef} id="section-hero" className={`proof-hero ${variant === "b" ? "proof-hero--quiet" : ""}`}>
-      <motion.div className="proof-hero__content" style={contentStyle}>
-        <header className="proof-hero__meta">
-          <motion.div
-            {...enter(0.05, 8)}
-            className="proof-hero__brand"
-          >
-            <Image
-              src="/logo_no_name.png"
-              alt="Sankalp Logo"
-              width={120}
-              height={52}
-              priority
-              className="proof-hero__logo"
-              style={{ height: "auto" }}
-            />
-          </motion.div>
-          <motion.span {...enter(0.13, 8)} className="proof-hero__status"><i /> OPEN TO BUILD</motion.span>
-        </header>
+    <section ref={sectionRef} id="section-hero" className="hero3" aria-labelledby="hero-title">
+      {/* Decorative name: drawn by CSS ::before from data-name, so it is not a
+          text node (keeps it out of LCP and contrast audits; it's ornament). */}
+      <div className="hero3__backname" data-name={personal.shortName.toUpperCase()} aria-hidden />
 
-        <div className="proof-hero__stage">
-          <div className="proof-hero__copy">
-            <motion.p {...enter(0.18)} className="proof-hero__eyebrow">AI ENGINEER / PRODUCT-MINDED BUILDER</motion.p>
-            <motion.h1 {...enter(0.28, 34)}>
-              AI THAT<br /><em>CAN PROVE</em><br />ITSELF.
-            </motion.h1>
-            <motion.p {...enter(0.46)} className="proof-hero__statement">
-              I build agentic systems, and the evaluations, permissions and evidence that make them dependable. From ML pipelines to real product workflows.
-            </motion.p>
-            <motion.div {...enter(0.56)} className="proof-hero__actions">
-              <button onClick={goToWork} className="proof-hero__open">Open the proof <ArrowUpRight size={17} aria-hidden /></button>
-              <button onClick={() => tour()} disabled={tourRunning} className="proof-hero__disturb"><Play size={15} aria-hidden /> {tourRunning ? "HELIOS IS NARRATING" : "LET HELIOS GUIDE YOU"}</button>
-            </motion.div>
-          </div>
-
-          <motion.div className="proof-hero__object" style={objectStyle}>
-            <div className="proof-hero__core">{heavyOk === null ? null : variant === "a" && heavyOk ? <ProofField progress={scrollYProgress} activeId={evidenceId} onSelect={setEvidenceId} thinking={thinking} theme={theme} /> : <ProofCore pulse={proofStep === 0 ? 0 : proofStep * 0.52} theme={theme} />}</div>
-            {/* {variant === "a" && <>
-              <span className="proof-hero__annotation proof-hero__annotation--a">CLAIM</span>
-              <span className="proof-hero__annotation proof-hero__annotation--b">EVIDENCE</span>
-              <span className="proof-hero__annotation proof-hero__annotation--c">VERDICT</span>
-            </>} */}
-            {/* <button onClick={variant === "a" ? interrogate : advanceProof} className="proof-hero__core-control" aria-label={variant === "a" ? "Ask EMBER to show the evidence behind the AI claims" : "Advance the proof from claim to evidence to verdict"}>
-              <MessageSquare size={13} aria-hidden /> {variant === "a" ? "ASK EMBER FOR EVIDENCE" : "TEST THE PROOF"}
-            </button> */}
-            {/* <AnimatePresence mode="wait">
-              <motion.div
-                key={activeProof.label}
-                initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                exit={{ opacity: 0, y: -8, filter: "blur(4px)" }}
-                transition={{ duration: 0.28, ease }}
-                className="proof-hero__explain"
-              >
-                <span>{activeProof.label} / 0{displayStep + 1}</span>
-                <strong>{activeProof.title}</strong>
-                <p>{activeProof.detail}</p>
-              </motion.div>
-            </AnimatePresence> */}
-            {variant === "a" && <motion.div key={evidenceId} initial={{ opacity: 0, y: 7 }} animate={{ opacity: 1, y: 0 }} className="proof-hero__evidence">
-              <span>{evidence.label} / SELECTED NODE</span><strong>{evidence.title}</strong><p>{evidence.detail}</p>
-              <button onClick={openEvidence}>OPEN BREAKDOWN <ArrowUpRight size={11} aria-hidden /></button>
-            </motion.div>}
-          </motion.div>
+      <div className="ds-container hero3__grid">
+        {/* Left: who and what */}
+        <div className="hero3__copy">
+          <p className="ds-label hero3__eyebrow">{personal.name}</p>
+          <h1 id="hero-title" className="hero3__title">
+            Product sense,<br />engineered<span className="hero3__dot">.</span>
+          </h1>
+          <p className="hero3__role">{personal.heroRole}</p>
+          <p className="hero3__lead">
+            I decide what an AI product should do, and what it must refuse to do, then I build it.
+            Three years shipping software at FIS; now agentic systems with published evaluations.
+          </p>
         </div>
 
-        {/* {variant === "a" && <motion.div {...enter(0.66)} className="proof-hero__proof">
-          <div><span>01 / EXPERIENCE</span><strong><CountUp value={personal.stats[0].value} /></strong><p>years turning software into shipped outcomes</p></div>
-          <div><span>02 / SYSTEMS</span><strong><CountUp value={personal.stats[1].value} /></strong><p>agents coordinated in one LangGraph pipeline</p></div>
-          <div><span>03 / PRINCIPLE</span><strong>0</strong><p>fabricated citations accepted by design</p></div>
-        </motion.div>} */}
-      </motion.div>
+        {/* Centre: the figure that speaks */}
+        <figure className={`hero3__figure ${playing ? "is-speaking" : ""}`}>
+          <div className={`hero3__frame ${hasVideo ? "" : walkClip ? `hero3__frame--cutout hero3__frame--clip${talking ? " is-talking" : ""}` : "hero3__frame--cutout"}`}>
+            {hasVideo ? (
+              <video
+                ref={videoRef}
+                className="hero3__media"
+                src={personal.avatarVideo}
+                poster={personal.avatarPoster || undefined}
+                playsInline
+                muted
+                preload="none"
+              />
+            ) : (
+              walkClip ? (
+                // Generated walk-in (Google Flow → local background removal):
+                // he walks from the back of the stage to the visitor, once,
+                // then holds on the final frame.
+                <>
+                  <span className="hero3__shadow hero3__shadow--clip" aria-hidden />
+                  <video
+                    className="hero3__media hero3__media--walkin"
+                    src={personal.avatarWalkIn}
+                    poster={personal.avatarWalkInPoster}
+                    autoPlay
+                    muted
+                    playsInline
+                    preload="auto"
+                    aria-label={`${personal.name} walks toward you and stops, smiling`}
+                  />
+                  {personal.avatarTalk && (
+                    <video
+                      ref={talkRef}
+                      className="hero3__media hero3__media--walkin hero3__media--talk"
+                      src={personal.avatarTalk}
+                      playsInline
+                      preload="none"
+                      aria-label={`${personal.name} introducing himself`}
+                    />
+                  )}
+                </>
+              ) : (
+              <>
+                {/* The walk-in: a background-removed cutout of the real photo
+                    (npx hyperframes remove-background) steps out from behind
+                    the giant name toward the visitor; CSS-only, once. */}
+                <span className="hero3__shadow" aria-hidden />
+                <div className="hero3__walker">
+                  <Image
+                    src={personal.avatarCutout}
+                    alt={`${personal.name} in a navy suit, smiling`}
+                    fill
+                    priority
+                    sizes="(max-width: 700px) 62vw, (max-width: 1100px) 34vw, 420px"
+                    className="hero3__media hero3__media--cutout"
+                  />
+                </div>
+              </>
+              )
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={toggle}
+            className="hero3__voice"
+            aria-pressed={playing}
+            aria-label={playing ? "Pause Sankalp's intro" : "Hear Sankalp's intro"}
+          >
+            <span className="hero3__voice-icon">{playing ? <Pause size={14} aria-hidden /> : <Play size={14} aria-hidden />}</span>
+            <span className="hero3__voice-text">{playing ? "Speaking" : heard ? "Replay intro" : "Hear my intro"}</span>
+            <span className="hero3__bars" aria-hidden><i /><i /><i /><i /><i /></span>
+          </button>
+          {/* Live caption: the sentence in progress, spoken words in ink. */}
+          <figcaption className={`hero3__caption ${showCaption ? "is-on" : ""}`} aria-live="off">
+            {words.map((w, i) => (
+              <span key={i} className={i < current ? "is-said" : ""}>{w} </span>
+            ))}
+          </figcaption>
+        </figure>
 
-      <button onClick={goToWork} className="proof-hero__scroll" aria-label="Scroll to selected work"><span>BEGIN</span><ArrowDown size={14} aria-hidden /></button>
-      <div className="proof-hero__grain" aria-hidden />
+        {/* Right: what to do next */}
+        <div className="hero3__actions">
+          <p className="hero3__status"><i aria-hidden /> {personal.availability} · {personal.noticePeriod}</p>
+          <button type="button" className="ds-btn ds-btn--primary" onClick={() => goTo("section-decisions")}>
+            See how I decide <ArrowRight size={16} aria-hidden />
+          </button>
+          <div className="hero3__secondary">
+            <button type="button" className="ds-btn ds-btn--ghost" onClick={() => ask("Give me the 30-second case for Sankalp as an AI product manager, with evidence.")}>
+              <Sparkles size={15} aria-hidden /> Ask Helios
+            </button>
+            <a className="ds-btn ds-btn--ghost" href={personal.resumeUrl} download>
+              <FileText size={15} aria-hidden /> Résumé
+            </a>
+          </div>
+          <button type="button" className="hero3__tour" onClick={() => tour()} disabled={tourRunning}>
+            <span className="hero3__tour-play" aria-hidden><Play size={14} /></span>
+            <span className="hero3__tour-text">
+              <b>{tourRunning ? "Tour in progress" : "Take the guided tour"}</b>
+              <small>Narrated in my voice · Helios directs</small>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <button type="button" className="hero3__scroll" onClick={() => goTo("section-proof")} aria-label="Scroll to the evidence">
+        <ArrowDown size={16} aria-hidden />
+      </button>
     </section>
   );
 }

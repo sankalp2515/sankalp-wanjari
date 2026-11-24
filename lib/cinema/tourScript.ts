@@ -21,6 +21,10 @@ export interface Beat {
   cue?: string;
   /** Extra beat between the end of this line and the next. */
   holdMs?: number;
+  /** Before this beat is spoken, glide the chapter's `camera` element to this
+   *  scroll progress (0..1). Used to land the decision film on a beat exactly
+   *  as it is narrated. A chapter with any `at` beat does not drift. */
+  at?: number;
 }
 
 // Every beat inside an act is Sankalp speaking in the first person — that's the
@@ -36,8 +40,11 @@ export interface TourChapter {
   act: string;
   /** "WHO I AM" — the chapter title. */
   title: string;
-  /** DOM section id the camera travels to before narration begins. */
+  /** DOM section id that is spotlit (kept bright) for this chapter. */
   section?: string;
+  /** Element id the camera frames/drifts through, when it is not the whole
+   *  section (e.g. one decision-film chapter inside the Work section). */
+  camera?: string;
   /** Where the section frames in the viewport (0=top … 0.5=center). */
   align?: number;
   /** Optional stage event fired after the camera settles (e.g. open a case). */
@@ -62,90 +69,78 @@ export const DIRECTOR_OUTRO_HANDBACK =
 export const CLOSING_LINE =
   "If something here made you curious — that's usually where the best conversations start.";
 
-// Structure follows how a recruiter actually processes a candidate: credibility
-// before identity, problem before architecture, evidence before philosophy.
-// ACT I earns the claims the rest of the tour makes — so we open on the three
-// years at FIS, not on a title. Every number here is verified in
-// config/portfolio (90% less manual entry, 50+ layouts, 132 tests, the
-// research system's CI-enforced zero fabricated citations). Nothing invented.
+// Structure follows the redesigned page (design-system/MASTER.md §8) and how
+// an APM reviewer processes a candidate: evidence first, then judgement
+// (decisions and their costs), then one build told as decisions, then
+// awareness of the field, then the meta-proof. Every fact is verified in
+// config/portfolio (90% less manual entry, ET AI Hackathon 2nd nationally, 7th of 3,062, the ArthRakshak
+// decisions, IntentSeal's published numbers). Nothing invented.
 export const TOUR: TourChapter[] = [
   {
-    id: "reliability",
+    id: "proof",
     act: "ACT I",
-    title: "WHERE I LEARNED RELIABILITY",
-    section: "section-arc",
-    align: 0.18,
-    cardHoldMs: 1000,
+    title: "EVIDENCE FIRST",
+    section: "section-proof",
+    cardHoldMs: 900,
     beats: [
-      { text: "Before I ever built AI, I spent three years building banking software — the kind where a wrong number has real consequences.", cue: "arc:fis", holdMs: 150 },
-      { text: "Bank data migrations, across U.S. and U.K. systems. You don't hand-wave there. It works every single day, or it doesn't ship.", holdMs: 150 },
-      { text: "So I automated the part everyone dreaded — one pipeline that read more than fifty different document layouts.", holdMs: 150 },
-      { text: "It cut the manual data entry by ninety percent.", cue: "arc:impact", holdMs: 200 },
-      { text: "And that's what stuck with me: nobody cares how clever a system is if they can't trust it. Reliability isn't a feature — it's the whole job.", holdMs: 250 },
+      { text: "I'm Sankalp. I'm an AI product manager who also builds — so let me start with evidence, not claims.", holdMs: 150 },
+      { text: "At FIS, I spent three years on banking software. One pipeline I built cut manual data entry by ninety percent.", cue: "proof:fis", holdMs: 150 },
+      { text: "The AI security layer I'll show you next placed second in India, at the Economic Times AI Hackathon.", cue: "proof:et", holdMs: 150 },
+      { text: "And in a twenty-four-hour build against three thousand and sixty-two teams, I finished seventh.", cue: "proof:rank", holdMs: 250 },
     ],
-    holdMs: 350,
+    holdMs: 300,
   },
   {
-    id: "who",
+    id: "decide",
     act: "ACT II",
-    title: "WHO I AM",
-    section: "section-about",
-    align: 0.16,
-    cardHoldMs: 1000,
+    title: "HOW I DECIDE",
+    section: "section-decisions",
+    cardHoldMs: 900,
     beats: [
-      { text: "I'm Sankalp. I build AI systems people can depend on — and I think like a product person.", holdMs: 150 },
-      { text: "Because the impressive part of AI is easy now. The dependable part is still the real work.", holdMs: 200 },
+      { text: "But numbers aren't the job. Decisions are — and every decision costs something.", holdMs: 150 },
+      { text: "On ArthRakshak, a finance tool for people with irregular income, research showed the signup wall was where people dropped off. So we removed it.", cue: "decide:d1", holdMs: 150 },
+      { text: "That made the engineering harder. It was still the right trade.", holdMs: 150 },
+      { text: "And when our AI credit engine failed internal testing, we shipped simple rules with an honesty notice instead of overpromising.", cue: "decide:d4", holdMs: 250 },
     ],
-    holdMs: 350,
+    holdMs: 300,
   },
   {
     id: "build",
     act: "ACT III",
     title: "WHAT I BUILD",
     section: "section-work",
-    align: 0.14,
-    event: { name: "stage:case", detail: "001" },
-    cardHoldMs: 1100,
-    beats: [
-      { text: "Let me show you the one I'm proudest of.", holdMs: 150 },
-      { text: "Training a machine-learning model is hours of expert, repetitive decisions. I wanted that to run itself — without losing the quality.", holdMs: 180 },
-      { text: "So I built it as ten agents. Give it a spreadsheet and describe the goal in plain English. A deployed, evaluated model comes out.", cue: "flagship:agents", holdMs: 180 },
-      { text: "But autonomy without safety is just a faster way to fail. So the guardrails came first.", holdMs: 150 },
-      { text: "A hundred and thirty-two automated tests stand behind it.", cue: "flagship:tests", holdMs: 350 },
-      { text: "When its own code breaks, it rewrites and re-runs it in a locked-down sandbox — and keeps going.", cue: "flagship:recover", holdMs: 150 },
-      { text: "And it never ships a number it can't defend. Every result clears an evaluation gate first.", cue: "flagship:eval", holdMs: 350 },
-      { text: "That's not a demo. That's engineering.", holdMs: 200 },
-    ],
-    holdMs: 350,
-  },
-  {
-    id: "think",
-    act: "ACT IV",
-    title: "HOW I THINK",
-    section: "section-skills",
-    align: 0.16,
-    event: { name: "stage:case-close", detail: "" },
+    camera: "film-007",
     cardHoldMs: 1000,
     beats: [
-      { text: "That same instinct shows up in everything I build.", holdMs: 120 },
-      { text: "In my research assistant, every claim is checked against its source before it ships — so a fabricated citation can't even leave the pipeline.", cue: "think:verify", holdMs: 180 },
-      { text: "So every tool I reach for has to earn its place: does it make the result more trustworthy? If not, I don't use it.", cue: "think:stack", holdMs: 150 },
-      { text: "I'm not chasing the newest model. I'm chasing the one that survives contact with reality.", holdMs: 200 },
+      { text: "Here's that build, told the same way. AI agents read untrusted pages and files — then act with real permissions.", at: 0.1, holdMs: 200 },
+      { text: "So I separated detection from authority: every tool call is checked against what the user actually intended.", at: 0.36, holdMs: 200 },
+      { text: "It's strong on documents and weaker on direct chat — and I published both numbers, not just the good one.", at: 0.62, holdMs: 200 },
+      { text: "With detection switched off, none of the twenty-eight reference attacks got through.", at: 0.88, holdMs: 300 },
     ],
-    holdMs: 350,
+    holdMs: 300,
+  },
+  {
+    id: "watch",
+    act: "ACT IV",
+    title: "WHAT I WATCH",
+    section: "section-radar",
+    cardHoldMs: 900,
+    beats: [
+      { text: "A product manager has to know where the field is moving.", holdMs: 120 },
+      { text: "So this radar pulls what the major AI labs shipped this week, and notes what each change means for teams building products.", cue: "radar:live", holdMs: 250 },
+    ],
+    holdMs: 300,
   },
   {
     id: "why",
     act: "ACT V",
     title: "WHY THIS PORTFOLIO EXISTS",
     section: "section-contact",
-    align: 0.2,
-    cardHoldMs: 1100,
+    cardHoldMs: 1000,
     beats: [
-      { text: "One last thing — and it's the most important.", holdMs: 120 },
-      { text: "This isn't a page about my work. It is my work — the guide, the voice, the system reasoning around you. I built all of it.", cue: "why:meta", holdMs: 200 },
-      { text: "So you don't have to take my word for any of it. You're standing inside the proof.", holdMs: 250 },
-      { text: "The work I want more of is exactly this: AI where reliability matters as much as intelligence.", holdMs: 250 },
+      { text: "One last thing.", holdMs: 120 },
+      { text: "This site is my work too — the guide, the voice, the reasoning around you. I built all of it.", cue: "why:meta", holdMs: 200 },
+      { text: "The work I want more of is exactly this: deciding what AI should do, and making sure it can be trusted to do it.", holdMs: 250 },
       // The closing line is delivered ONLY as the centered farewell card on
       // exit — not as a caption — so it never appears twice.
     ],
