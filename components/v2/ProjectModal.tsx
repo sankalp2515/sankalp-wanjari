@@ -6,7 +6,7 @@
 // Opaque surface (no bleed-through), focus-trapped, Esc closes,
 // body scroll locked while open.
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ArrowLeft, ArrowUpRight, CheckCircle2, Sparkles } from "lucide-react";
@@ -16,6 +16,8 @@ import { useConcierge } from "@/contexts/ConciergeContext";
 import DiagramGallery from "./DiagramGallery";
 import Link from "next/link";
 import { reliabilityStudies } from "@/config/reliability";
+
+const noSubscribe = () => () => {};
 
 export default function ProjectModal({
   projectId,
@@ -30,8 +32,7 @@ export default function ProjectModal({
 }) {
   const project = projects.find((p) => p.id === projectId) ?? null;
   // Portal target — only available after mount (SSR-safe).
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
 

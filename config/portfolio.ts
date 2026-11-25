@@ -1001,7 +1001,7 @@ export const achievements = [
 
 // Verified credentials (issuer-hosted records). Shown after the ranked results,
 // as credentials, never as placements.
-export const credentials: { title: string; issuer: string; date: string; context: string; id: string; url: string }[] = [
+export const credentials: { title: string; issuer: string; date: string; context: string; id: string; url: string; project?: { name: string; line: string; github: string } }[] = [
   {
     title: "AI Data Harness Solution Developer",
     issuer: "Zetaris × SpaceXSI",
@@ -1009,6 +1009,12 @@ export const credentials: { title: string; issuer: string; date: string; context
     context: "Awarded for building an AI agent on the Zetaris Data Harness during the Open Agent Hackathon.",
     id: "ZTR-DHSD-J343CA",
     url: "https://www.zetaris.com/credentials/ztr-dhsd-j343ca",
+    // The hackathon build that earned it (its README loads evidence through Zetaris).
+    project: {
+      name: "TraceVerdict",
+      line: "Explain an agent incident. Test a repair. Preserve useful work.",
+      github: "https://github.com/sankalp2515/TraceVerdict",
+    },
   },
 ];
 
@@ -1790,24 +1796,3 @@ export const agentFAQ: Record<string, string> = {
     "Primary: Python, LangGraph, FastAPI, Qdrant, Docker. Secondary: Next.js, TypeScript, PostgreSQL, Redis, MLflow.",
 };
 
-const capabilityNodes = [
-
-  { id: "sk-agentic", label: "Agentic AI" },
-
-  { id: "sk-rag", label: "RAG Systems" },
-
-  { id: "sk-finetune", label: "LLM Fine-Tuning" },
-
-  { id: "sk-infra", label: "AI Infrastructure" },
-
-  { id: "sk-eval", label: "Evaluation" },
-
-  { id: "sk-platform", label: "Developer Platforms" },
-
-  { id: "sk-backend", label: "Backend Engineering" },
-
-  { id: "sk-frontend", label: "Frontend Systems" },
-
-  { id: "sk-product", label: "Product Strategy" }
-
-];

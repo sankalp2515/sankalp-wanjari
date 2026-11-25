@@ -62,7 +62,7 @@ function Starfield() {
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[STARS, 3]} />
       </bufferGeometry>
-      <pointsMaterial size={0.06} sizeAttenuation transparent opacity={0.55}
+      <pointsMaterial size={0.045} sizeAttenuation transparent opacity={0.3}
         color="#C9BEAC" depthWrite={false} blending={THREE.AdditiveBlending} />
     </points>
   );
@@ -104,14 +104,28 @@ interface GNode {
   action?: { event: "stage:nav" | "stage:case"; detail: string };
 }
 
-// Palette. Node colours stay close to v1 so the graph still reads as the same
-// product; edge colours are new and carry the relationship taxonomy.
-const AMBER = "#F5A623";
-const TEAL = "#2DC7B0";
-const GREEN = "#5FD08A";
-const ORANGE = "#FF8A5C";
-const VIOLET = "#9B8CFF";
+// Palette. Colour follows IDENTITY (which family a node belongs to), never the
+// relation: five hues in a fixed order, validated with the dataviz skill's
+// validate_palette.js on the dark surface #0E0D0B (lightness band 0.48-0.67,
+// chroma floor, adjacent CVD separation and normal-vision floor all PASS).
+// Links are neutral at rest and take the focused node's hue only on focus, so
+// the resting view is calm instead of a rainbow of ten relation colours.
+const AMBER = "#C28014";  // Work
+const TEAL = "#1FA896";   // Capabilities
+const GREEN = "#3AA564";  // Career
+const ORANGE = "#4C98E6"; // Credentials (blue; the old orange sat beside amber)
+const VIOLET = "#8C7CF0"; // Research
 const INK = "#F8F3EA";
+const LINK_REST = "#8F877A";
+
+// Node-family legend: identity hues in their fixed order.
+const FAMILY_LEGEND: { label: string; color: string }[] = [
+  { label: "Work", color: AMBER },
+  { label: "Capabilities", color: TEAL },
+  { label: "Research", color: VIOLET },
+  { label: "Career", color: GREEN },
+  { label: "Credentials", color: ORANGE },
+];
 
 // Edge colour + human meaning per relation. This object is the single source
 // for both the renderer and the on-screen legend, so they can never drift.
@@ -128,14 +142,6 @@ const RELATION_META: Record<Relation, { color: string; label: string; group: str
   inspired_by: { color: "#FF9BD2", label: "inspired by", group: "Research", meaning: "An earlier idea that seeded this one." },
 };
 
-// Legend groups, ordered the way the tour tells the story.
-const LEGEND_GROUPS: { group: string; relations: Relation[] }[] = [
-  { group: "Career", relations: ["career"] },
-  { group: "Research", relations: ["research", "validated_by", "inspired_by"] },
-  { group: "Education", relations: ["education"] },
-  { group: "Product", relations: ["product", "demonstrates"] },
-  { group: "Engineering", relations: ["built_with", "backend", "frontend"] },
-];
 
 // ── Layout helpers (precomputed — no physics engine needed) ─────
 
@@ -421,14 +427,14 @@ function NodeMesh({ node, selected, focused, dimmed, showLabel, onSelect, onHove
     const m = mesh.current;
     if (!m) return;
     const k = 1 - Math.exp(-9 * delta); // frame-rate independent easing
-    const target = selected ? 1.65 : hovered || focused ? 1.3 : 1;
+    const target = (selected ? 1.5 : hovered || focused ? 1.22 : 1) * 0.78;
     m.scale.setScalar(THREE.MathUtils.lerp(m.scale.x, target, k));
     if (node.id === "me") m.rotation.y = state.clock.elapsedTime * 0.4;
 
     const opa = dimmed ? 0.16 : selected || hovered || focused ? 1 : 0.85;
     if (core.current) core.current.opacity = THREE.MathUtils.lerp(core.current.opacity, opa, k);
     if (glow.current) {
-      const pulse = selected ? 0.17 + Math.sin(state.clock.elapsedTime * 2.4) * 0.05 : focused ? 0.15 : 0.09;
+      const pulse = selected ? 0.14 + Math.sin(state.clock.elapsedTime * 2.4) * 0.04 : focused ? 0.1 : 0.035;
       glow.current.opacity = THREE.MathUtils.lerp(glow.current.opacity, dimmed ? 0.02 : pulse, k);
     }
   });
@@ -441,12 +447,12 @@ function NodeMesh({ node, selected, focused, dimmed, showLabel, onSelect, onHove
         onPointerOver={(e) => { e.stopPropagation(); setHovered(true); onHover(node.id); }}
         onPointerOut={() => { setHovered(false); onHover(null); }}
       >
-        <icosahedronGeometry args={[node.size, 1]} />
-        <meshBasicMaterial ref={core} color={node.color} wireframe={node.id === "me"} transparent opacity={0.85} />
+        <icosahedronGeometry args={[node.size, node.id === "me" ? 1 : 4]} />
+        <meshBasicMaterial ref={core} color={node.color} wireframe={node.id === "me"} transparent opacity={0.92} />
       </mesh>
       {/* Soft glow shell */}
-      <mesh scale={1.45}>
-        <sphereGeometry args={[node.size, 12, 12]} />
+      <mesh scale={1.18}>
+        <sphereGeometry args={[node.size * 0.78, 24, 24]} />
         <meshBasicMaterial ref={glow} color={node.color} transparent opacity={0.1} depthWrite={false} blending={THREE.AdditiveBlending} />
       </mesh>
       {/* Labels are SCREEN-space, never world-space. distanceFactor would scale
@@ -505,10 +511,9 @@ function EdgeWeb({ nodes, edges, focus, boost }: {
 
   useEffect(() => () => geom.dispose(), [geom]);
 
-  const base = useMemo(
-    () => edges.map((e) => new THREE.Color(RELATION_META[e.relation].color)),
-    [edges],
-  );
+  const rest = useMemo(() => new THREE.Color(LINK_REST), []);
+  const colorOf = useMemo(() => new Map(nodes.map((n) => [n.id, new THREE.Color(n.color)])), [nodes]);
+  const lit = focus ? colorOf.get(focus) ?? rest : rest;
   const intensity = useRef<Float32Array>(new Float32Array(edges.length));
 
   useFrame((state, delta) => {
@@ -520,14 +525,14 @@ function EdgeWeb({ nodes, edges, focus, boost }: {
     for (let i = 0; i < edges.length; i++) {
       const e = edges[i];
       const connected = !focus || e.from === focus || e.to === focus;
-      const weight = 0.42 + e.strength * 0.16;      // strength → base brightness
+      const weight = 0.16 + e.strength * 0.07;      // strength → base brightness (quiet at rest)
       let target: number;
-      if (!focus) target = weight * (boost ? 1.6 : 1);
-      else if (connected) target = Math.min(1.5, weight * 1.85 + (e.strength === 3 ? Math.sin(t * 3) * 0.12 : 0));
-      else target = 0.05;
+      if (!focus) target = weight * (boost ? 1.8 : 1);
+      else if (connected) target = Math.min(1.3, 0.75 + e.strength * 0.15 + (e.strength === 3 ? Math.sin(t * 3) * 0.08 : 0));
+      else target = 0.03;
 
       intensity.current[i] = THREE.MathUtils.lerp(intensity.current[i], target, k);
-      const c = base[i];
+      const c = focus && connected ? lit : rest;
       const v = intensity.current[i];
       const o = i * 6;
       arr[o] = arr[o + 3] = c.r * v;
@@ -598,7 +603,10 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
   const [tourFocus, setTourFocus] = useState<string | null>(null);
   const [flyTarget, setFlyTarget] = useState<{ pos: THREE.Vector3; look: THREE.Vector3 } | null>(null);
   const [boost, setBoost] = useState(false);
-  const [showWhy, setShowWhy] = useState(true);
+  // Shown once per session; dismissing it is remembered.
+  const [showWhy, setShowWhy] = useState(() => {
+    try { return typeof window === "undefined" || sessionStorage.getItem("graph-why") !== "1"; } catch { return true; }
+  });
   const [showLegend, setShowLegend] = useState(true);
   const [voiceOn, setVoiceOn] = useState(false);
   // On a phone the inspector covers the graph, so it can be collapsed to a
@@ -631,10 +639,10 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
   );
 
   useEffect(() => {
-    setVoiceOn(helios.isEnabled());
+    const first = requestAnimationFrame(() => setVoiceOn(helios.isEnabled()));
     const onVoiceChange = (e: Event) => setVoiceOn(!!(e as CustomEvent<boolean>).detail);
     window.addEventListener("helios-voice-change", onVoiceChange);
-    return () => window.removeEventListener("helios-voice-change", onVoiceChange);
+    return () => { cancelAnimationFrame(first); window.removeEventListener("helios-voice-change", onVoiceChange); };
   }, []);
 
   const stopGraphTour = useCallback(() => {
@@ -707,10 +715,9 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
   // A fresh selection always opens the card (un-collapses it).
   useEffect(() => {
     if (touring || !selected) return;
-    setInspectorCollapsed(false);
-    setFlyTarget(frameNode(selected));
+    const f = requestAnimationFrame(() => { setInspectorCollapsed(false); setFlyTarget(frameNode(selected)); });
     const t = setTimeout(() => setFlyTarget(null), 1600);
-    return () => clearTimeout(t);
+    return () => { cancelAnimationFrame(f); clearTimeout(t); };
   }, [selected, touring]);
 
   // One-time creative nudge for touch/small screens: the graph is gorgeous on
@@ -720,7 +727,8 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
       && (window.matchMedia("(max-width: 640px)").matches || window.matchMedia("(pointer: coarse)").matches);
     if (!isSmall) return;
     try { if (sessionStorage.getItem("graph-mobile-note") === "1") return; } catch { /* ignore */ }
-    setShowMobileNote(true);
+    const f = requestAnimationFrame(() => setShowMobileNote(true));
+    return () => cancelAnimationFrame(f);
   }, []);
 
   const dismissMobileNote = useCallback(() => {
@@ -774,7 +782,7 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
     // Force dark: the graph is designed for a black void — light theme washes
     // it out. data-theme="dark" re-declares the dark tokens for this subtree.
     <div data-theme="dark" className="fixed inset-0 z-[1150]" style={{ background: "var(--os-bg)" }} role="dialog" aria-label="Knowledge graph view">
-      <Canvas camera={{ position: [0, 2.2, 8.2], fov: 50 }} dpr={[1, 1.5]}
+      <Canvas camera={{ position: [0, 4, 11], fov: 46 }} dpr={[1, 1.5]}
         gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
         onPointerMissed={() => { if (!touring) setSelected(null); }}>
         <CanvasLifecycle />
@@ -904,46 +912,27 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      {/* Legend — what the edge colours mean. Desktop only; on a phone the
-          inspector needs the whole screen more than the key does. */}
-      {showLegend && !touring && (
+      {/* Legend — the five node families (identity colours, fixed order).
+          A compact strip in the bottom-left corner, clear of the graph. */}
+      {showLegend && !touring && !selected && (
         <div
-          className="hidden sm:block absolute top-20 right-5 w-[232px] rounded-2xl border p-3.5"
+          className="hidden sm:flex absolute z-[60] bottom-5 left-5 items-center gap-4 rounded-full border px-4 py-2.5"
           style={{
-            background: "color-mix(in srgb, var(--os-bg-window) 94%, transparent)",
+            background: "color-mix(in srgb, var(--os-bg-window) 88%, transparent)",
             borderColor: "var(--os-border)",
-            boxShadow: "var(--os-shadow)",
             backdropFilter: "blur(12px)",
           }}
+          aria-label="Node colours"
         >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono mono-small tracking-widest" style={{ color: "var(--os-accent)" }}>
-              EDGE LEGEND
+          {FAMILY_LEGEND.map((f) => (
+            <span key={f.label} className="flex items-center gap-1.5 text-[11.5px]" style={{ color: "var(--os-text-secondary)" }}>
+              <span className="w-2 h-2 rounded-full" style={{ background: f.color }} aria-hidden />
+              {f.label}
             </span>
-            <button onClick={() => setShowLegend(false)} aria-label="Hide legend"
-              className="grid place-items-center w-5 h-5 rounded-md transition-colors hover:bg-[var(--os-bg-hover)]"
-              style={{ color: "var(--os-text-muted)" }}>
-              <X size={11} aria-hidden />
-            </button>
-          </div>
-          <div className="flex flex-col gap-2">
-            {LEGEND_GROUPS.map((g) => (
-              <div key={g.group}>
-                <div className="text-[9.5px] font-mono tracking-widest mb-1" style={{ color: "var(--os-text-muted)" }}>
-                  {g.group.toUpperCase()}
-                </div>
-                {g.relations.map((rel) => (
-                  <div key={rel} className="flex items-center gap-2 py-[2px]">
-                    <span className="w-4 h-[2px] rounded-full shrink-0" style={{ background: RELATION_META[rel].color }} aria-hidden />
-                    <span className="text-[11px]" style={{ color: "var(--os-text-secondary)" }}>{RELATION_META[rel].label}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-          <p className="text-[10.5px] leading-relaxed mt-2.5 pt-2.5 border-t" style={{ color: "var(--os-text-muted)", borderColor: "var(--os-border)" }}>
-            Brighter, thicker-feeling lines are stronger relationships. Hover a node to isolate its subgraph.
-          </p>
+          ))}
+          <span className="text-[11px] pl-3 border-l" style={{ color: "var(--os-text-muted)", borderColor: "var(--os-border)" }}>
+            Hover a node to light its links
+          </span>
         </div>
       )}
 
@@ -951,7 +940,7 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
           Shows until the visitor selects a node or starts the tour. */}
       {!selected && !touring && showWhy && (
         <div
-          className="absolute bottom-5 left-1/2 -translate-x-1/2 w-[calc(100%-2.5rem)] sm:w-[440px] rounded-2xl border p-4"
+          className="absolute z-[60] bottom-5 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-5 w-[calc(100%-2.5rem)] sm:w-[340px] rounded-2xl border p-4"
           style={{
             background: "color-mix(in srgb, var(--os-bg-window) 96%, transparent)",
             borderColor: "color-mix(in srgb, var(--os-accent) 32%, var(--os-border))",
@@ -963,7 +952,7 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
             <span className="text-[11px] font-mono mono-small tracking-widest" style={{ color: "var(--os-accent)" }}>
               WHY A KNOWLEDGE GRAPH?
             </span>
-            <button onClick={() => setShowWhy(false)} aria-label="Dismiss"
+            <button onClick={() => { setShowWhy(false); try { sessionStorage.setItem("graph-why", "1"); } catch { /* ignore */ } }} aria-label="Dismiss"
               className="grid place-items-center w-6 h-6 -mt-0.5 -mr-0.5 rounded-lg transition-colors hover:bg-[var(--os-bg-hover)]"
               style={{ color: "var(--os-text-muted)" }}>
               <X size={12} aria-hidden />
@@ -1023,7 +1012,7 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
           WHY" — grouped by kind, with the note from every GraphEdge. */}
       {selected && inspector && !(inspectorCollapsed && !touring) && (
         <div
-          className={`${inspectorCollapsed ? "hidden sm:flex" : "flex"} absolute bottom-5 left-1/2 -translate-x-1/2 sm:left-5 sm:translate-x-0 w-[calc(100%-2.5rem)] sm:w-[382px] max-h-[58vh] sm:max-h-[calc(100vh-8rem)] sm:bottom-5 rounded-2xl border flex-col overflow-hidden`}
+          className={`${inspectorCollapsed ? "hidden sm:flex" : "flex"} absolute z-[60] bottom-5 left-1/2 -translate-x-1/2 sm:left-5 sm:translate-x-0 w-[calc(100%-2.5rem)] sm:w-[382px] max-h-[58vh] sm:max-h-[calc(100vh-8rem)] sm:bottom-5 rounded-2xl border flex-col overflow-hidden`}
           style={{
             background: "color-mix(in srgb, var(--os-bg-window) 97%, transparent)",
             borderColor: `color-mix(in srgb, ${selected.color} 40%, var(--os-border))`,
@@ -1081,13 +1070,13 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
                         onMouseEnter={() => { if (!touring) setHovered(other.id); }}
                         onMouseLeave={() => { if (!touring) setHovered(null); }}
                         className="text-left rounded-xl border p-2.5 transition-colors hover:bg-[var(--os-bg-hover)]"
-                        style={{ borderColor: `color-mix(in srgb, ${meta.color} 28%, var(--os-border))` }}
+                        style={{ borderColor: "var(--os-border)" }}
                       >
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="w-3.5 h-[2px] rounded-full shrink-0" style={{ background: meta.color }} aria-hidden />
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: other.color }} aria-hidden />
                           <span className="text-[12px] font-medium truncate" style={{ color: "var(--os-text)" }}>{other.label}</span>
                           <span className="text-[9px] font-mono px-1.5 py-[1px] rounded-md shrink-0 ml-auto"
-                            style={{ color: meta.color, background: `color-mix(in srgb, ${meta.color} 14%, transparent)` }}>
+                            style={{ color: "var(--os-text-muted)", background: "var(--os-bg-surface)" }}>
                             {meta.label}
                           </span>
                         </div>
@@ -1156,7 +1145,7 @@ export default function GraphMode({ onClose }: { onClose: () => void }) {
                   <Sparkles size={16} aria-hidden />
                 </span>
                 <span className="text-[10.5px] font-mono mono-small tracking-widest" style={{ color: "var(--os-accent)" }}>
-                  YOU'RE ON THE SMALL SCREEN
+                  YOU&apos;RE ON THE SMALL SCREEN
                 </span>
               </div>
               <p className="text-[14px] leading-relaxed mb-2" style={{ color: "var(--os-text)" }}>

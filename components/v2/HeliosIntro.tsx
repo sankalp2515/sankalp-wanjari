@@ -44,7 +44,10 @@ export default function HeliosIntro() {
   }, [show]);
 
   // Yield the moment the visitor engages the dock or a tour starts.
-  useEffect(() => { if (open || tourRunning) { seen(); setShow(false); } }, [open, tourRunning]);
+  const blocked = open || tourRunning;
+  const [wasBlocked, setWasBlocked] = useState(blocked);
+  if (blocked !== wasBlocked) { setWasBlocked(blocked); if (blocked) setShow(false); }
+  useEffect(() => { if (blocked) seen(); }, [blocked]);
 
   const askHelios = () => {
     seen(); setShow(false);

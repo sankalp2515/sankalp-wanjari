@@ -187,8 +187,8 @@ export default function AgentDock() {
       return () => { cancelled = true; };
     }
 
-    // Behavior-aware base immediately — instant, varied, works offline.
-    setChips(fallbackChips(persona, snap));
+    // Behavior-aware base on the next frame — instant, varied, works offline.
+    const baseFrame = requestAnimationFrame(() => { if (!cancelled) setChips(fallbackChips(persona, snap)); });
 
     // Only spend an LLM call when something material actually changed, so a
     // visitor toggling the dock doesn't burn the proactive budget.
@@ -199,7 +199,7 @@ export default function AgentDock() {
         if (!cancelled && llm) setChips(llm);
       });
     }
-    return () => { cancelled = true; };
+    return () => { cancelled = true; cancelAnimationFrame(baseFrame); };
   }, [open, persona]);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);

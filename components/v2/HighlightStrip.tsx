@@ -50,12 +50,17 @@ export default function HighlightStrip() {
   const [idx, setIdx] = useState<number | null>(null);
   const [dismissed, setDismissed] = useState(true);
 
+  // Picked after hydration (random + session storage are browser-only), on
+  // the next frame so the effect itself never sets state synchronously.
   useEffect(() => {
-    try {
-      if (sessionStorage.getItem(DISMISS_KEY) === "1") return;
-    } catch { /* storage blocked — best-effort */ }
-    setIdx(Math.floor(Math.random() * HIGHLIGHTS.length));
-    setDismissed(false);
+    const id = requestAnimationFrame(() => {
+      try {
+        if (sessionStorage.getItem(DISMISS_KEY) === "1") return;
+      } catch { /* storage blocked — best-effort */ }
+      setIdx(Math.floor(Math.random() * HIGHLIGHTS.length));
+      setDismissed(false);
+    });
+    return () => cancelAnimationFrame(id);
   }, []);
 
   const dismiss = () => {

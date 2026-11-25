@@ -76,8 +76,11 @@ export default function DirectorSignal() {
     return () => clearTimeout(t);
   }, [msg]);
 
-  // Yield immediately if the dock opens or the tour starts.
-  useEffect(() => { if (open || tourRunning) setMsg(null); }, [open, tourRunning]);
+  // Yield immediately if the dock opens or the tour starts (state adjusted
+  // during render, React's pattern for reacting to a prop change).
+  const blocked = open || tourRunning;
+  const [wasBlocked, setWasBlocked] = useState(blocked);
+  if (blocked !== wasBlocked) { setWasBlocked(blocked); if (blocked) setMsg(null); }
 
   return (
     <AnimatePresence>

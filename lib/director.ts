@@ -15,7 +15,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Persona } from "@/types";
-import { projects, projectDimensions, heroVariants } from "@/config/portfolio";
+import { projects, projectDimensions } from "@/config/portfolio";
 import type { ProjectDimensions, HeroVariantKey } from "@/config/portfolio";
 import { getLog } from "@/lib/behavior";
 import { useConcierge } from "@/contexts/ConciergeContext";

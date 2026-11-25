@@ -17,7 +17,7 @@
 // Three.js bundle never blocks first paint of the overlay.
 
 import { useEffect, useMemo, useRef } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 type SceneProps = { ignition: boolean; reduceMotion: boolean };
@@ -76,6 +76,19 @@ function Core({ ignition, reduceMotion }: SceneProps) {
   );
 }
 
+// Deterministic PRNG (mulberry32): the scatter looks random but is the same
+// every render, which keeps render pure.
+function seeded(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 function OrbitingNodes({ ignition, reduceMotion }: SceneProps) {
   const group = useRef<THREE.Group>(null);
   const matRef = useRef<THREE.PointsMaterial>(null);
@@ -84,10 +97,11 @@ function OrbitingNodes({ ignition, reduceMotion }: SceneProps) {
 
   const geo = useMemo(() => {
     const arr: number[] = [];
+    const rand = seeded(7);
     for (let i = 0; i < COUNT; i++) {
       const ang = (i / COUNT) * Math.PI * 2;
-      const radius = 2.4 + Math.random() * 0.6;
-      const y = (Math.random() - 0.5) * 1.2;
+      const radius = 2.4 + rand() * 0.6;
+      const y = (rand() - 0.5) * 1.2;
       arr.push(Math.cos(ang) * radius, y, Math.sin(ang) * radius);
     }
     const g = new THREE.BufferGeometry();
@@ -121,10 +135,11 @@ function ParticleField({ ignition, reduceMotion }: SceneProps) {
 
   const geo = useMemo(() => {
     const arr = new Float32Array(COUNT * 3);
+    const rand = seeded(42);
     for (let i = 0; i < COUNT; i++) {
-      const r = 3 + Math.random() * 5;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
+      const r = 3 + rand() * 5;
+      const theta = rand() * Math.PI * 2;
+      const phi = Math.acos(2 * rand() - 1);
       arr[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       arr[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       arr[i * 3 + 2] = r * Math.cos(phi);
@@ -151,9 +166,9 @@ function ParticleField({ ignition, reduceMotion }: SceneProps) {
 }
 
 function Rig({ reduceMotion }: { reduceMotion: boolean }) {
-  const { camera } = useThree();
   useFrame((state) => {
     if (reduceMotion) return;
+    const camera = state.camera;
     const x = Math.sin(state.clock.elapsedTime * 0.2) * 0.3;
     const y = Math.cos(state.clock.elapsedTime * 0.15) * 0.2;
     camera.position.x += (x - camera.position.x) * 0.03;

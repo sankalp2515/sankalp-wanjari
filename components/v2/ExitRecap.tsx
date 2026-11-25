@@ -121,8 +121,11 @@ export default function ExitRecap() {
     return () => { clearTimeout(t); evs.forEach((e) => window.removeEventListener(e, arm)); };
   }, [reveal]);
 
-  // Yield if the dock opens or the tour starts.
-  useEffect(() => { if (open || tourRunning) setMsg(null); }, [open, tourRunning]);
+  // Yield immediately if the dock opens or the tour starts (state adjusted
+  // during render, React's pattern for reacting to a prop change).
+  const blocked = open || tourRunning;
+  const [wasBlocked, setWasBlocked] = useState(blocked);
+  if (blocked !== wasBlocked) { setWasBlocked(blocked); if (blocked) setMsg(null); }
 
   const dismiss = () => setMsg(null);
   const openResume = () => { window.dispatchEvent(new CustomEvent("resume:open")); dismiss(); };

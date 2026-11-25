@@ -157,16 +157,36 @@ export default function AchievementsSection() {
                   <span className="ds-label">Verified credential</span>
                   <span className="ach3__idx">{String(achievements.length + i + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}</span>
                 </div>
-                <p className="ach3__cred-icon" aria-hidden><BadgeCheck size={64} strokeWidth={1.4} /></p>
+                <div className="ach3__seal" aria-hidden>
+                  <svg viewBox="0 0 200 200" className="ach3__seal-ring">
+                    <defs><path id={`seal-${c.id}`} d="M100,100 m-78,0 a78,78 0 1,1 156,0 a78,78 0 1,1 -156,0" /></defs>
+                    <text><textPath href={`#seal-${c.id}`}>{`VERIFIED CREDENTIAL · ${c.issuer.toUpperCase()} · ${c.date.toUpperCase()} · `}</textPath></text>
+                  </svg>
+                  <span className="ach3__seal-core"><BadgeCheck size={44} strokeWidth={1.6} /></span>
+                </div>
                 <div className="ach3__body">
                   <h3 className="ach3__title">{c.title}</h3>
                   <p className="ach3__event">{c.issuer} · {c.date}</p>
                   <p className="ach3__desc">{c.context}</p>
+                  <dl className="ach3__cred">
+                    <div><dt>Credential ID</dt><dd className="ach3__cred-id">{c.id}</dd></div>
+                    <div><dt>Status</dt><dd><i className="ach3__cred-dot" aria-hidden /> Valid, issuer-hosted record</dd></div>
+                    {c.project && (
+                      <div><dt>Built with it</dt><dd><b>{c.project.name}</b>: {c.project.line}</dd></div>
+                    )}
+                  </dl>
                   <div className="ach3__foot">
-                    <span className="ach3__project">ID {c.id}</span>
-                    <a href={c.url} target="_blank" rel="noopener noreferrer" className="ach3__link">
-                      Verify <ArrowUpRight size={14} aria-hidden />
-                    </a>
+                    <span className="ach3__project">Not a placement</span>
+                    <span className="ach3__links">
+                      {c.project && (
+                        <a href={c.project.github} target="_blank" rel="noopener noreferrer" className="ach3__link">
+                          Code <ArrowUpRight size={14} aria-hidden />
+                        </a>
+                      )}
+                      <a href={c.url} target="_blank" rel="noopener noreferrer" className="ach3__link">
+                        Verify <ArrowUpRight size={14} aria-hidden />
+                      </a>
+                    </span>
                   </div>
                 </div>
               </div>

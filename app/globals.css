@@ -2542,3 +2542,29 @@ rect.pmap__hit { fill: transparent; stroke: none; pointer-events: all; }
 .pcard__open { background: var(--os-accent); color: #fff; }
 .pcard__icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--os-cta-text) 25%, transparent); background: none; color: var(--os-cta-text); cursor: pointer; }
 .pcard__icon:hover { background: color-mix(in srgb, var(--os-cta-text) 10%, transparent); }
+
+/* Credential card: a certificate, not an empty card. */
+.ach3__card--cred { background: var(--os-bg-window); border: 1px dashed color-mix(in srgb, var(--os-text) 28%, transparent); }
+.ach3__seal { position: relative; width: 150px; height: 150px; margin: 22px 0 0; color: var(--os-text); }
+.ach3__seal-ring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.ach3__seal-ring text { font: 600 12.5px var(--font-mono), monospace; letter-spacing: .18em; fill: var(--os-text-secondary); }
+.ach3__seal::before { content: ""; position: absolute; inset: 30px; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--os-accent) 55%, transparent); background: color-mix(in srgb, var(--os-accent) 9%, transparent); }
+.ach3__seal-core { position: absolute; inset: 0; display: grid; place-items: center; color: var(--os-accent); }
+@media (prefers-reduced-motion: no-preference) {
+  .ach3__seal-ring { animation: ach3-seal 28s linear infinite; }
+}
+@keyframes ach3-seal { to { transform: rotate(360deg); } }
+.ach3__cred { margin: 6px 0 0; display: grid; gap: 0; }
+.ach3__cred div { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; padding: 9px 0; border-top: 1px solid var(--os-border-subtle); }
+.ach3__cred dt { font: 500 11.5px/1.5 var(--font-mono), monospace; letter-spacing: .05em; text-transform: uppercase; color: var(--os-text-muted); }
+.ach3__cred dd { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--os-text-secondary); }
+.ach3__cred dd b { color: var(--os-text); }
+.ach3__cred-id { font-family: var(--font-mono), monospace; letter-spacing: .04em; color: var(--os-text) !important; }
+.ach3__cred-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--os-accent-green, #2f9e5b); vertical-align: 1px; }
+
+/* Cursor contrast: the dot inverts what is under it (difference blend), so it
+   reads black on the light page and white over Graph mode's dark canvas. The
+   hover ring keeps normal blending so its amber fill stays amber. */
+.smooth-cursor:not([data-state="link"]) { mix-blend-mode: difference; }
+.smooth-cursor:not([data-state="link"]) .smooth-cursor__dot { background: #fff; }
+.smooth-cursor[data-state="link"] .smooth-cursor__dot { box-shadow: inset 0 0 0 .5px var(--os-accent), 0 0 0 1px color-mix(in srgb, #fff 35%, transparent); }
