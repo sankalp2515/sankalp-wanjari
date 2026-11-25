@@ -5,6 +5,7 @@
 
 import { ArrowUp, ArrowUpRight } from "lucide-react";
 import { personal, social, projects, flagshipIds } from "@/config/portfolio";
+import { CONTACT_BRIEF } from "@/config/premiumPass";
 
 const NAV = [
   ["Decisions", "#section-decisions"],
@@ -29,14 +30,14 @@ export default function Footer() {
   const letters = personal.shortName.split("");
 
   return (
-    <footer className="foot3" aria-labelledby="foot3-title">
+    <footer className="foot3" {...(CONTACT_BRIEF ? { "aria-label": "Site footer" } : { "aria-labelledby": "foot3-title" })}>
       <div className="ds-container">
-        <div className="foot3__top">
+        {!CONTACT_BRIEF && <div className="foot3__top">
           <h2 id="foot3-title" className="foot3__line">Hiring for an AI product role? Let&apos;s talk about the decision, not the demo.</h2>
           <a className="ds-btn ds-btn--primary foot3__cta" href="#section-contact">
             Start a conversation <ArrowUpRight size={16} aria-hidden />
           </a>
-        </div>
+        </div>}
 
         <div className="foot3__cols">
           <nav aria-label="Footer">

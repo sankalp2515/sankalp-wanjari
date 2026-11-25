@@ -15,12 +15,13 @@
 // Performance: no WebGL, no opacity-0 entrance (the h1 paints on frame one),
 // one priority image, audio is preload="none".
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { ArrowDown, ArrowRight, FileText, Pause, Play, Sparkles } from "lucide-react";
 import { personal } from "@/config/portfolio";
 import { useConcierge } from "@/contexts/ConciergeContext";
 import { helios } from "@/lib/voice";
+import { EDITORIAL_PORTRAIT } from "@/config/premiumPass";
 
 const INTRO_SRC = "/voice/hero-intro.mp3";
 
@@ -29,7 +30,6 @@ export default function Hero() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0); // 0..1 through the intro
   const [heard, setHeard] = useState(false);
   const { ask, tour, tourRunning } = useConcierge();
   const hasVideo = !!personal.avatarVideo;
@@ -52,34 +52,11 @@ export default function Hero() {
   // otherwise the ElevenLabs mp3 drives the captions.
   const talkRef = useRef<HTMLVideoElement>(null);
   const talkMode = walkClip && !!personal.avatarTalk;
-  const [time, setTime] = useState(0);
   const [ended, setEnded] = useState(false);
 
-  const lines = personal.heroIntroLines;
-  const words = useMemo(() => lines.join(" ").split(/\s+/), [lines]);
-  // Word-weighted timing for the mp3: longer words take longer to say.
-  const cumulative = useMemo(() => {
-    const w = words.map((x) => x.replace(/[^\w]/g, "").length + 2);
-    const total = w.reduce((a, b) => a + b, 0);
-    const out: number[] = [];
-    w.reduce((acc, n) => { const next = acc + n; out.push(next / total); return next; }, 0);
-    return out;
-  }, [words]);
-  // Measured cue windows for the video: words before a line are all said;
-  // inside a line they're spread evenly across its spoken window.
-  const current = useMemo(() => {
-    if (!talkMode) {
-      const spoken = cumulative.findIndex((c) => c > progress);
-      return spoken === -1 ? words.length : spoken;
-    }
-    let said = 0;
-    personal.avatarTalkCues.forEach(([s0, e0], i) => {
-      const n = lines[i].split(/\s+/).length;
-      if (time >= e0) said += n;
-      else if (time > s0) said += Math.floor(((time - s0) / (e0 - s0)) * n);
-    });
-    return said;
-  }, [talkMode, cumulative, progress, words.length, time, lines]);
+  // No on-screen captions (they covered the figure); the full script stays
+  // available to screen readers below.
+  const script = personal.heroIntroLines.join(" ");
 
   const media = useCallback((): HTMLMediaElement => {
     if (hasVideo && videoRef.current) return videoRef.current;
@@ -113,16 +90,13 @@ export default function Hero() {
     if (!m) return;
     const onPlay = () => { setPlaying(true); setHeard(true); };
     const onPause = () => setPlaying(false);
-    const onTime = () => { setTime(m.currentTime); if (m.duration) setProgress(m.currentTime / m.duration); };
-    const onEnd = () => { setPlaying(false); setProgress(1); setEnded(true); };
+    const onEnd = () => { setPlaying(false); setEnded(true); };
     m.addEventListener("play", onPlay);
     m.addEventListener("pause", onPause);
-    m.addEventListener("timeupdate", onTime);
     m.addEventListener("ended", onEnd);
     return () => {
       m.removeEventListener("play", onPlay);
       m.removeEventListener("pause", onPause);
-      m.removeEventListener("timeupdate", onTime);
       m.removeEventListener("ended", onEnd);
       m.pause();
     };
@@ -144,10 +118,9 @@ export default function Hero() {
   }, [pause]);
 
   const goTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-  const showCaption = playing || (heard && !ended && (talkMode ? time > 0 : progress > 0 && progress < 1));
 
   return (
-    <section ref={sectionRef} id="section-hero" className="hero3" aria-labelledby="hero-title">
+    <section ref={sectionRef} id="section-hero" className={EDITORIAL_PORTRAIT ? "hero3 hero3--editorial" : "hero3"} aria-labelledby="hero-title">
       {/* Decorative name: drawn by CSS ::before from data-name, so it is not a
           text node (keeps it out of LCP and contrast audits; it's ornament). */}
       <div className="hero3__backname" data-name={personal.shortName.toUpperCase()} aria-hidden />
@@ -238,12 +211,7 @@ export default function Hero() {
             <span className="hero3__voice-text">{playing ? "Speaking" : heard ? "Replay intro" : "Hear my intro"}</span>
             <span className="hero3__bars" aria-hidden><i /><i /><i /><i /><i /></span>
           </button>
-          {/* Live caption: the sentence in progress, spoken words in ink. */}
-          <figcaption className={`hero3__caption ${showCaption ? "is-on" : ""}`} aria-live="off">
-            {words.map((w, i) => (
-              <span key={i} className={i < current ? "is-said" : ""}>{w} </span>
-            ))}
-          </figcaption>
+          <figcaption className="sr-only">{script}</figcaption>
         </figure>
 
         {/* Right: what to do next */}
@@ -253,7 +221,7 @@ export default function Hero() {
             See how I decide <ArrowRight size={16} aria-hidden />
           </button>
           <div className="hero3__secondary">
-            <button type="button" className="ds-btn ds-btn--ghost" onClick={() => ask("Give me the 30-second case for Sankalp as an AI product manager, with evidence.")}>
+            <button type="button" className="ds-btn ds-btn--ghost" onClick={() => ask("Give me the 30-second case for Sankalp as an AI product engineer, with evidence.")}>
               <Sparkles size={15} aria-hidden /> Ask Helios
             </button>
             <a className="ds-btn ds-btn--ghost" href={personal.resumeUrl} download>

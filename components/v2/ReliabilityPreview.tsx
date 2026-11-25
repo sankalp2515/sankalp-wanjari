@@ -9,7 +9,7 @@ import { ArrowRight } from "lucide-react";
 import SectionShell from "./SectionShell";
 import Metric from "./Metric";
 
-const EVIDENCE: { project: string; value: string; claim: string; shortfall: string }[] = [
+export const RELIABILITY_EVIDENCE: { project: string; value: string; claim: string; shortfall: string }[] = [
   {
     project: "IntentSeal",
     value: "99.2%",
@@ -46,7 +46,7 @@ export default function ReliabilityPreview() {
       }
     >
       <ul className="rel3">
-        {EVIDENCE.map((e) => (
+        {RELIABILITY_EVIDENCE.map((e) => (
           <li key={e.project} className="rel3__card">
             <p className="ds-label">{e.project}</p>
             <p className="rel3__value"><Metric value={e.value} /></p>

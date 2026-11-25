@@ -12,12 +12,79 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import Image from "next/image";
 import { m, AnimatePresence } from "framer-motion";
 import { ArrowUpRight, X, Target, Users, FlaskConical, Scale, Gauge, Rocket } from "lucide-react";
 import { caseStudies, type CaseStudy } from "@/config/portfolio";
 import SectionShell from "./SectionShell";
 import Metric from "./Metric";
 import DiagramGallery from "./DiagramGallery";
+import { CASES_SPREAD } from "@/config/premiumPass";
+
+const firstSentence = (t: string) => {
+  const m = t.match(/^.*?[.!?](\s|$)/);
+  return (m ? m[0] : t).trim();
+};
+
+// The decision path: six beats of a case, each a real sentence from it.
+const PATH = [
+  ["Context", (c: CaseStudy) => c.study.context],
+  ["Problem", (c: CaseStudy) => c.study.problem],
+  ["Users", (c: CaseStudy) => c.study.users],
+  ["The bet", (c: CaseStudy) => c.study.hypothesis],
+  ["The call", (c: CaseStudy) => c.study.decisions[0] ?? ""],
+  ["Measured by", (c: CaseStudy) => c.study.metrics[0] ?? ""],
+] as const;
+
+// CASES_SPREAD (config/premiumPass.ts): one editorial spread per case. A cover
+// (the case's own image, or its headline number set large), then the story
+// as a clickable decision path, so a reader gets the argument before opening.
+function CaseSpread({ c, i, onOpen }: { c: CaseStudy; i: number; onOpen: () => void }) {
+  const [step, setStep] = useState(0);
+  const text = firstSentence(PATH[step][1](c));
+  return (
+    <li className={`csx__item ${i % 2 ? "csx__item--flip" : ""}`}>
+      <button type="button" className="csx__visual" onClick={onOpen} aria-label={`Read the ${c.title} case study`}>
+        {c.cover ? (
+          <Image src={c.cover} alt="" fill sizes="(max-width: 900px) 100vw, 560px" className="csx__img" />
+        ) : (
+          <span className="csx__type" aria-hidden>
+            <span className="csx__typeval">{c.stat?.value ?? String(i + 1).padStart(2, "0")}</span>
+            {c.stat && <span className="csx__typelabel">{c.stat.label}</span>}
+          </span>
+        )}
+        <span className="csx__no" aria-hidden>{String(i + 1).padStart(2, "0")}</span>
+      </button>
+
+      <div className="csx__text">
+        <p className="csx__meta"><span className="ds-label">Case {String(i + 1).padStart(2, "0")}</span>{c.company ? `${c.company} · ` : ""}{c.year}</p>
+        <h3 className="csx__title">{c.title}</h3>
+        {c.stat && c.cover && <p className="csx__stat"><span><Metric value={c.stat.value} /></span>{c.stat.label}</p>}
+        <p className="csx__summary">{c.summary}</p>
+
+        <div className="csx__path">
+          <div className="csx__steps" role="tablist" aria-label={`${c.title}: decision path`}>
+            {PATH.map(([label], k) => (
+              <button key={label} type="button" role="tab" aria-selected={k === step} className="csx__step" onClick={() => setStep(k)}>
+                <i aria-hidden />{label}
+              </button>
+            ))}
+          </div>
+          <p className="csx__beat" role="tabpanel" key={step}>{text}</p>
+        </div>
+
+        <div className="csx__actions">
+          <button type="button" className="ds-btn ds-btn--primary" onClick={onOpen}>Read the case <ArrowUpRight size={15} aria-hidden /></button>
+          {c.externalUrl && (
+            <a className="ds-btn ds-btn--ghost" href={c.externalUrl} target="_blank" rel="noopener noreferrer">
+              {/notion\./.test(c.externalUrl) ? "Notion write-up" : "Full write-up"} <ArrowUpRight size={15} aria-hidden />
+            </a>
+          )}
+        </div>
+      </div>
+    </li>
+  );
+}
 
 // Hide the image (and its wrapper) if the file 404s, so a missing/misnamed
 // cover degrades to the text-only card instead of a broken-image icon.
@@ -150,13 +217,17 @@ export default function CaseStudiesSection() {
   const open = caseStudies.find((c) => c.id === openId) ?? null;
 
   return (
-    <SectionShell layout="split-reverse" index="03"
+    <SectionShell layout={CASES_SPREAD ? "stack" : "split-reverse"} index="03"
       id="section-cases"
       kicker="Product case studies"
       title="How the product decisions get made."
       subtitle="Product thinking, separate from the engineering: user research, problem framing, prioritisation, trade-offs, and the metrics each bet is judged on."
     >
-      <ul className="cs3">
+      {CASES_SPREAD ? (
+        <ol className="csx">
+          {caseStudies.map((c, i) => <CaseSpread key={c.id} c={c} i={i} onOpen={() => setOpenId(c.id)} />)}
+        </ol>
+      ) : <ul className="cs3">
         {caseStudies.map((c, i) => (
           <li key={c.id} className="cs3__item">
             <button type="button" onClick={() => setOpenId(c.id)} aria-label={`Read the ${c.title} case study`} className="cs3__card">
@@ -182,7 +253,7 @@ export default function CaseStudiesSection() {
             )}
           </li>
         ))}
-      </ul>
+      </ul>}
 
       <AnimatePresence>
         {open && <StudyModal key={open.id} study={open} onClose={() => setOpenId(null)} />}

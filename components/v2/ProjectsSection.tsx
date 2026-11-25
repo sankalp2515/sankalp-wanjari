@@ -22,6 +22,8 @@ import { ArrowUpRight, RotateCcw } from "lucide-react";
 import { projects, flagshipIds, mapTerritories, projectProof, hiddenFromIndex } from "@/config/portfolio";
 import SectionShell from "./SectionShell";
 import DecisionFilm from "./DecisionFilm";
+import PosterRibbon from "./PosterRibbon";
+import { RIBBON_IN_WORK } from "@/config/premiumPass";
 import { GithubIcon } from "@/components/ui/Icons";
 
 const ProjectModal = dynamic(() => import("./ProjectModal"), { ssr: false });
@@ -78,10 +80,31 @@ export default function ProjectsSection(_props: { variant?: "a" | "b" } = {}) {
       layout="stack"
       kicker="Selected work"
       title="Three systems, told as the decisions behind them."
-      subtitle="Scroll each one: the problem, the call I made, what it cost, and what it measured. Below, every other build carries its decision on the back of the card."
+      subtitle={RIBBON_IN_WORK
+        ? "Scroll each one: the problem, the call I made, what it cost, and what it measured. Then every other build turns past on a ring; the one facing you reads out its decision."
+        : "Scroll each one: the problem, the call I made, what it cost, and what it measured. Below, every other build carries its decision on the back of the card."}
     >
       <DecisionFilm ids={FLAGSHIP} onOpen={(id) => { setDetailReady(true); setOpenId(id); setCaseView(false); }} />
 
+      {RIBBON_IN_WORK ? (
+        <div className="pwall pwall--ring" onPointerEnter={() => setDetailReady(true)}>
+          <PosterRibbon
+            items={cards}
+            onOpen={open}
+            head={<>
+              <p className="ds-label pindex__title">Every other build · {cards.length}</p>
+              <div className="pindex__lenses" role="group" aria-label="What are you hiring for?">
+                <span className="pindex__lens-q">What are you hiring for?</span>
+                {[{ id: "all", name: "Everything" }, ...LENSES].map((l) => (
+                  <button key={l.id} type="button" className="pindex__lens" aria-pressed={lens === l.id} onClick={() => { setLens(l.id); setFlipped(null); }}>
+                    {l.name}
+                  </button>
+                ))}
+              </div>
+            </>}
+          />
+        </div>
+      ) : (
       <div className="pwall" onPointerEnter={() => setDetailReady(true)}>
         <div className="pindex__head">
           <div>
@@ -150,6 +173,7 @@ export default function ProjectsSection(_props: { variant?: "a" | "b" } = {}) {
         </ul>
       </div>
 
+      )}
       {detailReady && <ProjectModal projectId={openId} caseView={caseView} setCaseView={setCaseView} onClose={() => setOpenId(null)} />}
     </SectionShell>
   );

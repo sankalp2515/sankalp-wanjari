@@ -25,6 +25,12 @@ import EducationSection from "./EducationSection";
 import SkillsSection from "./SkillsSection";
 import ContactSection from "./ContactSection";
 import Footer from "./Footer";
+import RecordSection from "./RecordSection";
+import { MERGE_RECORD, MARQUEE_BACK, CONTACT_LETTER, ABOUT_STORY, CONTACT_BRIEF } from "@/config/premiumPass";
+import AboutStory from "./AboutStory";
+import ContactBrief from "./ContactBrief";
+import ContactLetter from "./ContactLetter";
+import LogoMarquee from "./LogoMarquee";
 
 const S = ({ children }: { children: ReactNode }) => <Suspense fallback={null}>{children}</Suspense>;
 
@@ -32,19 +38,23 @@ export default function Story() {
   return (
     <div id="top" className="relative z-[1]">
       <Hero />
+      {MARQUEE_BACK && <S><LogoMarquee /></S>}
       <S><ProofStrip /></S>
       <S><DecisionsSection /></S>
       <S><ProjectsSection /></S>
       <S><CaseStudiesSection /></S>
       <S><RadarSection /></S>
       <S><AchievementsSection /></S>
-      <S><AboutSection /></S>
+      <S>{ABOUT_STORY ? <AboutStory /> : <AboutSection />}</S>
       <S><CareerSection /></S>
-      <S><ReliabilityPreview /></S>
-      <S><ResearchSection /></S>
-      <S><EducationSection /></S>
-      <S><SkillsSection /></S>
-      <S><ContactSection /></S>
+      {/* Premium pass: four sections collapse into one Record screen. */}
+      {MERGE_RECORD ? <S><RecordSection /></S> : <>
+        <S><ReliabilityPreview /></S>
+        <S><ResearchSection /></S>
+        <S><EducationSection /></S>
+        <S><SkillsSection /></S>
+      </>}
+      <S>{CONTACT_BRIEF ? <ContactBrief /> : CONTACT_LETTER ? <ContactLetter /> : <ContactSection />}</S>
       <Footer />
     </div>
   );

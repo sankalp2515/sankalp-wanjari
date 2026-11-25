@@ -1,1 +1,1 @@
-Hi, I'm Sankalp. I'm an AI product manager who also builds. At FIS, I turned manual banking work into software, and cut manual data entry by ninety percent. Now I build AI that knows what to refuse. Scroll down: you'll see the decisions first, and the code second.
+Hi, I'm Sankalp. At FIS, I turned manual banking work into software, and cut manual data entry by ninety percent. Now I build AI that knows what to refuse. Scroll down: you'll see the decisions first, and the code second.

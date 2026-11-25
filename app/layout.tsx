@@ -29,9 +29,9 @@ const THEME_BOOT = `try{var t=localStorage.getItem("portfolio-theme");if(t==="da
 
 export const metadata: Metadata = {
   metadataBase: new URL(social.website),
-  title: `${personal.name} — AI Product Manager · AI Engineer`,
+  title: `${personal.name} — AI Product Engineer`,
   description: `${personal.tagline} ${personal.roles.join(" and ")} — 3 years shipping software, specialised in agentic AI, RAG, and LLM systems. ${personal.availability}.`,
-  keywords: ["AI Engineer", "AI Product Manager", "ML Engineer", "LangGraph", "Agentic AI", "RAG", "Python", "TypeScript", "Portfolio"],
+  keywords: ["AI Engineer", "AI Product Engineer", "AI Product Manager", "ML Engineer", "LangGraph", "Agentic AI", "RAG", "Python", "TypeScript", "Portfolio"],
   authors: [{ name: personal.name }],
   openGraph: {
     title: `${personal.name} — ${personal.roles.join(" · ")}`,

@@ -1,6 +1,6 @@
 "use client";
 
-// AI Radar — "what changed in AI this week, read by a product manager".
+// AI Radar — "what changed in AI this week, read with a product lens".
 // The portfolio becomes useful to the visitor: live headlines from the labs
 // Sankalp follows, each with the product question it raises, linked to his own
 // related work where one exists.
@@ -19,6 +19,9 @@ import { ArrowUpRight, Radar, Sparkles } from "lucide-react";
 import { radarWatchlist } from "@/config/portfolio";
 import { useConcierge } from "@/contexts/ConciergeContext";
 import SectionShell from "./SectionShell";
+import RadarSignal from "./RadarSignal";
+import LogoMark from "./LogoMark";
+import { RADAR_VISUAL } from "@/config/premiumPass";
 
 interface Item {
   id: string;
@@ -52,6 +55,7 @@ export default function RadarSection() {
   const [filter, setFilter] = useState<string | null>(null);
   const [active, setActive] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [pickedId, setPickedId] = useState<string | null>(null);
   // "Now" is captured when the feed arrives, so render stays pure.
   const [now, setNow] = useState(0);
   const { ask } = useConcierge();
@@ -79,7 +83,10 @@ export default function RadarSection() {
 
   const items = useMemo(() => data?.items ?? [], [data]);
   const shown = filter ? items.filter((i) => i.entity === filter) : items;
-  const visible = expanded ? shown : shown.slice(0, 5);
+  const visible = expanded ? shown : shown.slice(0, RADAR_VISUAL ? 6 : 5);
+  // The chain shows the picked headline; by default the first one that
+  // touches Sankalp's work, else the newest.
+  const picked = shown.find((i) => i.id === pickedId) ?? shown.find((i) => i.related) ?? shown[0] ?? null;
   const counts = useMemo(() => {
     const c = new Map<string, number>();
     for (const i of items) if (i.entity) c.set(i.entity, (c.get(i.entity) ?? 0) + 1);
@@ -117,7 +124,7 @@ export default function RadarSection() {
       index="04"
       layout="stack"
       kicker="AI Radar · live"
-      title="What changed in AI this week, read by a product manager."
+      title="What changed in AI this week, read with a product lens."
       subtitle="Headlines from the labs I follow, each with the product question it raises. It refreshes at most twice a day, and only because someone like you visited."
     >
       <div ref={ref} className={`radar ${onScreen ? "is-on" : ""}`}>
@@ -140,8 +147,15 @@ export default function RadarSection() {
             {radarWatchlist.map((e) => {
               const rad = ((e.angle - 90) * Math.PI) / 180;
               const on = !filter || filter === e.name;
+              const x = Math.cos(rad) * 96, y = Math.sin(rad) * 96;
+              if (RADAR_VISUAL) return (
+                <g key={e.name} className={`radar__label radar__label--logo ${on ? "" : "is-dim"}`}>
+                  <foreignObject x={x - 6} y={y - 10} width="12" height="12"><LogoMark name={e.name} size={12} /></foreignObject>
+                  <text x={x} y={y + 9} textAnchor="middle">{e.name.replace("Google ", "").replace(" AI", "")}</text>
+                </g>
+              );
               return (
-                <text key={e.name} x={Math.cos(rad) * 96} y={Math.sin(rad) * 96 + 3} textAnchor="middle" className={`radar__label ${on ? "" : "is-dim"}`}>
+                <text key={e.name} x={x} y={y + 3} textAnchor="middle" className={`radar__label ${on ? "" : "is-dim"}`}>
                   {e.name.replace("Google ", "")}
                 </text>
               );
@@ -149,7 +163,10 @@ export default function RadarSection() {
             {blips.map((b) => {
               const on = (!filter || filter === b.entity);
               return (
-                <g key={b.id} transform={`translate(${b.x.toFixed(1)} ${b.y.toFixed(1)})`} className={`radar__blip ${active === b.id ? "is-active" : ""} ${on ? "" : "is-dim"}`} style={{ animationDelay: `${b.delay.toFixed(2)}s`, animationDuration: `${SWEEP_S}s` }}>
+                <g key={b.id} transform={`translate(${b.x.toFixed(1)} ${b.y.toFixed(1)})`} className={`radar__blip ${active === b.id || (RADAR_VISUAL && picked?.id === b.id) ? "is-active" : ""} ${on ? "" : "is-dim"}`}
+                  onClick={RADAR_VISUAL ? () => setPickedId(b.id) : undefined}
+                  onMouseEnter={RADAR_VISUAL ? () => setActive(b.id) : undefined}
+                  onMouseLeave={RADAR_VISUAL ? () => setActive(null) : undefined} style={{ animationDelay: `${b.delay.toFixed(2)}s`, animationDuration: `${SWEEP_S}s` }}>
                   <circle r="7" className="radar__ping" />
                   <circle r="2.6" className="radar__dot" />
                 </g>
@@ -167,7 +184,7 @@ export default function RadarSection() {
               <button type="button" className="radar__chip" aria-pressed={!filter} onClick={() => setFilter(null)}>All</button>
               {radarWatchlist.map((e) => (
                 <button key={e.name} type="button" className="radar__chip" aria-pressed={filter === e.name} onClick={() => setFilter(filter === e.name ? null : e.name)} disabled={!counts.get(e.name)}>
-                  {e.name}{counts.get(e.name) ? <span>{counts.get(e.name)}</span> : null}
+                  {RADAR_VISUAL && <LogoMark name={e.name} size={14} />}{e.name}{counts.get(e.name) ? <span>{counts.get(e.name)}</span> : null}
                 </button>
               ))}
             </div>
@@ -186,7 +203,11 @@ export default function RadarSection() {
             </div>
           )}
 
-          {!loading && !unavailable && (
+          {RADAR_VISUAL && !loading && !unavailable && (
+            <RadarSignal items={visible} all={shown} picked={picked} onPick={setPickedId} onHover={setActive} ago={(d) => ago(d, now)} ask={ask} />
+          )}
+
+          {!RADAR_VISUAL && !loading && !unavailable && (
             <ul className="radar__list">
               {visible.map((it, i) => (
                 <li
@@ -214,7 +235,7 @@ export default function RadarSection() {
           )}
 
           <div className="radar__foot">
-            {!loading && !unavailable && shown.length > 5 && (
+            {!loading && !unavailable && shown.length > (RADAR_VISUAL ? 6 : 5) && (
               <button type="button" className="ds-btn ds-btn--ghost" onClick={() => setExpanded((v) => !v)}>
                 {expanded ? "Show fewer" : `Show all ${shown.length}`}
               </button>

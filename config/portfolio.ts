@@ -53,15 +53,15 @@ My teammates know me as a problem solver who enjoys simplifying complexity and a
   profilePhoto: "/profile_pic_2.png",
 
   // ── Hero (APM redesign) ───────────────────────────────────
-  heroRole: "AI Product Manager · AI Engineer",
+  heroRole: "AI Product Engineer",
   // First-person intro, voiced ONCE by `npm run voice:gen` (ElevenLabs) into
   // public/voice/hero-intro.mp3 and served as a static file — zero credits per
   // visit. Changing this text and re-running the script re-records it.
   heroIntro:
-    "Hi, I'm Sankalp. I'm an AI product manager who also builds. At FIS, I turned manual banking work into software, and cut manual data entry by ninety percent. Now I build AI that knows what to refuse. Scroll down: you'll see the decisions first, and the code second.",
+    "Hi, I'm Sankalp. At FIS, I turned manual banking work into software, and cut manual data entry by ninety percent. Now I build AI that knows what to refuse. Scroll down: you'll see the decisions first, and the code second.",
   // The same intro split into the three spoken lines of the talking clip.
   heroIntroLines: [
-    "Hi, I'm Sankalp. I'm an AI product manager who also builds.",
+    "Hi, I'm Sankalp.",
     "At FIS, I turned manual banking work into software, and cut manual data entry by ninety percent.",
     "Now I build AI that knows what to refuse. Scroll down: you'll see the decisions first, and the code second.",
   ],
@@ -80,10 +80,15 @@ My teammates know me as a problem solver who enjoys simplifying complexity and a
   // Talking clip: three Flow clips (Veo voice) that start AND end on the
   // walk-in's final frame, joined, background removed, VP9+alpha with Opus
   // audio (~1 MB, preload none — fetched only when "Hear my intro" is tapped).
+  // Nov 2026: the dead air at the two joins (~1.9 s / 1.7 s) was trimmed to a
+  // ~0.35 s pause with a 0.25 s crossfade, so it plays as one take (19.7 s).
+  // Later the same day the sentence "I'm an AI product manager who also builds"
+  // was cut out (2.62–5.30 s, crossfaded): Sankalp is an AI product engineer
+  // with no PM title yet, so the clip no longer claims one (16.7 s).
   avatarTalk: "/avatar/talk-540.webm",
   // Caption timing measured from the clip (Groq Whisper): one [start, end]
   // window in seconds per line of heroIntroLines; words spread evenly inside.
-  avatarTalkCues: [[0, 5.0], [6.4, 13.3], [14.4, 22.4]] as [number, number][],
+  avatarTalkCues: [[0, 2.4], [2.6, 9.1], [9.35, 16.7]] as [number, number][],
   avatarPoster: "",
 
   stats: [

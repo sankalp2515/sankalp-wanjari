@@ -21,6 +21,7 @@ import { ConciergeProvider, useConcierge } from "@/contexts/ConciergeContext";
 // import PersonaLayer from "./PersonaLayer";
 import { startPerfGovernor } from "@/lib/perf";
 import { MOBILE_TUNING } from "@/config/mobileTuning";
+import { CLUTTER_OFF } from "@/config/premiumPass";
 
 // NOTE: the experimental "projects helix" (spiral) is deliberately kept OUT of
 // the build. Its stylesheet (app/spiral.css), config flag, rAF/Lenis scroll
@@ -228,21 +229,23 @@ function LandingInner({ variant, story }: { variant: "a" | "b"; story: React.Rea
       <SmoothCursor />
       {/* Feedback is a Variant-A feature — Variant B is intentionally untouched */}
       {/* Feedback pill is hidden in graph mode — the graph overlay owns the frame */}
-      {overlays && variant === "a" && !graphOpen && <FeedbackWidget />}
-      {overlays && variant === "a" && <SoundPrompt />}
+      {overlays && variant === "a" && !graphOpen && !CLUTTER_OFF && <FeedbackWidget />}
+      {overlays && variant === "a" && !CLUTTER_OFF && <SoundPrompt />}
       {overlays && <AgentDock />}
       {/* The one-line highlight strip under the nav (replaces the parked
           PersonaLayer). Variant A only. */}
       {/* HighlightStrip removed from the first screen in the APM redesign
           (it competed with the hero); the component is kept for reuse. */}
       {/* First-touch "there's a live AI here" heads-up + exit recap — Variant A. */}
-      {overlays && variant === "a" && <HeliosIntro />}
-      {overlays && variant === "a" && <ExitRecap />}
+      {/* Premium pass (config/premiumPass.ts): the first-touch intro, exit
+          recap and nudges stay off; Helios is one Ctrl+K or pill away. */}
+      {overlays && variant === "a" && !CLUTTER_OFF && <HeliosIntro />}
+      {overlays && variant === "a" && !CLUTTER_OFF && <ExitRecap />}
       <ResumeModal />
       {/* Event-driven (film:enter fires as the tour starts): always mounted;
           still a separate chunk, so it stays out of the first bundle. */}
       <FilmMode />
-      {overlays && <NudgeLayer />}
+      {overlays && !CLUTTER_OFF && <NudgeLayer />}
       {overlays && <BehaviorTracker />}
 
       {/* Graph mode — the same portfolio as a knowledge graph */}

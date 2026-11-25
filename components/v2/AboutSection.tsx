@@ -15,6 +15,8 @@ import SectionShell from "./SectionShell";
 import Metric from "./Metric";
 import ResumeButton from "./ResumeButton";
 import AboutReel from "./AboutReel";
+import AboutScreen from "./AboutScreen";
+import { ABOUT_SCREEN } from "@/config/premiumPass";
 
 // Split a paragraph into words, marking the ones inside a key phrase.
 function words(paragraph: string, phrases: string[]) {
@@ -60,7 +62,7 @@ export default function AboutSection() {
           </figcaption>
         </figure>
 
-        <div className="about3__text">
+        {ABOUT_SCREEN ? <AboutScreen /> : <div className="about3__text">
           {paragraphs.map((p, pi) => (
             <p key={pi} className="about3__para">
               {words(p, personal.bioKeywords).map((t, i) => (
@@ -82,7 +84,7 @@ export default function AboutSection() {
             <span className="ds-label">Education</span>
             {education.degree.title}, {education.degree.school} (CGPA 8.54) · {education.featuredCert.title}, {education.featuredCert.issuer}
           </p>
-        </div>
+        </div>}
       </div>
     </SectionShell>
   );
