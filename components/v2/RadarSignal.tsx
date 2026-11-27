@@ -120,6 +120,11 @@ export default function RadarSignal({
                 <time dateTime={it.date ?? undefined}>{ago(it.date)}</time>
               </span>
             </button>
+            {/* The row picks the headline for the chain above; this opens the
+                original article (a sibling, since a link can't sit in a button). */}
+            <a className="rsig__src" href={it.link} target="_blank" rel="noopener noreferrer" aria-label={`Read "${it.title}" on ${it.source}`}>
+              <ArrowUpRight size={16} aria-hidden />
+            </a>
           </li>
         ))}
       </ul>

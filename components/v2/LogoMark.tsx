@@ -39,12 +39,17 @@ export default function LogoMark({
     );
   }
   const tint = tone === "ink" ? "currentColor" : BRAND_TINT[name] ?? "var(--os-text)";
+  // Dark letters on light brand colours (FIS green), white on dark ones.
+  const light = tint.startsWith("#") && (() => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(tint.slice(i, i + 2), 16) / 255);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.55;
+  })();
   return (
     <span
       className={`logo-tile ${className ?? ""}`}
       role="img"
       aria-label={name}
-      style={{ width: size, height: size, fontSize: Math.round(size * (monogram(name).length > 2 ? 0.3 : monogram(name).length > 1 ? 0.4 : 0.55)), ["--tint" as string]: tint }}
+      style={{ width: size, height: size, fontSize: Math.round(size * (monogram(name).length > 2 ? 0.3 : monogram(name).length > 1 ? 0.4 : 0.55)), ["--tint" as string]: tint, color: light ? "#111" : "#fff" }}
     >
       {monogram(name)}
     </span>

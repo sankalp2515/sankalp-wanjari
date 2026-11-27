@@ -58,12 +58,12 @@ My teammates know me as a problem solver who enjoys simplifying complexity and a
   // public/voice/hero-intro.mp3 and served as a static file — zero credits per
   // visit. Changing this text and re-running the script re-records it.
   heroIntro:
-    "Hi, I'm Sankalp. At FIS, I turned manual banking work into software, and cut manual data entry by ninety percent. Now I build AI that knows what to refuse. Scroll down: you'll see the decisions first, and the code second.",
+    "Hide one sentence inside an email, and an AI agent might just obey it. I'm Sankalp. I decide what AI must refuse, and then I build it. Scroll down. There's a live firewall on this page. Try to break it.",
   // The same intro split into the three spoken lines of the talking clip.
   heroIntroLines: [
-    "Hi, I'm Sankalp.",
-    "At FIS, I turned manual banking work into software, and cut manual data entry by ninety percent.",
-    "Now I build AI that knows what to refuse. Scroll down: you'll see the decisions first, and the code second.",
+    "Hide one sentence inside an email, and an AI agent might just obey it.",
+    "I'm Sankalp. I decide what AI must refuse, and then I build it.",
+    "Scroll down. There's a live firewall on this page. Try to break it.",
   ],
   // Talking-avatar video (illustrated likeness lip-synced to heroIntro).
   // Leave empty until the asset exists; the hero then shows the portrait.
@@ -88,7 +88,8 @@ My teammates know me as a problem solver who enjoys simplifying complexity and a
   avatarTalk: "/avatar/talk-540.webm",
   // Caption timing measured from the clip (Groq Whisper): one [start, end]
   // window in seconds per line of heroIntroLines; words spread evenly inside.
-  avatarTalkCues: [[0, 2.4], [2.6, 9.1], [9.35, 16.7]] as [number, number][],
+  // Nov 28 2026: new curiosity-led script, three Flow takes joined (18.8 s).
+  avatarTalkCues: [[0.6, 6.1], [6.4, 12.2], [12.3, 17.3]] as [number, number][],
   avatarPoster: "",
 
   stats: [

@@ -98,7 +98,7 @@ export default function ContactBrief() {
             <p className="ds-kicker"><span>Contact</span></p>
             <h2 id="cbr-title" className="cbr__title">Let&rsquo;s talk<span aria-hidden>.</span></h2>
 
-            <button type="button" className="cbr__email" onClick={() => copy("email")} aria-label={`Copy email address ${personal.email}`}>
+            <button type="button" className="cbr__email" onClick={() => copy("email")}>
               <span className="cbr__emailtext">{personal.email}</span>
               <span className="cbr__emailhint">{copied === "email" ? <><Check size={15} aria-hidden /> Copied</> : <><Copy size={15} aria-hidden /> Copy</>}</span>
             </button>

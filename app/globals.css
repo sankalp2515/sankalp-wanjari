@@ -3123,3 +3123,471 @@ rect.pmap__hit { fill: transparent; stroke: none; pointer-events: all; }
   .cbr__doc li { animation: none; }
   .cbr__emailtext { transition: none; }
 }
+
+/* ── AWARD PASS (config/awardPass.ts) ─────────────────────────────────────
+   Every rule is scoped to a class on <html> that exists only while its
+   switch is on (ap-type, ap-unify, ap-perf, ap-motion), plus the firewall
+   section's own classes (.fw…), which render only with AWARD_FIREWALL. */
+
+/* 1 · AWARD_TYPE — Bricolage Grotesque / Geist / Geist Mono */
+html.ap-type {
+  --font-display: var(--font-ap-display);
+  --font-inter: var(--font-ap-body);
+  --font-mono: var(--font-ap-mono);
+  font-optical-sizing: auto;
+}
+html.ap-type .ds-h2, html.ap-type .hero3__title, html.ap-type .abs__title, html.ap-type .cbr__title, html.ap-type .ltr__title {
+  letter-spacing: -0.035em;
+  font-variation-settings: "opsz" 96;
+}
+html.ap-type body { font-feature-settings: "ss01", "cv11"; }
+
+/* 2 · AWARD_UNIFY — one design language */
+html.ap-unify {
+  --ap-radius: 20px;
+  --ap-ease: cubic-bezier(.22, 1, .36, 1);
+}
+/* Labels: sentence-case sans instead of tracked mono capitals. */
+html.ap-unify .ds-label,
+html.ap-unify .ds-kicker,
+html.ap-unify .mono-small,
+html.ap-unify .lmq__kicker,
+html.ap-unify .radar__meta,
+html.ap-unify .rsig__node .ds-label,
+html.ap-unify .csx__meta,
+html.ap-unify .csx__step,
+html.ap-unify .scr__q,
+html.ap-unify .ltr__to,
+html.ap-unify .ribbon__count,
+html.ap-unify .ribbon__dl dt,
+html.ap-unify .proof3__source,
+html.ap-unify .lmq__fact {
+  font-family: var(--font-inter), system-ui, sans-serif !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-weight: 600;
+}
+html.ap-unify .ds-label, html.ap-unify .ds-kicker { font-size: 14px; }
+/* One section opener: the index becomes a display numeral in the accent. */
+html.ap-unify .ds-kicker { gap: 14px; color: var(--os-text-secondary); }
+html.ap-unify .ds-kicker__index { font: 700 1.6rem/1 var(--font-display), sans-serif; letter-spacing: -0.04em; color: var(--os-accent); }
+html.ap-unify .ds-kicker__index::after { width: 32px; background: var(--os-text-muted); opacity: .5; }
+/* One card: same radius, border and surface; no drop shadows. */
+html.ap-unify .radar__card, html.ap-unify .rsig__chain, html.ap-unify .cbr__brief, html.ap-unify .csx__visual,
+html.ap-unify .csx__path, html.ap-unify .ribbon__read, html.ap-unify .glass-card, html.ap-unify .cs3__card,
+html.ap-unify .ach3__card, html.ap-unify .rel3__card, html.ap-unify .pmap__card, html.ap-unify .dtile__card,
+html.ap-unify .ltr__paper, html.ap-unify .ltr__way, html.ap-unify .fw__composer, html.ap-unify .fw__pipe {
+  border-radius: var(--ap-radius) !important;
+  border: 1px solid var(--os-border) !important;
+  box-shadow: none !important;
+}
+html.ap-unify .rsig__node, html.ap-unify .cbr__doc, html.ap-unify .fw__contract { border-radius: 14px !important; box-shadow: none !important; }
+/* One hover: 2px lift and a darker border for anything clickable that looks
+   like a card; a 1.03 zoom for any image inside a frame. */
+html.ap-unify :is(.radar__card, .cs3__card, .ach3__card, .rel3__card, .pmap__card, .ltr__way, .csx__visual, .rsig__build, .ribbon__card) {
+  transition: transform .35s var(--ap-ease), border-color .25s ease !important;
+}
+html.ap-unify :is(.radar__card, .cs3__card, .ach3__card, .rel3__card, .pmap__card, .ltr__way, .csx__visual):hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--os-text) 45%, var(--os-border)) !important;
+}
+html.ap-unify :is(.csx__visual, .rsig__poster, .ribbon__face, .abs__photo, .ach3__card) img { transition: transform .7s var(--ap-ease) !important; }
+html.ap-unify :is(.csx__visual, .rsig__build, .ribbon__card, .abs__photo, .ach3__card):hover img { transform: scale(1.03) !important; }
+/* Less chrome: chips become quiet text tags. */
+html.ap-unify .ds-chip { border-color: transparent; background: var(--os-bg-surface); font-family: var(--font-inter), sans-serif; letter-spacing: 0; }
+
+/* 3 · AWARD_PERF — off-screen sections render only when they come near. */
+html.ap-perf main section.story-section:not(#section-hero):not(#section-proof) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1100px;
+}
+/* Sections that pin content while scrolling keep normal rendering, so their
+   sticky children measure correctly the moment they arrive. */
+html.ap-perf main section#section-work,
+html.ap-perf main section#section-decisions { content-visibility: visible; }
+
+/* 4 · AWARD_FIREWALL — "Try to break my firewall" */
+.fw { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(20px, 3vw, 40px); align-items: start; }
+.fw__composer, .fw__pipe { padding: clamp(18px, 2.4vw, 28px); border-radius: 22px; border: 1px solid var(--os-border); background: var(--os-bg-window); }
+.fw__label { display: block; margin: 0 0 8px; font: 600 13.5px/1.3 var(--font-inter), sans-serif; color: var(--os-text-muted); }
+.fw__contract { margin-bottom: 18px; padding: 14px 16px; border-radius: 14px; background: color-mix(in srgb, var(--os-accent) 9%, var(--os-bg)); border: 1px solid color-mix(in srgb, var(--os-accent) 30%, var(--os-border)); }
+.fw__contract p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--os-text-secondary); }
+.fw__contract p + p { margin-top: 2px; }
+.fw__contract strong { color: var(--os-text); font-weight: 600; }
+.fw__email {
+  width: 100%; resize: vertical; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--os-border); background: var(--os-bg);
+  font: 13.5px/1.6 var(--font-mono), ui-monospace, monospace; color: var(--os-text); outline: none; transition: border-color .2s ease;
+}
+.fw__email:focus { border-color: var(--os-text); }
+.fw__presets { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fw__presets .fw__label { margin: 0 4px 0 0; }
+.fw__preset {
+  min-height: 34px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--os-border); background: transparent; cursor: pointer;
+  font: 600 13px/1 var(--font-inter), sans-serif; color: var(--os-text-secondary); transition: border-color .2s ease, color .2s ease, transform .2s ease;
+}
+.fw__preset:hover { border-color: var(--os-text); color: var(--os-text); transform: translateY(-1px); }
+.fw__preset--reset { display: inline-grid; place-items: center; width: 34px; padding: 0; }
+.fw__run { margin-top: 18px; width: 100%; }
+.fw__run:disabled { opacity: .6; cursor: progress; transform: none; }
+.fw__error { margin: 10px 0 0; font-size: 14px; color: var(--os-text-secondary); }
+
+.fw__stages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.fw__stage { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 14px; padding: 0 0 22px; }
+.fw__stage:not(:last-child)::before { content: ""; position: absolute; left: 10px; top: 22px; bottom: 0; width: 2px; background: var(--os-border); transition: background-color .4s ease; }
+.fw__dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--os-border); background: var(--os-bg); transition: background-color .35s ease, border-color .35s ease, transform .35s cubic-bezier(.2,1.6,.4,1); }
+.fw__stagename { margin: 1px 0 0; font: 700 16px/1.3 var(--font-display), sans-serif; letter-spacing: -0.015em; color: var(--os-text-muted); transition: color .3s ease; }
+.fw__detail { margin: 6px 0 0; font-size: 14px; line-height: 1.55; color: var(--os-text-secondary); animation: fw-in .4s ease both; }
+.fw__findings { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; animation: fw-in .4s ease both; }
+.fw__findings li { font-size: 14px; line-height: 1.5; color: var(--os-text-secondary); }
+.fw__findings b { color: var(--os-text); font-weight: 600; margin-right: 4px; }
+.fw__findings q { font-family: var(--font-mono), monospace; font-size: 12.5px; color: var(--os-text-muted); }
+.fw__calls { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.fw__calls code { padding: 4px 8px; border-radius: 8px; background: var(--os-bg); border: 1px solid var(--os-border); font: 12.5px/1.4 var(--font-mono), monospace; color: var(--os-text); overflow-wrap: anywhere; }
+.fw__summary { margin: 8px 0 0; font-style: italic; }
+.fw__stage:not(.is-idle) .fw__stagename { color: var(--os-text); }
+.fw__stage.is-pass .fw__dot { border-color: #22a35a; background: #22a35a; transform: scale(.85); }
+.fw__stage.is-warn .fw__dot { border-color: var(--os-accent); background: var(--os-accent); transform: scale(.85); }
+.fw__stage.is-stop .fw__dot { border-color: #d64545; background: #d64545; transform: scale(1.05); box-shadow: 0 0 0 6px color-mix(in srgb, #d64545 18%, transparent); }
+.fw__stage.is-skipped .fw__dot { border-style: dashed; }
+.fw__stage.is-pass::before, .fw__stage.is-warn::before { background: color-mix(in srgb, var(--os-text) 30%, var(--os-border)); }
+.fw__verdict { display: flex; gap: 12px; align-items: flex-start; margin-top: 4px; padding: 16px 18px; border-radius: 16px; border: 1px solid var(--os-border); background: var(--os-bg); animation: fw-in .5s ease both; }
+.fw__verdict p { margin: 0; font-size: 15px; line-height: 1.55; color: var(--os-text-secondary); }
+.fw__verdict strong { color: var(--os-text); }
+.fw__verdict svg { flex: none; margin-top: 1px; color: #22a35a; }
+.fw__verdict.is-through { border-color: color-mix(in srgb, var(--os-accent) 50%, var(--os-border)); }
+.fw__verdict.is-through svg { color: var(--os-accent); }
+.fw__stats { margin: 16px 0 0; font-size: 13.5px; color: var(--os-text-muted); }
+.fw__stats b { color: var(--os-text); font-variant-numeric: tabular-nums; }
+.fw__note { margin: 12px 0 0; font-size: 13px; line-height: 1.55; color: var(--os-text-muted); }
+.fw__note a { color: var(--os-text-secondary); text-decoration: underline; text-underline-offset: 3px; }
+@keyframes fw-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (max-width: 900px) { .fw { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .fw__detail, .fw__findings, .fw__verdict { animation: none; } .fw__dot { transition: none; } }
+
+/* 5 · AWARD_MOTION — page veil + once-per-session intro */
+.ap-veil { display: none; }
+html.ap-motion .ap-veil {
+  display: block; position: fixed; inset: 0; z-index: 3000; pointer-events: none; background: var(--os-bg);
+  animation: ap-wipe .55s cubic-bezier(.7, 0, .2, 1) .05s both;
+}
+html.ap-motion .ap-veil::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 0; height: 2px; background: var(--os-accent); transform: translate(-50%, -50%);
+  animation: ap-line .4s cubic-bezier(.22, 1, .36, 1) both;
+}
+html.ap-motion.ap-first .ap-veil { animation-duration: .75s; animation-delay: .45s; }
+html.ap-motion.ap-first .ap-veil::after { animation-duration: .5s; }
+@keyframes ap-wipe { to { clip-path: inset(0 0 100% 0); } }
+@keyframes ap-line { to { width: min(220px, 40vw); } }
+/* Intro: the giant name settles from above and the headline rises as the
+   veil lifts (transforms only, so first paint is never held back). */
+html.ap-motion.ap-first .hero3__backname { animation: ap-name 1.5s cubic-bezier(.22, 1, .36, 1) .35s both !important; }
+html.ap-motion.ap-first .hero3__title { animation: ap-rise 1s cubic-bezier(.22, 1, .36, 1) .6s both !important; }
+html.ap-motion.ap-first .hero3__role, html.ap-motion.ap-first .hero3__lead { animation: ap-rise 1s cubic-bezier(.22, 1, .36, 1) .72s both; }
+html.ap-motion.ap-first .hero3__actions { animation: ap-rise 1s cubic-bezier(.22, 1, .36, 1) .84s both; }
+@keyframes ap-name { from { transform: translate(-50%, -14%) scale(1.12); } to { transform: translate(-50%, 0) scale(1); } }
+@keyframes ap-rise { from { transform: translateY(28px); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  html.ap-motion .ap-veil { display: none; }
+  html.ap-motion.ap-first :is(.hero3__backname, .hero3__title, .hero3__role, .hero3__lead, .hero3__actions) { animation: none !important; }
+}
+/* Keep the hero name's scroll exit working during the intro on desktop. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) and (min-width: 701px) {
+    html.ap-motion.ap-first .hero3__backname {
+      animation: ap-name 1.5s cubic-bezier(.22, 1, .36, 1) .35s both, hero3-exit-name linear both !important;
+      animation-timeline: auto, --hero3 !important;
+      animation-range: normal, exit 0% exit 80% !important;
+    }
+  }
+}
+/* AWARD_PERF · contrast: award prize badges read in ink, not amber-on-amber. */
+html.ap-perf .ach3__prize { color: inherit; background: color-mix(in srgb, var(--os-accent) 26%, transparent); }
+
+/* ── AWARD PASS · round 2 ─────────────────────────────────────────────── */
+
+/* 6 · AWARD_COLOR — 60 paper / 30 ink / 10 amber (light theme only).
+   Three sections and the footer become deep-ink bands by re-pointing the
+   theme tokens inside them, so every component in them just follows. */
+html.ap-color:not([data-theme="dark"]) :is(#section-firewall, #section-achievements, #section-contact) {
+  --os-bg: #0E0D0B; --os-bg-elevated: #161411; --os-bg-window: #161411; --os-bg-surface: #1E1B17; --os-bg-hover: #262219;
+  --os-border: #2C2823; --os-border-subtle: #211E1A;
+  --os-text: #F2EEE6; --os-text-secondary: #C9C2B6; --os-text-muted: #9B9488;
+  --os-accent: #F5A623; --os-cta-bg: #F2EEE6; --os-cta-text: #0E0D0B;
+  background: var(--os-bg); color: var(--os-text); color-scheme: dark;
+  border-top: 0;
+}
+/* The bands open: an inset rounded ink panel widens to full bleed as it
+   scrolls in (scroll-driven, no JS). */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    html.ap-color:not([data-theme="dark"]) :is(#section-firewall, #section-achievements, #section-contact) {
+      animation: ap-band linear both; animation-timeline: view(); animation-range: entry 0% entry 70%;
+    }
+  }
+}
+@keyframes ap-band { from { clip-path: inset(0 5% 0 5% round 48px); } to { clip-path: inset(0 0 0 0 round 0); } }
+/* The dark award card would vanish into the band: give it an edge. */
+html.ap-color:not([data-theme="dark"]) #section-achievements .ach3__card { border-color: #3a352d !important; }
+/* Amber is the 10%: on paper it marks actions and one word per screen. */
+html.ap-color .hero3__dot, html.ap-color .abs__title em, html.ap-color .cbr__title span { color: var(--os-accent); }
+
+/* 7 · AWARD_VFX */
+.fw__scene { display: block; width: 100%; height: clamp(200px, 22vw, 260px); margin: -6px 0 18px; }
+html.ap-vfx .hero3__backname.is-fx::before { content: none; }
+.hero3__fxname { display: inline-flex; }
+.hero3__fxname > span {
+  display: inline-block; --k: 0;
+  transform: translateY(calc(var(--k) * -9%)) scaleY(calc(1 + var(--k) * .14));
+  transform-origin: 50% 100%;
+  color: color-mix(in srgb, var(--os-text) calc(5.5% + var(--k) * 15%), transparent);
+}
+.ap-shutter { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 3100; pointer-events: none; }
+/* The shutter replaces the paper veil on the first visit. */
+html.ap-vfx.ap-first .ap-veil { display: none !important; }
+html.ap-vfx.ap-first .hero3__title { animation-delay: 1.35s !important; }
+html.ap-vfx.ap-first :is(.hero3__role, .hero3__lead) { animation-delay: 1.45s !important; }
+html.ap-vfx.ap-first .hero3__actions { animation-delay: 1.55s !important; }
+/* Route changes: an ink panel with an amber scan line instead of paper. */
+html.ap-vfx .ap-veil { background: #0E0D0B; }
+html.ap-vfx .ap-veil::after { height: 3px; box-shadow: 0 0 24px 2px var(--os-accent); }
+
+/* AWARD_COLOR · page end. The contact band is ink, so the footer can't be ink
+   too (two blacks split by a paper sliver read as a glitch). In light theme
+   the footer becomes a warm bone sheet that rises over the end of the ink
+   band with rounded top corners: ink → bone, a clear close. */
+html.ap-color:not([data-theme="dark"]) .foot3 {
+  --os-cta-bg: #E7E0D2; --os-cta-text: #14120E;
+  margin-top: -36px; border-radius: 36px 36px 0 0; padding-top: clamp(20px, 3vw, 40px);
+  box-shadow: 0 -1px 0 rgba(255,255,255,.06), 0 -24px 60px -30px rgba(0,0,0,.55);
+}
+html.ap-color:not([data-theme="dark"]) #section-contact { padding-bottom: calc(clamp(56px, 7vw, 96px) + 36px); }
+html.ap-color:not([data-theme="dark"]) .foot3__mark { color: #14120E; }
+
+/* ── AWARD PASS · round 3 (FX_* in config/awardPass.ts) ─────────────────── */
+
+/* FX_FIELD · a faint ink dot grid printed on the paper (scrolls with the
+   document). Dots sit at 1px + k·28px; FieldLens.tsx draws the lens over it. */
+html.fx-field { --fx-dot: rgba(20, 18, 14, .085); }
+html.fx-field[data-theme="dark"] { --fx-dot: rgba(242, 238, 230, .065); }
+/* !important: layout.tsx sets an inline background shorthand on <body>. */
+html.fx-field body {
+  background-image: radial-gradient(circle at 1px 1px, var(--fx-dot) 1px, transparent 1.5px) !important;
+  background-size: 28px 28px !important;
+}
+.fx-field__lens { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; }
+
+/* FX_TYPE · titles gain weight and width as they scroll in. */
+html.fx-type .cbr__title { --fx-w: 800; }
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    html.fx-type :is(.ds-h2, .abs__title, .cbr__title) {
+      animation: fx-morph linear both; animation-timeline: view(); animation-range: entry 0% cover 38%;
+    }
+  }
+}
+@keyframes fx-morph {
+  from { font-variation-settings: "wght" 300, "wdth" 75; }
+  to { font-variation-settings: "wght" var(--fx-w, 700), "wdth" 100; }
+}
+
+/* FX_DISTORT · the shared WebGL canvas, placed over the hovered image. No
+   z-index: it paints after the image and before the frame's own overlays. */
+.fx-distort__cv { position: absolute; display: block; pointer-events: none; opacity: 0; object-fit: cover; }
+
+/* FX_LENS · the footer name in amber inside a disc that trails the cursor. */
+html.fx-lens .foot3__mark { position: relative; }
+.foot3__mark > .foot3__lens {
+  position: absolute; inset: 0; display: flex; justify-content: center; padding-inline: var(--ds-gutter);
+  color: var(--os-accent); pointer-events: none; animation: none !important; transform: none; opacity: 1;
+  -webkit-mask-image: radial-gradient(circle var(--lr, 0px) at var(--lx, 0px) var(--ly, 0px), #000 55%, transparent 100%);
+  mask-image: radial-gradient(circle var(--lr, 0px) at var(--lx, 0px) var(--ly, 0px), #000 55%, transparent 100%);
+}
+html.fx-lens:not([data-theme="dark"]) .foot3__lens { color: #C47A06; }
+
+/* FX_RADAR · phosphor trail, a signal that travels the chain, scanned rows. */
+.radar__trail { fill: var(--os-accent); }
+@media (prefers-reduced-motion: no-preference) {
+  /* The picked chain lights up node by node (re-runs when the pick changes). */
+  html.fx-radar .rsig__nodes > li { animation: fx-node-on .5s var(--ds-ease, ease) both; }
+  html.fx-radar .rsig__nodes > li:nth-child(2) { animation-delay: .2s; }
+  html.fx-radar .rsig__nodes > li:nth-child(3) { animation-delay: .4s; }
+  html.fx-radar .rsig__nodes > li:nth-child(4) { animation-delay: .6s; }
+  html.fx-radar .rsig__nodes > li:nth-child(5) { animation-delay: .8s; }
+  /* Then a packet keeps travelling: news → question → build, every 3.2 s. */
+  html.fx-radar .rsig__wire::before {
+    content: ""; position: absolute; z-index: 1; top: 50%; left: 0; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%;
+    background: var(--os-accent); box-shadow: 0 0 14px 3px color-mix(in srgb, var(--os-accent) 65%, transparent);
+    opacity: 0; animation: fx-packet 3.2s cubic-bezier(.55, 0, .45, 1) 1.2s infinite;
+  }
+  html.fx-radar .rsig__nodes > li:nth-child(4)::before { animation-delay: 1.9s; }
+  html.fx-radar .rsig__node--q { animation: fx-node-on .5s var(--ds-ease, ease) .4s both, fx-recv 3.2s ease-out 1.9s infinite; }
+  html.fx-radar .rsig__node--build { animation: fx-node-on .5s var(--ds-ease, ease) .8s both, fx-recv 3.2s ease-out 2.6s infinite; }
+  @media (max-width: 760px) {
+    html.fx-radar .rsig__wire::before { left: 50%; top: 0; animation-name: fx-packet-y; }
+  }
+  /* Headline rows get scanned once as they scroll in. */
+  @supports (animation-timeline: view()) {
+    html.fx-radar .rsig__row {
+      background-image: linear-gradient(90deg, transparent, color-mix(in srgb, var(--os-accent) 16%, transparent) 50%, transparent);
+      background-size: 45% 100%; background-repeat: no-repeat; background-position: -100% 0;
+      animation: fx-scan linear both; animation-timeline: view(); animation-range: entry 30% cover 50%;
+    }
+  }
+}
+@keyframes fx-node-on { from { opacity: .2; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes fx-packet { 0% { left: 0; opacity: 0; } 4% { opacity: 1; } 21% { left: 100%; opacity: 1; } 25%, 100% { left: 100%; opacity: 0; } }
+@keyframes fx-packet-y { 0% { top: 0; opacity: 0; } 4% { opacity: 1; } 21% { top: 100%; opacity: 1; } 25%, 100% { top: 100%; opacity: 0; } }
+@keyframes fx-recv {
+  0% { box-shadow: 0 0 0 1px var(--os-accent), 0 0 28px -6px var(--os-accent); }
+  40%, 100% { box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent; }
+}
+@keyframes fx-scan { from { background-position: -100% 0; } to { background-position: 200% 0; } }
+
+/* FX_STUDIO · the ground is a photo studio, not paper.
+   Thinking: the background should never be a pattern you notice; it should
+   be light falling on a surface, so the work reads as the lit object. A
+   neutral grey sweep, lit from above (bright at the top of the page, calmer
+   with depth), white cards that lift by tone rather than borders, and a
+   barely-there grain so the falloff never bands. Ink bands go neutral too. */
+html.fx-studio:not([data-theme="dark"]) {
+  --os-bg: #F4F4F5; --os-bg-elevated: #EBEBED; --os-bg-window: #FFFFFF; --os-bg-window-glass: rgba(255,255,255,.82);
+  --os-bg-surface: #EBEBED; --os-bg-hover: #E4E4E7; --os-border: #E0E0E4; --os-border-subtle: #EAEAED;
+  --os-text: #18181A; --os-text-secondary: #3F3F44; --os-text-muted: #66666C;
+  --os-cta-bg: #18181A; --os-cta-text: #F4F4F5; --os-titlebar: #EBEBED; --os-scrollbar: #C9C9CE;
+  --os-shadow: 0 30px 60px -28px rgba(0,0,0,.16), 0 2px 8px rgba(0,0,0,.04);
+  --fx-light: rgba(255,255,255,.95); --fx-floor: rgba(0,0,0,.035); --fx-grain: .035;
+}
+html.fx-studio[data-theme="dark"] {
+  --os-bg: #0B0B0C; --os-bg-elevated: #141416; --os-bg-window: #141416; --os-bg-surface: #1B1B1E; --os-bg-hover: #222226;
+  --os-border: #2A2A2E; --os-border-subtle: #1E1E21;
+  --os-text: #F4F4F5; --os-text-secondary: #C3C3C8; --os-text-muted: #8E8E94;
+  --os-cta-bg: #F4F4F5; --os-cta-text: #0B0B0C;
+  --fx-light: rgba(255,255,255,.07); --fx-floor: rgba(0,0,0,.4); --fx-grain: .05;
+}
+/* The light: one fixed layer behind everything. */
+/* z-index -1: under every element, above the body's (canvas) background. */
+html.fx-studio body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(130% 75% at 50% -12%, var(--fx-light) 0%, color-mix(in srgb, var(--fx-light) 45%, transparent) 38%, transparent 72%),
+    linear-gradient(180deg, transparent 55%, var(--fx-floor) 100%);
+}
+/* Grain: kills banding in the falloff; invisible as texture. */
+html.fx-studio body::after {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: var(--fx-grain);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* The studio light dims gently with depth: the top of the page is the lit
+   stage, the rest stays calm (scroll timeline; static without support). */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    html.fx-studio body::before { animation: fx-studio-light linear both; animation-timeline: scroll(root); }
+  }
+}
+@keyframes fx-studio-light { from { opacity: 1; } 35% { opacity: .7; } to { opacity: .55; } }
+
+/* Ink bands and the footer sheet follow the neutral palette. */
+html.ap-color.fx-studio:not([data-theme="dark"]) :is(#section-firewall, #section-achievements, #section-contact) {
+  --os-bg: #111113; --os-bg-elevated: #18181B; --os-bg-window: #18181B; --os-bg-surface: #202024; --os-bg-hover: #27272B;
+  --os-border: #2B2B30; --os-border-subtle: #1F1F23;
+  --os-text: #F4F4F5; --os-text-secondary: #C3C3C8; --os-text-muted: #8E8E94; --os-cta-bg: #F4F4F5; --os-cta-text: #111113;
+}
+html.ap-color.fx-studio:not([data-theme="dark"]) #section-achievements .ach3__card { border-color: #34343a !important; }
+html.ap-color.fx-studio:not([data-theme="dark"]) .foot3 { --os-cta-bg: #E6E6E9; --os-cta-text: #18181A; }
+html.ap-color.fx-studio:not([data-theme="dark"]) .foot3__mark { color: #18181A; }
+html.ap-vfx.fx-studio .ap-veil { background: #111113; }
+
+/* ── PALETTES (PALETTE / PALETTE_PREVIEW in config/awardPass.ts) ──────────
+   Both palettes sit on a near-black ground whatever the theme toggle says.
+   Selectors carry :not(#pa):not(#pb) so they outrank every theme / award
+   rule without !important. 60 ground · 30 second colour · 10 accent.     */
+
+/* ·· LIME: midnight black / pure white / lime ································ */
+html[data-pal="lime"]:not(#pa):not(#pb) {
+  --os-bg: #0A0A0A; --os-bg-elevated: #121212; --os-bg-window: #141414; --os-bg-window-glass: rgba(20,20,20,.84);
+  --os-bg-surface: #1A1A1A; --os-bg-hover: #222222; --os-border: #272727; --os-border-subtle: #1B1B1B;
+  --os-text: #F5F5F2; --os-text-secondary: #BDBDB7; --os-text-muted: #8C8C86;
+  --os-accent: #C6F432; --os-accent-cyan: #B5E62A; --os-accent-orange: #C6F432; --os-accent-green: #7EDC9A; --os-on-accent: #0A0A0A;
+  --os-cta-bg: #F5F5F2; --os-cta-text: #0A0A0A;
+  --os-titlebar: #121212; --os-scrollbar: #2A2A2A; --os-scrollbar-hover: #C6F432;
+  --os-shadow: 0 30px 70px -30px rgba(0,0,0,.8), 0 2px 10px rgba(0,0,0,.4);
+  --os-shadow-accent: 0 0 0 1px rgba(198,244,50,.4), 0 24px 72px rgba(0,0,0,.6);
+  --fx-light: rgba(198,244,50,.075); --fx-floor: rgba(0,0,0,.5); --fx-grain: .05;
+  color-scheme: dark;
+}
+/* 30%: Awards and Contact turn pure white; actions there are black with lime. */
+html[data-pal="lime"]:not(#pa):not(#pb) :is(#section-achievements, #section-contact) {
+  --os-bg: #F5F5F2; --os-bg-elevated: #EBEBE6; --os-bg-window: #FFFFFF; --os-bg-surface: #ECECE7; --os-bg-hover: #E3E3DD;
+  --os-border: #DCDCD5; --os-border-subtle: #E7E7E1;
+  --os-text: #0A0A0A; --os-text-secondary: #3A3A36; --os-text-muted: #5F5F5A;
+  --os-accent: #4F6E00; --os-on-accent: #FFFFFF; --os-cta-bg: #0A0A0A; --os-cta-text: #C6F432;
+  background: var(--os-bg); color: var(--os-text); color-scheme: light;
+}
+html[data-pal="lime"]:not(#pa):not(#pb) #section-firewall { --os-bg: #0A0A0A; --os-bg-elevated: #121212; --os-bg-window: #141414; --os-bg-surface: #1A1A1A; --os-bg-hover: #222; --os-border: #272727; --os-border-subtle: #1B1B1B; --os-text: #F5F5F2; --os-text-secondary: #BDBDB7; --os-text-muted: #8C8C86; --os-accent: #C6F432; --os-cta-bg: #F5F5F2; --os-cta-text: #0A0A0A; background: var(--os-bg); }
+html[data-pal="lime"]:not(#pa):not(#pb) #section-achievements .ach3__card { border-color: var(--os-border); }
+/* The page ends black after the white contact; the name in white, lens lime. */
+html[data-pal="lime"]:not(#pa):not(#pb) .foot3 { --os-cta-bg: #0A0A0A; --os-cta-text: #F5F5F2; }
+html[data-pal="lime"]:not(#pa):not(#pb) .foot3__mark { color: #F5F5F2; }
+html[data-pal="lime"]:not(#pa):not(#pb) .foot3__lens { color: #C6F432; }
+
+/* ·· BLUE: midnight / electric blue / sunset orange ·························· */
+html[data-pal="blue"]:not(#pa):not(#pb) {
+  --os-bg: #07080C; --os-bg-elevated: #0E1018; --os-bg-window: #11131C; --os-bg-window-glass: rgba(17,19,28,.84);
+  --os-bg-surface: #161A26; --os-bg-hover: #1C2130; --os-border: #232838; --os-border-subtle: #171B27;
+  --os-text: #F1F3FA; --os-text-secondary: #B5BBCF; --os-text-muted: #858CA3;
+  --os-accent: #FF7A1A; --os-accent-cyan: #FF8A33; --os-accent-orange: #FF7A1A; --os-accent-green: #7EDC9A; --os-on-accent: #0A0A0A;
+  --os-cta-bg: #FF7A1A; --os-cta-text: #0A0A0A;
+  --os-titlebar: #0E1018; --os-scrollbar: #232838; --os-scrollbar-hover: #FF7A1A;
+  --os-shadow: 0 30px 70px -30px rgba(0,0,0,.85), 0 2px 10px rgba(0,0,0,.4);
+  --os-shadow-accent: 0 0 0 1px rgba(255,122,26,.4), 0 24px 72px rgba(0,0,0,.6);
+  --fx-light: rgba(46,80,255,.22); --fx-floor: rgba(0,0,0,.5); --fx-grain: .05;
+  color-scheme: dark;
+}
+/* 30%: Awards and Contact turn electric blue. */
+html[data-pal="blue"]:not(#pa):not(#pb) :is(#section-achievements, #section-contact) {
+  --os-bg: #2448FF; --os-bg-elevated: #2F52FF; --os-bg-window: #1B39E0; --os-bg-surface: #3557FF; --os-bg-hover: #4264FF;
+  --os-border: #5272FF; --os-border-subtle: #3958FF;
+  --os-text: #FFFFFF; --os-text-secondary: #E0E6FF; --os-text-muted: #BAC6FF;
+  --os-accent: #FFB067; --os-on-accent: #0A0A0A; --os-cta-bg: #07080C; --os-cta-text: #FFFFFF;
+  background: var(--os-bg); color: var(--os-text); color-scheme: dark;
+}
+html[data-pal="blue"]:not(#pa):not(#pb) #section-firewall { --os-bg: #07080C; --os-bg-elevated: #0E1018; --os-bg-window: #11131C; --os-bg-surface: #161A26; --os-bg-hover: #1C2130; --os-border: #232838; --os-border-subtle: #171B27; --os-text: #F1F3FA; --os-text-secondary: #B5BBCF; --os-text-muted: #858CA3; --os-accent: #FF7A1A; --os-cta-bg: #FF7A1A; --os-cta-text: #0A0A0A; background: var(--os-bg); }
+html[data-pal="blue"]:not(#pa):not(#pb) #section-achievements .ach3__card { border-color: var(--os-border); }
+html[data-pal="blue"]:not(#pa):not(#pb) .foot3 { --os-cta-bg: #07080C; --os-cta-text: #F1F3FA; }
+html[data-pal="blue"]:not(#pa):not(#pb) .foot3__mark { color: #F1F3FA; }
+html[data-pal="blue"]:not(#pa):not(#pb) .foot3__lens { color: #FF7A1A; }
+
+/* Both: the route veil and the footer seam follow the ground. */
+html[data-pal]:not(#pa):not(#pb) .ap-veil { background: var(--os-bg); }
+html[data-pal]:not(#pa):not(#pb) .foot3 { box-shadow: 0 -24px 60px -30px rgba(0,0,0,.6); }
+
+/* The preview switcher. */
+.pal-switch {
+  position: fixed; left: 16px; bottom: 16px; z-index: 1300; display: flex; align-items: center; gap: 4px; padding: 5px;
+  border-radius: 999px; background: rgba(18,18,20,.88); color: #F4F4F5; backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0,0,0,.3); font: 500 12px/1 var(--font-inter), system-ui, sans-serif;
+}
+.pal-switch__label { padding: 0 8px 0 10px; color: #A1A1AA; }
+.pal-switch button {
+  display: inline-flex; align-items: center; gap: 7px; padding: 7px 11px; border: 0; border-radius: 999px;
+  background: transparent; color: inherit; font: inherit; cursor: pointer; transition: background-color .15s ease;
+}
+.pal-switch button:hover { background: rgba(255,255,255,.08); }
+.pal-switch button[aria-pressed="true"] { background: #F4F4F5; color: #111; }
+.pal-switch button:focus-visible { outline: 2px solid #F4F4F5; outline-offset: 2px; }
+.pal-switch__sw { display: inline-flex; }
+.pal-switch__sw i { width: 10px; height: 10px; border-radius: 50%; margin-left: -3px; box-shadow: 0 0 0 1.5px rgba(18,18,20,.9); }
+.pal-switch__sw i:first-child { margin-left: 0; }
+@media (max-width: 640px) { .pal-switch__label { display: none; } .pal-switch { left: 8px; bottom: 8px; } }
+
+/* Radar rows: each headline also links to its original source. */
+.rsig__list li { display: flex; align-items: stretch; }
+.rsig__list li > .rsig__row { flex: 1; min-width: 0; }
+.rsig__src {
+  flex: none; display: grid; place-items: center; width: 44px; border-bottom: 1px solid var(--os-border);
+  color: var(--os-text-muted); transition: color .2s ease, background-color .2s ease;
+}
+.rsig__src svg { transition: transform .25s var(--ds-ease, ease); }
+.rsig__src:hover { color: var(--os-accent); background: var(--os-bg-window); }
+.rsig__src:hover svg { transform: translate(2px, -2px); }
+.rsig__src:focus-visible { outline: 2px solid var(--os-accent); outline-offset: -2px; }

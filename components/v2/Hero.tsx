@@ -15,6 +15,8 @@
 // Performance: no WebGL, no opacity-0 entrance (the h1 paints on frame one),
 // one priority image, audio is preload="none".
 
+import HeroNameFX from "./HeroNameFX";
+import { AWARD_VFX } from "@/config/awardPass";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { ArrowDown, ArrowRight, FileText, Pause, Play, Sparkles } from "lucide-react";
@@ -123,7 +125,7 @@ export default function Hero() {
     <section ref={sectionRef} id="section-hero" className={EDITORIAL_PORTRAIT ? "hero3 hero3--editorial" : "hero3"} aria-labelledby="hero-title">
       {/* Decorative name: drawn by CSS ::before from data-name, so it is not a
           text node (keeps it out of LCP and contrast audits; it's ornament). */}
-      <div className="hero3__backname" data-name={personal.shortName.toUpperCase()} aria-hidden />
+      <div className="hero3__backname" data-name={personal.shortName.toUpperCase()} aria-hidden>{AWARD_VFX && <HeroNameFX name={personal.shortName.toUpperCase()} />}</div>
 
       <div className="ds-container hero3__grid">
         {/* Left: who and what */}
@@ -205,7 +207,6 @@ export default function Hero() {
             onClick={toggle}
             className="hero3__voice"
             aria-pressed={playing}
-            aria-label={playing ? "Pause Sankalp's intro" : "Hear Sankalp's intro"}
           >
             <span className="hero3__voice-icon">{playing ? <Pause size={14} aria-hidden /> : <Play size={14} aria-hidden />}</span>
             <span className="hero3__voice-text">{playing ? "Speaking" : heard ? "Replay intro" : "Hear my intro"}</span>

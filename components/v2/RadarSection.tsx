@@ -22,6 +22,14 @@ import SectionShell from "./SectionShell";
 import RadarSignal from "./RadarSignal";
 import LogoMark from "./LogoMark";
 import { RADAR_VISUAL } from "@/config/premiumPass";
+import { FX_RADAR } from "@/config/awardPass";
+
+// FX_RADAR: an afterglow behind the beam (the sweep turns clockwise), 18
+// thin slices fading from the beam backwards, like phosphor on a real scope.
+const TRAIL = Array.from({ length: 18 }, (_, i) => {
+  const pt = (deg: number) => { const a = (deg * Math.PI) / 180; return `${(80 * Math.sin(a)).toFixed(2)} ${(-80 * Math.cos(a)).toFixed(2)}`; };
+  return { d: `M0 0 L${pt(-i * 4)} A80 80 0 0 0 ${pt(-(i + 1) * 4)} Z`, o: (0.3 * Math.pow(1 - i / 18, 2.2)).toFixed(3) };
+});
 
 interface Item {
   id: string;
@@ -141,7 +149,9 @@ export default function RadarSection() {
             <line x1="-80" y1="0" x2="80" y2="0" className="radar__axis" />
             <line x1="0" y1="-80" x2="0" y2="80" className="radar__axis" />
             <g className="radar__sweep" style={{ animationDuration: `${SWEEP_S}s` }}>
-              <path d="M0 0 L0 -80 A80 80 0 0 1 56.6 -56.6 Z" fill="url(#radar-sweep-g)" />
+              {FX_RADAR
+                ? TRAIL.map((t, i) => <path key={i} d={t.d} className="radar__trail" style={{ opacity: t.o }} />)
+                : <path d="M0 0 L0 -80 A80 80 0 0 1 56.6 -56.6 Z" fill="url(#radar-sweep-g)" />}
               <line x1="0" y1="0" x2="0" y2="-80" className="radar__beam" />
             </g>
             {radarWatchlist.map((e) => {

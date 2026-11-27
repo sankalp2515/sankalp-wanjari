@@ -6,6 +6,8 @@
 import { ArrowUp, ArrowUpRight } from "lucide-react";
 import { personal, social, projects, flagshipIds } from "@/config/portfolio";
 import { CONTACT_BRIEF } from "@/config/premiumPass";
+import { FX_LENS } from "@/config/awardPass";
+import FootLens from "./fx/FootLens";
 
 const NAV = [
   ["Decisions", "#section-decisions"],
@@ -71,6 +73,7 @@ export default function Footer() {
 
       <p className="foot3__mark" aria-hidden>
         {letters.map((l, i) => <span key={i} style={{ ["--i" as string]: i }}>{l}</span>)}
+        {FX_LENS && <FootLens letters={letters} />}
       </p>
 
       <div className="ds-container foot3__bar">

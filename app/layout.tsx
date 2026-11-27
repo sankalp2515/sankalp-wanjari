@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Inter, Inter_Tight } from "next/font/google";
+import { JetBrains_Mono, Inter, Inter_Tight, Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
+import { AWARD_TYPE, AWARD_MOTION, FX_TYPE, PALETTE, PALETTE_PREVIEW, awardClasses } from "@/config/awardPass";
 import "./globals.css";
 import { MOBILE_TUNING } from "@/config/mobileTuning";
 import { personal, social, projects } from "@/config/portfolio";
@@ -22,10 +23,24 @@ const interTight = Inter_Tight({
   display: "swap",
 });
 
+// AWARD_TYPE (config/awardPass.ts): the replacement stack. It loads under its
+// own variable names and html.ap-type points --font-display / --font-inter /
+// --font-mono at it, so switching the flag off restores the old fonts.
+// FX_TYPE needs the variable file (wght + wdth axes) for the scroll morph.
+// next/font only takes literals: when FX_TYPE is off, swap the two preloads.
+const apDisplayStatic = Bricolage_Grotesque({ variable: "--font-ap-display", subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], display: "swap", preload: false });
+const apDisplayVar = Bricolage_Grotesque({ variable: "--font-ap-display", subsets: ["latin"], axes: ["wdth"], display: "swap", preload: true });
+const apDisplay = FX_TYPE ? apDisplayVar : apDisplayStatic;
+const apBody = Geist({ variable: "--font-ap-body", subsets: ["latin"], display: "swap" });
+const apMono = Geist_Mono({ variable: "--font-ap-mono", subsets: ["latin"], weight: ["400", "500"], display: "swap" });
+const fontVars = AWARD_TYPE
+  ? `${apDisplay.variable} ${apBody.variable} ${apMono.variable}`
+  : `${inter.variable} ${jetbrainsMono.variable} ${interTight.variable}`;
+
 // Runs before first paint so a saved dark preference never flashes light.
 // Also stamps the mobile-tuning class BEFORE first layout: adding a class to
 // <html> after hydration re-styles and re-lays-out the whole (very long) page.
-const THEME_BOOT = `try{var t=localStorage.getItem("portfolio-theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}${MOBILE_TUNING ? 'document.documentElement.classList.add("mobile-tuned");' : ""}`;
+const THEME_BOOT = `try{var t=localStorage.getItem("portfolio-theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}${MOBILE_TUNING ? 'document.documentElement.classList.add("mobile-tuned");' : ""}${AWARD_MOTION ? 'try{if(!sessionStorage.getItem("ap-intro")){document.documentElement.classList.add("ap-first");sessionStorage.setItem("ap-intro","1")}}catch(e){}' : ""}${PALETTE_PREVIEW ? `try{var q=new URLSearchParams(location.search).get("pal");if(q!==null)localStorage.setItem("pal",q);var p=localStorage.getItem("pal");if(p===null)p=${JSON.stringify(PALETTE)};if(p==="lime"||p==="blue")document.documentElement.setAttribute("data-pal",p)}catch(e){}` : ""}`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(social.website),
@@ -77,7 +92,7 @@ function jsonLd() {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="light" suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable} ${interTight.variable}`}>
+    <html lang="en" data-theme="light" {...(!PALETTE_PREVIEW && PALETTE ? { "data-pal": PALETTE } : {})} suppressHydrationWarning className={`${fontVars} ${awardClasses}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
         <meta name="theme-color" content="#F4F2EE" media="(prefers-color-scheme: light)" />

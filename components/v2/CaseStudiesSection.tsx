@@ -44,7 +44,7 @@ function CaseSpread({ c, i, onOpen }: { c: CaseStudy; i: number; onOpen: () => v
   const text = firstSentence(PATH[step][1](c));
   return (
     <li className={`csx__item ${i % 2 ? "csx__item--flip" : ""}`}>
-      <button type="button" className="csx__visual" onClick={onOpen} aria-label={`Read the ${c.title} case study`}>
+      <div className="csx__visual" onClick={onOpen} aria-hidden>
         {c.cover ? (
           <Image src={c.cover} alt="" fill sizes="(max-width: 900px) 100vw, 560px" className="csx__img" />
         ) : (
@@ -54,7 +54,7 @@ function CaseSpread({ c, i, onOpen }: { c: CaseStudy; i: number; onOpen: () => v
           </span>
         )}
         <span className="csx__no" aria-hidden>{String(i + 1).padStart(2, "0")}</span>
-      </button>
+      </div>
 
       <div className="csx__text">
         <p className="csx__meta"><span className="ds-label">Case {String(i + 1).padStart(2, "0")}</span>{c.company ? `${c.company} · ` : ""}{c.year}</p>

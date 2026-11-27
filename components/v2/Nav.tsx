@@ -101,7 +101,6 @@ export default function Nav({ variant = "a" }: { variant?: "a" | "b" }) {
           {/* Identity */}
           <a
             href="#section-hero"
-            aria-label={`${personal.name}, back to top`}
             onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}
             className="font-display font-bold text-[14px] tracking-tight flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0"
             style={{ color: "var(--os-text)" }}
@@ -109,11 +108,11 @@ export default function Nav({ variant = "a" }: { variant?: "a" | "b" }) {
             <span
               className="grid place-items-center w-9 h-9 rounded-full text-[11px] font-mono border"
               style={{ borderColor: "var(--os-border)", color: "var(--os-text)", background: "var(--os-bg-window)" }}
-              aria-hidden
             >
               {personal.initials}
             </span>
             <span className="hidden lg:inline">{personal.name.replace(" Kailash", "")}</span>
+            <span className="sr-only">, back to top</span>
           </a>
 
           {/* Section links — desktop */}

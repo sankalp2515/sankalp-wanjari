@@ -52,6 +52,10 @@ import SmoothCursor from "./SmoothCursor";
 import ResumeModal from "./ResumeModal";
 import Magnetic from "./Magnetic";
 const FilmLanding = dynamic(() => import("./FilmLanding"));
+// Round-3 pointer effects (config/awardPass.ts: FX_FIELD, FX_DISTORT).
+import { FX_FIELD, FX_DISTORT, PALETTE_PREVIEW } from "@/config/awardPass";
+const PaletteSwitch = dynamic(() => import("./fx/PaletteSwitch"), { ssr: false });
+const FxLayer = dynamic(() => import("./fx/FxLayer"), { ssr: false });
 import { helios } from "@/lib/voice";
 
 const VALID_PERSONAS = ["recruiter", "cto", "developer", "explorer"];
@@ -227,6 +231,8 @@ function LandingInner({ variant, story }: { variant: "a" | "b"; story: React.Rea
       )}
 
       <SmoothCursor />
+      {variant === "a" && (FX_FIELD || FX_DISTORT) && <FxLayer />}
+      {PALETTE_PREVIEW && <PaletteSwitch />}
       {/* Feedback is a Variant-A feature — Variant B is intentionally untouched */}
       {/* Feedback pill is hidden in graph mode — the graph overlay owns the frame */}
       {overlays && variant === "a" && !graphOpen && !CLUTTER_OFF && <FeedbackWidget />}

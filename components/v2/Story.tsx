@@ -28,6 +28,8 @@ import Footer from "./Footer";
 import RecordSection from "./RecordSection";
 import { MERGE_RECORD, MARQUEE_BACK, CONTACT_LETTER, ABOUT_STORY, CONTACT_BRIEF } from "@/config/premiumPass";
 import AboutStory from "./AboutStory";
+import FirewallPlayground from "./FirewallPlayground";
+import { AWARD_FIREWALL } from "@/config/awardPass";
 import ContactBrief from "./ContactBrief";
 import ContactLetter from "./ContactLetter";
 import LogoMarquee from "./LogoMarquee";
@@ -42,6 +44,7 @@ export default function Story() {
       <S><ProofStrip /></S>
       <S><DecisionsSection /></S>
       <S><ProjectsSection /></S>
+      {AWARD_FIREWALL && <S><FirewallPlayground /></S>}
       <S><CaseStudiesSection /></S>
       <S><RadarSection /></S>
       <S><AchievementsSection /></S>
