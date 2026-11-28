@@ -58,12 +58,12 @@ My teammates know me as a problem solver who enjoys simplifying complexity and a
   // public/voice/hero-intro.mp3 and served as a static file — zero credits per
   // visit. Changing this text and re-running the script re-records it.
   heroIntro:
-    "Hide one sentence inside an email, and an AI agent might just obey it. I'm Sankalp. I decide what AI must refuse, and then I build it. Scroll down. There's a live firewall on this page. Try to break it.",
+    "Hi, I'm Sankalp. I build AI products, and I start with one question: what should this refuse to do? At FIS, I spent three years turning manual banking work into software, and one pipeline cut data entry by ninety percent. Now I build guardrails for AI agents, like IntentSeal. Everything below shows the decision I made, and what it cost.",
   // The same intro split into the three spoken lines of the talking clip.
   heroIntroLines: [
-    "Hide one sentence inside an email, and an AI agent might just obey it.",
-    "I'm Sankalp. I decide what AI must refuse, and then I build it.",
-    "Scroll down. There's a live firewall on this page. Try to break it.",
+    "Hi, I'm Sankalp. I build AI products, and I start with one question: what should this refuse to do?",
+    "At FIS, I spent three years turning manual banking work into software, and one pipeline cut data entry by ninety percent.",
+    "Now I build guardrails for AI agents, like IntentSeal. Everything below shows the decision I made, and what it cost.",
   ],
   // Talking-avatar video (illustrated likeness lip-synced to heroIntro).
   // Leave empty until the asset exists; the hero then shows the portrait.
@@ -88,8 +88,9 @@ My teammates know me as a problem solver who enjoys simplifying complexity and a
   avatarTalk: "/avatar/talk-540.webm",
   // Caption timing measured from the clip (Groq Whisper): one [start, end]
   // window in seconds per line of heroIntroLines; words spread evenly inside.
-  // Nov 28 2026: new curiosity-led script, three Flow takes joined (18.8 s).
-  avatarTalkCues: [[0.6, 6.1], [6.4, 12.2], [12.3, 17.3]] as [number, number][],
+  // Nov 28 2026 (v3): hook / present / past / bridge, one continuous take
+  // (three Flow segments chained frame-to-frame, natural hand gestures, 24.1 s).
+  avatarTalkCues: [[0.58, 7.6], [7.7, 15.4], [15.5, 22.9]] as [number, number][],
   avatarPoster: "",
 
   stats: [

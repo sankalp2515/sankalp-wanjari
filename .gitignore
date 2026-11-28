@@ -60,3 +60,4 @@ output/
 # Avatar source/intermediate videos (Google Flow downloads, background-removal output)
 /motion/*.mp4
 /motion/*.webm
+.review/

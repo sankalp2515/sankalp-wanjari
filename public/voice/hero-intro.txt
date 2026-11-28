@@ -1,1 +1,1 @@
-Hide one sentence inside an email, and an AI agent might just obey it. I'm Sankalp. I decide what AI must refuse, and then I build it. Scroll down. There's a live firewall on this page. Try to break it.
+Hi, I'm Sankalp. I build AI products, and I start with one question: what should this refuse to do? At FIS, I spent three years turning manual banking work into software, and one pipeline cut data entry by ninety percent. Now I build guardrails for AI agents, like IntentSeal. Everything below shows the decision I made, and what it cost.
